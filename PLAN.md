@@ -166,7 +166,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ## Open questions for the owner
 
 - Should the between-innings playlist work offline? That would mean storing whole songs on the phone, several MB each, on top of the clips. Ask before phase 6.
-- What name goes on the MIT licence?
+- ~~What name goes on the MIT licence?~~ Answered: `yesterdayforgotten` (owner's GitHub username). Also used as the git author name.
 
 ## Status
 
@@ -180,7 +180,7 @@ Done in phase 1:
 - Sign-in: random session token in an httpOnly cookie, stored hashed in `sessions`. Cookie lasts 400 days (browser maximum) and is renewed daily on use, so phones stay signed in until sign-out.
 - Admin "Users" screen: add user, change role (can't remove the last admin), reset password. Admins change their own password the same way.
 - Protections: login lockout after 10 failures per address for 15 minutes; mutating API calls must be JSON (blocks cross-site forgery).
-- Resetting a password does not sign out that user's existing phones.
+- Resetting a password does not sign out that user's existing phones (owner approved).
 
 Checked so far:
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.

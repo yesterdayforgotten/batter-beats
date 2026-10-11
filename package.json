@@ -8,7 +8,7 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "author": "",
+  "author": "yesterdayforgotten",
   "license": "MIT",
   "private": true,
   "type": "module",
