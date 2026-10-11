@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 import { hasRole, useAuth } from "../auth.tsx";
 import { ROLE_LABELS } from "../../shared/types.ts";
 
+/** Frame for the top-level screens (rosters, users). */
 export function Layout() {
   const { user, signOut } = useAuth();
 
@@ -22,12 +23,19 @@ export function Layout() {
           </button>
         </nav>
       </header>
-      <div className="whoami muted">
-        Signed in as <strong>{user!.username}</strong> · {ROLE_LABELS[user!.role]}
-      </div>
-      <main className="content">
-        <Outlet />
-      </main>
+      <Outlet />
+      <footer className="faint small" style={{ marginTop: 28, textAlign: "center" }}>
+        {user!.username} · {ROLE_LABELS[user!.role]}
+      </footer>
+    </div>
+  );
+}
+
+/** Frame for inner screens, which bring their own header with a back button. */
+export function Plain() {
+  return (
+    <div className="app">
+      <Outlet />
     </div>
   );
 }

@@ -1,8 +1,11 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { hasRole, useAuth } from "./auth.tsx";
-import { Layout } from "./components/Layout.tsx";
+import { Layout, Plain } from "./components/Layout.tsx";
 import { SignInPage } from "./pages/SignInPage.tsx";
 import { RostersPage } from "./pages/RostersPage.tsx";
+import { RosterPage } from "./pages/RosterPage.tsx";
+import { RosterEditPage } from "./pages/RosterEditPage.tsx";
+import { PlayerEditPage } from "./pages/PlayerEditPage.tsx";
 import { UsersPage } from "./pages/UsersPage.tsx";
 
 export function App() {
@@ -12,13 +15,19 @@ export function App() {
   if (error && !user) return <div className="center-screen">{error}</div>;
   if (!user) return <SignInPage />;
 
+  const editor = hasRole(user, "editor");
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<RostersPage />} />
         {hasRole(user, "admin") && <Route path="admin/users" element={<UsersPage />} />}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+      <Route element={<Plain />}>
+        <Route path="rosters/:id" element={<RosterPage />} />
+        {editor && <Route path="rosters/:id/edit" element={<RosterEditPage />} />}
+        {editor && <Route path="players/:id" element={<PlayerEditPage />} />}
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

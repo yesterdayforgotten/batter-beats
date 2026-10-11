@@ -102,7 +102,8 @@ The app opens on the roster list. One tap from there is game mode. Setup lives o
 
 **Gain.** The owner uses MP3Gain today and wants the same lossless method: rewriting the gain value stored in each MP3 frame. Notes:
 - The frame gain can only move in fixed steps of 1.5 dB (verified 2026-10-11 with `mp3gain` in this container: one step = exactly 1.5 dB; MP3Gain's decimal "target" values are rounded to these steps).
-- **Agreed 2026-10-11 (owner chose "option 1"):** the gain control is a − / + stepper that moves **0.5 dB per tap**. The server writes the largest 1.5 dB multiple at or below the setting into the clip losslessly; the phone applies the remainder (0, 0.5 or 1.0 dB; negative settings round the other way) as a Web Audio gain at playback. Preview and game mode use the same split. Example: +5.0 dB = +4.5 dB in the file + 0.5 dB on the phone.
+- **Agreed 2026-10-11 (owner chose "option 1"):** the gain control is a − / + stepper that moves **0.5 dB per tap**. The server writes the largest 1.5 dB multiple at or below the setting into the clip losslessly; the phone applies the remainder (0, 0.5 or 1.0 dB) as a Web Audio gain at playback. Preview and game mode use the same split. Example: +5.0 dB = +4.5 dB in the file + 0.5 dB on the phone.
+- The file part is always the largest 1.5 dB multiple at or below the setting (floor), so the phone's remainder is always 0, +0.5 or +1.0 dB.
 - Gain belongs to the clip, not the song. Measure the loudest peak of the clip only, and stop the + button at the largest total boost (in 0.5 dB steps) that does not clip. A quiet section may therefore go louder than the whole song could.
 - Apply gain to the cut clip file, never to the original.
 
@@ -172,20 +173,34 @@ These were not verified during planning. Test each one and tell the owner what y
 
 ## Status
 
-**Phase 1 (server foundation): built, waiting for the owner to test on phones.**
+**Phase 1 (server foundation): built.** Owner has not yet reported phone test results.
+**Phase 2 (rosters and players): built, waiting for the owner to test on phones.**
 
-Done in phase 1:
-- Stack: Express 5 + better-sqlite3 server (`server/`), React 19 + Vite client (`src/`), shared types in `shared/`. Run with `npm run dev`: one process on port 8090 serves the API and the screens, with hot reload (Vite in middleware mode, HMR on the same server).
+### Phase 1 notes
+- Stack: Express 5 + better-sqlite3 server (`server/`), React 19 + Vite client (`src/`), shared types in `shared/`. `npm run dev` runs one process on port 8090 serving the API and the screens with hot reload (Vite in middleware mode, HMR on the same server).
 - Build target `safari15` in `vite.config.ts`.
 - Database in `DATA_DIR` (default `./data`, git-ignored). Schema changes go in the `migrations` list in `server/db.ts`.
-- Users with roles user / editor / admin. Passwords hashed with Node's built-in scrypt. First admin created on first start from `ADMIN_USERNAME`/`ADMIN_PASSWORD`, or a random password printed to the log.
-- Sign-in: random session token in an httpOnly cookie, stored hashed in `sessions`. Cookie lasts 400 days (browser maximum) and is renewed daily on use, so phones stay signed in until sign-out.
-- Admin "Users" screen: add user, change role (can't remove the last admin), reset password. Admins change their own password the same way.
-- Protections: login lockout after 10 failures per address for 15 minutes; mutating API calls must be JSON (blocks cross-site forgery).
-- Resetting a password does not sign out that user's existing phones (owner approved).
+- Users with roles user / editor / admin; passwords hashed with Node's scrypt. First admin from `ADMIN_USERNAME`/`ADMIN_PASSWORD`, or a random password printed to the log.
+- Sign-in: random session token in an httpOnly cookie, stored hashed. 400-day cookie renewed daily on use.
+- Admin "Users" screen: add user, change role (can't remove the last admin), reset password (does not sign out existing phones; owner approved).
+- Protections: login lockout after 10 failures per address for 15 minutes; mutating API calls must be JSON, or multipart with the `X-Batter-Beats: 1` header (cross-site forgery).
 
-Checked so far:
+### Phase 2 notes
+- Floodlight style everywhere (`src/styles.css`); fonts bundled from @fontsource (latin subsets) so they will work offline.
+- Tables: `songs` (shared library), `rosters`, `players` (with `lineup_position`, `available` ready for phase 3), `player_songs` (position 0 only for now; holds clip settings and what is baked into the clip file).
+- Data folder layout: `songs/<id>.mp3` (originals, never modified), `peaks/<id>.json` (waveform, 20 points/s), `clips/<playerSongId>-<version>.mp3` (cut clips; new name on every re-cut so phones can cache forever), `tmp/`.
+- Cutting (`server/mp3.ts`): our own MP3 frame scanner copies whole frames; no ffmpeg re-encode. **Checked:** a frame-boundary cut with no lead-in glitches for the first ~100 ms (bit reservoir); with ≥2 lead-in frames the played audio is sample-identical to the original. We copy 4 lead-in frames and store `clip_offset_ms`; the phone starts playback there, with a 15 ms fade-in against clicks.
+- Gain (`server/library.ts`): peak of the played part measured with ffmpeg; max gain = headroom floored to 0.5 dB; file part applied with `mp3gain -g <steps> -c -q -s s` on the cut clip. Verified a −3.0 dB setting measured exactly −3.0 dB.
+- Known small offset: cut clips have no LAME header, so a browser may play them ~25 ms later than the waveform suggests. Not audible for walkups; preview and game mode use the same file.
+- Player editor autosaves every change (no Save button; shows "Saving… / Saved ✓"). Mockup had a Save button; changed to remove a tap. Tell the owner.
+- Audio engine (`src/audio/engine.ts`) shared by preview and (later) game mode: source → low-shelf 150 Hz → high-shelf 3.5 kHz → level (volume × remainder gain) → envelope (fade in/out). Tap again fades out over the clip's fade length (0.3–5 s).
+- iPhone silent switch: engine loops a silent `<audio>` element on iOS and sets `navigator.audioSession.type = "playback"` where available, so the switch should not mute playback. **Not yet verified on a real iPhone.**
+- Announcer fields (pronunciation, timing, on/off) are not built yet: phase 5.
+- Roster screen (`/rosters/:id`) is a read-only lineup until game mode in phase 3.
+
+### Dev environment notes
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.
-- No browser is installed in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
+- No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
+- Background processes in this environment stop after 2 hours, so the dev server must be restarted for longer phone testing. A permanent fix is to have the Portainer stack run `npm run dev`.
 
-Next: owner tests phase 1 on iPhone 6s, newer iPhone and Android, then phase 2.
+Next: owner tests phases 1 and 2 on phones, then phase 3 (game mode).

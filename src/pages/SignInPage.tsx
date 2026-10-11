@@ -24,7 +24,7 @@ export function SignInPage() {
   return (
     <div className="center-screen">
       <form className="card signin" onSubmit={handleSubmit}>
-        <h1>Batter Beats</h1>
+        <h1 className="big-title">Batter Beats</h1>
         <label>
           Username
           <input

@@ -26,10 +26,10 @@ export function UsersPage() {
 
   return (
     <section>
-      <h2>Users</h2>
+      <h1 className="big-title">Users</h1>
       <AddUserForm onAdded={(u) => setUsers((list) => [...list, u].sort(byName))} />
       {error && <p className="error">{error}</p>}
-      <ul className="user-list">
+      <ul className="list" style={{ marginTop: 12 }}>
         {users.map((u) => (
           <li key={u.id} className="card user-row">
             <div className="user-name">
