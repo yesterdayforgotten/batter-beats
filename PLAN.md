@@ -49,7 +49,7 @@ The code will be public on GitHub under the MIT licence, in a repo named `batter
 | Sound effects | None |
 | Backup | The server is the master copy. Admins can download everything as one file and restore from it. No cloud backup. |
 | Offline | Only game mode works offline. All editing needs a connection. |
-| Visual style | Agreed 2026-10-11 from mockups: "Floodlight". Near-black background (#08090b, cards #15171c / #1d2027), one electric-blue accent (#3d9bff; dark text #00142b on blue fills), Big Shoulders Display for big numbers and headings, Manrope for body text. Lineup is a full-width list; playing batter is a solid blue row labelled "At bat · tap to fade" with small moving sound bars; next batter has a blue outline and an "On deck" tag; unavailable players sit under "Bench today". Mockups: the owner's private "Batter Beats UI ideas" design canvas. |
+| Visual style | Agreed 2026-10-11 from mockups: "Floodlight". Near-black background (#08090b, cards #15171c / #1d2027), one electric-blue accent (#3d9bff; dark text #00142b on blue fills), Big Shoulders Display for big numbers and headings, Manrope for body text. Lineup is a full-width list; playing batter is a solid blue row labelled "At bat · tap to fade" with small moving sound bars; next batter has a blue outline and an "On deck" tag; unavailable players sit under "Bench today". Player editor is compact: one line per sound control (gain stepper, volume, fade-out, bass, treble sliders). Mockups: the owner's private "Batter Beats UI ideas" design canvas, page "Fresh dark ideas", look D. |
 
 ### Roles
 
@@ -86,8 +86,8 @@ The app opens on the roster list. One tap from there is game mode. Setup lives o
 - A "say it like this" spelling used only by the announcer, with a listen button that plays the result straight away. The name shown on the lineup never changes.
 - Song: upload an MP3 or reuse one from the library.
 - Clip: a waveform with draggable start and end handles, fade-out length, volume, and a preview button. The preview must sound exactly like game mode, including every setting below.
-- Gain: a slider that boosts or cuts the clip losslessly (details under "Audio"). Manual only. No automatic levelling anywhere.
-- Tone: bass and treble knobs, heard live in the preview.
+- Gain: a − / + stepper, 0.5 dB per tap (details under "Audio"). Manual only. No automatic levelling anywhere.
+- Tone: bass and treble sliders (owner prefers sliders to knobs), heard live in the preview.
 - Announcer timing: how long after the voice starts the song comes in.
 
 **Between-innings playlist**
@@ -101,8 +101,9 @@ The app opens on the roster list. One tap from there is game mode. Setup lives o
 **Cutting clips.** The server cuts each clip from the original MP3 at MP3 frame boundaries and copies the frames unchanged (for example `ffmpeg -c copy`). The original upload is never modified, so clips can always be re-cut. When the start or length changes, re-cut and re-apply the gain.
 
 **Gain.** The owner uses MP3Gain today and wants the same lossless method: rewriting the gain value stored in each MP3 frame. Notes:
-- This method moves in fixed steps of 1.5 dB, so the slider should step in 1.5 dB.
-- Gain belongs to the clip, not the song. Measure the loudest peak of the clip only, and stop the slider at the largest boost that does not clip. A quiet section may therefore go louder than the whole song could.
+- The frame gain can only move in fixed steps of 1.5 dB (verified 2026-10-11 with `mp3gain` in this container: one step = exactly 1.5 dB; MP3Gain's decimal "target" values are rounded to these steps).
+- **Agreed 2026-10-11 (owner chose "option 1"):** the gain control is a − / + stepper that moves **0.5 dB per tap**. The server writes the largest 1.5 dB multiple at or below the setting into the clip losslessly; the phone applies the remainder (0, 0.5 or 1.0 dB; negative settings round the other way) as a Web Audio gain at playback. Preview and game mode use the same split. Example: +5.0 dB = +4.5 dB in the file + 0.5 dB on the phone.
+- Gain belongs to the clip, not the song. Measure the loudest peak of the clip only, and stop the + button at the largest total boost (in 0.5 dB steps) that does not clip. A quiet section may therefore go louder than the whole song could.
 - Apply gain to the cut clip file, never to the original.
 
 **Playback on the phone.** Use the Web Audio API. Fade-out and volume are gain ramps; bass and treble are low-shelf and high-shelf filters. Prepare the audio when a roster opens so a tap plays instantly. Audio must start from a user tap on iPhone.
