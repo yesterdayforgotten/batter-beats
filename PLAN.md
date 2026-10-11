@@ -49,6 +49,7 @@ The code will be public on GitHub under the MIT licence, in a repo named `batter
 | Sound effects | None |
 | Backup | The server is the master copy. Admins can download everything as one file and restore from it. No cloud backup. |
 | Offline | Only game mode works offline. All editing needs a connection. |
+| Visual style | Agreed 2026-10-11 from mockups: "Floodlight". Near-black background (#08090b, cards #15171c / #1d2027), one electric-blue accent (#3d9bff; dark text #00142b on blue fills), Big Shoulders Display for big numbers and headings, Manrope for body text. Lineup is a full-width list; playing batter is a solid blue row labelled "At bat · tap to fade" with small moving sound bars; next batter has a blue outline and an "On deck" tag; unavailable players sit under "Bench today". Mockups: the owner's private "Batter Beats UI ideas" design canvas. |
 
 ### Roles
 
