@@ -1,0 +1,47 @@
+import fs from "node:fs";
+import { Router } from "express";
+import multer from "multer";
+import { requireRole } from "../auth.ts";
+import { addSong, getSong, listSongs } from "../library.ts";
+import { clipPath, dirs, peaksPath } from "../storage.ts";
+
+export const songsRouter = Router();
+songsRouter.use(requireRole("user"));
+
+const upload = multer({
+  dest: dirs.tmp,
+  limits: { fileSize: 60 * 1024 * 1024, files: 1 },
+});
+
+songsRouter.get("/songs", (_req, res) => {
+  res.json({ songs: listSongs() });
+});
+
+songsRouter.post("/songs", requireRole("editor"), upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Choose an MP3 file to upload." });
+  try {
+    const song = await addSong(req.file.path, req.file.originalname, req.user!.id);
+    res.status(201).json({ song });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message.includes("MP3") ? (err as Error).message : "That file isn't an MP3 we can use." });
+  }
+});
+
+songsRouter.get("/songs/:id/peaks", (req, res) => {
+  const song = getSong(Number(req.params.id));
+  if (!song) return res.status(404).json({ error: "Song not found." });
+  res.type("application/json").set("Cache-Control", "private, max-age=31536000, immutable");
+  fs.createReadStream(peaksPath(song.id)).on("error", () => res.status(404).end()).pipe(res);
+});
+
+// Clip files never change once written (each re-cut gets a new name), so
+// phones may keep them forever.
+songsRouter.get("/media/clips/:file", (req, res) => {
+  const file = String(req.params.file);
+  if (!/^\d+-\d+\.mp3$/.test(file)) return res.status(404).end();
+  res.sendFile(clipPath(file), {
+    headers: { "Content-Type": "audio/mpeg", "Cache-Control": "private, max-age=31536000, immutable" },
+  }, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
