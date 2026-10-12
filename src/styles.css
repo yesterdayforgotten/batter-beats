@@ -650,6 +650,7 @@ label {
 }
 
 /* Small "more" button at the end of a row; the whole row height stays tappable. */
+.kebab,
 .list-item > .kebab {
   flex: none;
   min-height: 0;
@@ -663,6 +664,7 @@ label {
   border-radius: 12px;
   color: var(--faint);
 }
+.kebab:active,
 .list-item > .kebab:active {
   background: var(--raised);
   color: var(--text);
@@ -706,4 +708,127 @@ label {
   gap: 12px;
   padding: 12px 8px 12px 14px;
   min-height: 64px;
+}
+
+/* Game mode */
+.lineup {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bat-row {
+  width: 100%;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px 10px 10px;
+  border-radius: 18px;
+  border: 2px solid transparent;
+  background: var(--card);
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.bat-row:active {
+  background: var(--raised);
+}
+.bat-number {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 44px;
+  line-height: 1;
+  width: 64px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.bat-name {
+  font-size: 21px;
+  font-weight: 800;
+}
+.bat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.bat-row.on-deck {
+  border-color: var(--accent);
+}
+.on-deck-tag {
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex-shrink: 0;
+}
+.bat-row.at-bat,
+.bat-row.at-bat:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.bench .jersey,
+.bench .player-name {
+  color: var(--faint);
+}
+.small-button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* On/off switch */
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.switch-track {
+  width: 42px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--line);
+  position: relative;
+  transition: background 150ms;
+  flex-shrink: 0;
+}
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 150ms;
+}
+.switch.on {
+  color: var(--accent);
+}
+.switch.on .switch-track {
+  background: var(--accent);
+}
+.switch.on .switch-knob {
+  transform: translateX(16px);
+  background: var(--accent-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-knob,
+  .eq span {
+    transition: none;
+    animation: none;
+  }
+}
+.page-head .kebab {
+  height: 44px;
 }

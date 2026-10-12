@@ -3,7 +3,7 @@ import { hasRole, useAuth } from "./auth.tsx";
 import { Layout, Plain } from "./components/Layout.tsx";
 import { SignInPage } from "./pages/SignInPage.tsx";
 import { RostersPage } from "./pages/RostersPage.tsx";
-import { RosterPage } from "./pages/RosterPage.tsx";
+import { GamePage } from "./pages/GamePage.tsx";
 import { RosterEditPage } from "./pages/RosterEditPage.tsx";
 import { PlayerEditPage } from "./pages/PlayerEditPage.tsx";
 import { UsersPage } from "./pages/UsersPage.tsx";
@@ -23,7 +23,7 @@ export function App() {
         {hasRole(user, "admin") && <Route path="admin/users" element={<UsersPage />} />}
       </Route>
       <Route element={<Plain />}>
-        <Route path="rosters/:id" element={<RosterPage />} />
+        <Route path="rosters/:id" element={<GamePage />} />
         {editor && <Route path="rosters/:id/edit" element={<RosterEditPage />} />}
         {editor && <Route path="players/:id" element={<PlayerEditPage />} />}
       </Route>

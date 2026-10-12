@@ -137,6 +137,15 @@ rostersRouter.patch("/players/:id", editor, (req, res) => {
   res.json({ player: getPlayer(player.id) });
 });
 
+// Sitting a player out for today's game is part of running a game, so any signed-in user can do it.
+rostersRouter.put("/players/:id/available", (req, res) => {
+  const player = getPlayer(Number(req.params.id));
+  if (!player) return res.status(404).json({ error: "Player not found." });
+  db.prepare("UPDATE players SET available = ? WHERE id = ?").run(req.body?.available ? 1 : 0, player.id);
+  touchRoster(player.rosterId);
+  res.json({ player: getPlayer(player.id) });
+});
+
 rostersRouter.delete("/players/:id", editor, (req, res) => {
   const player = getPlayer(Number(req.params.id));
   if (!player) return res.status(404).json({ error: "Player not found." });

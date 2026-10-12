@@ -86,20 +86,41 @@ export function unlockAudio() {
   }
 }
 
-const buffers = new Map<string, Promise<AudioBuffer>>();
+// A decoded 30-second clip takes about 10 MB, too much to keep a whole roster
+// decoded on an older iPhone. So every clip's file is kept (about 1 MB each),
+// and only the last few used are kept decoded, ready to play instantly.
+const MAX_DECODED = 4;
+const files = new Map<string, Promise<ArrayBuffer>>();
+const decoded = new Map<string, Promise<AudioBuffer>>(); // oldest first
 
-/** Downloads and decodes a clip once; later calls reuse the result. */
-export function loadClip(url: string): Promise<AudioBuffer> {
-  let p = buffers.get(url);
+/** Downloads a clip file once and keeps it, without decoding it. */
+export function fetchClip(url: string): Promise<ArrayBuffer> {
+  let p = files.get(url);
   if (!p) {
-    p = fetch(url, { credentials: "same-origin" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`Couldn't load the clip (${r.status}).`);
-        return r.arrayBuffer();
-      })
-      .then((data) => context().decodeAudioData(data));
-    p.catch(() => buffers.delete(url));
-    buffers.set(url, p);
+    p = fetch(url, { credentials: "same-origin" }).then((r) => {
+      if (!r.ok) throw new Error(`Couldn't load the clip (${r.status}).`);
+      return r.arrayBuffer();
+    });
+    p.catch(() => files.delete(url));
+    files.set(url, p);
+  }
+  return p;
+}
+
+/** Returns a clip ready to play, decoding it if it isn't already. */
+export function loadClip(url: string): Promise<AudioBuffer> {
+  let p = decoded.get(url);
+  if (p) {
+    decoded.delete(url); // move to the newest end
+  } else {
+    // decodeAudioData empties the buffer it is given, so it gets a copy.
+    p = fetchClip(url).then((data) => context().decodeAudioData(data.slice(0)));
+    p.catch(() => decoded.delete(url));
+  }
+  decoded.set(url, p);
+  for (const key of decoded.keys()) {
+    if (decoded.size <= MAX_DECODED) break;
+    decoded.delete(key);
   }
   return p;
 }
@@ -184,12 +205,16 @@ export class Playback {
     set(this.treble.gain, s.trebleDb);
   }
 
-  /** Fades out over the clip's fade length, then stops. */
-  fadeOut() {
+  get fading(): boolean {
+    return this.fadingOut;
+  }
+
+  /** Fades out over the clip's fade length (or the given seconds), then stops. */
+  fadeOut(seconds?: number) {
     if (this.stopped || this.fadingOut) return;
     this.fadingOut = true;
     const now = context().currentTime;
-    const fade = Math.max(MIN_STOP_FADE_SEC, Math.min(this.settings.fadeMs / 1000, 5));
+    const fade = seconds ?? Math.max(MIN_STOP_FADE_SEC, Math.min(this.settings.fadeMs / 1000, 5));
     this.stopFader.gain.setValueCurveAtTime(FADE_CURVE, now, fade);
     this.source.stop(now + fade + 0.05);
   }

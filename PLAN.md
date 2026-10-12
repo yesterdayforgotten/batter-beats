@@ -174,6 +174,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ## Status
 
 **Phase 1 (server foundation): built.**
+**Phase 3 (game mode): built 2026-10-12, waiting for the owner to test on phones.**
 **Phase 2 (rosters and players): built.** Owner tested on the Pixel 9 (2026-10-12): preview plays, curved fade sounds better, drag-to-reorder works. iPhone checks (silent switch, 6s on iOS 15) postponed by the owner; do them before trusting game mode at a field.
 
 ### Phase 1 notes
@@ -208,4 +209,15 @@ These were not verified during planning. Test each one and tell the owner what y
 - No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
 - Background processes in this environment stop after 2 hours, so the dev server must be restarted for longer phone testing. A permanent fix is to have the Portainer stack run `npm run dev`.
 
-Next: phase 3 (game mode). Owner will test the iPhone items later.
+### Phase 3 notes
+- Wording agreed 2026-10-12: the main list is "Teams" (new/edit/delete team); "roster" means a team's list of players.
+- Game mode is `src/pages/GamePage.tsx` at `/rosters/:id` (tapping a team on the main screen). Batting order and availability come from the server's shared lineup; editors get a ⋮ to the team editor.
+- Tap a batter: they become "at bat" (solid blue) and their song plays; tap again to fade out over the clip's fade length. Tapping a different batter fades the current song in 0.5 s and starts theirs. After the song ends, the at-bat row stays blue ("tap to play again"). Players with no song can still be tapped to move the lineup on.
+- "On deck" (blue outline) is the next available player after the one at bat, wrapping to the top. The at-bat player is remembered per phone (localStorage) so a reload doesn't lose the place.
+- "Edit lineup" switch (off by default): drag to reorder (same list as the team editor), "Sit out" moves a player to "Bench today", "Back in" returns them. Saved to the server at once: `PUT /api/rosters/:id/order` and `PUT /api/players/:id/available`, open to all signed-in users. Offline queuing of these comes in phase 4.
+- Memory: every clip file is downloaded when game mode opens (~1 MB each), but only the 4 most recently used are kept decoded (~10 MB each); the on-deck batter is decoded ahead so a tap plays instantly.
+- Screen awake: Screen Wake Lock API, plus on iOS before 18.4 a tiny muted looping video (`public/keep-awake.mp4`), both started by the first tap. **Not yet verified on a real iPhone**; the owner sets Auto-Lock to Never on the 6s meanwhile.
+- Version number and update button are left for phase 4, with the offline work.
+- Tested in headless Chromium at phone size: tap/fade/switch/end states, on-deck skipping a benched player, wrap-around, reload.
+
+Next: owner tests phase 3 on phones, then phase 4 (offline; needs the https address first).
