@@ -54,22 +54,22 @@ rostersRouter.get("/rosters", (_req, res) => {
 
 rostersRouter.post("/rosters", editor, (req, res) => {
   const name = text(req.body?.name, 80);
-  if (!name) return res.status(400).json({ error: "Give the roster a name." });
+  if (!name) return res.status(400).json({ error: "Give the team a name." });
   const id = Number(db.prepare("INSERT INTO rosters (name) VALUES (?)").run(name).lastInsertRowid);
   res.status(201).json({ roster: getRoster(id) });
 });
 
 rostersRouter.get("/rosters/:id", (req, res) => {
   const roster = getRoster(Number(req.params.id));
-  if (!roster) return res.status(404).json({ error: "Roster not found." });
+  if (!roster) return res.status(404).json({ error: "Team not found." });
   res.json({ roster });
 });
 
 rostersRouter.patch("/rosters/:id", editor, (req, res) => {
   const id = Number(req.params.id);
-  if (!getRoster(id)) return res.status(404).json({ error: "Roster not found." });
+  if (!getRoster(id)) return res.status(404).json({ error: "Team not found." });
   const name = text(req.body?.name, 80);
-  if (!name) return res.status(400).json({ error: "Give the roster a name." });
+  if (!name) return res.status(400).json({ error: "Give the team a name." });
   db.prepare("UPDATE rosters SET name = ? WHERE id = ?").run(name, id);
   touchRoster(id);
   res.json({ roster: getRoster(id) });
@@ -86,7 +86,7 @@ rostersRouter.delete("/rosters/:id", editor, (req, res) => {
 rostersRouter.put("/rosters/:id/order", (req, res) => {
   const rosterId = Number(req.params.id);
   const roster = getRoster(rosterId);
-  if (!roster) return res.status(404).json({ error: "Roster not found." });
+  if (!roster) return res.status(404).json({ error: "Team not found." });
   const ids = Array.isArray(req.body?.playerIds) ? req.body.playerIds.map(Number) : [];
   const current = new Set(roster.players.map((p) => p.id));
   if (ids.length !== current.size || new Set(ids).size !== ids.length || !ids.every((id: number) => current.has(id))) {
@@ -102,7 +102,7 @@ rostersRouter.put("/rosters/:id/order", (req, res) => {
 
 rostersRouter.post("/rosters/:id/players", editor, (req, res) => {
   const rosterId = Number(req.params.id);
-  if (!getRoster(rosterId)) return res.status(404).json({ error: "Roster not found." });
+  if (!getRoster(rosterId)) return res.status(404).json({ error: "Team not found." });
   const name = text(req.body?.name, 80);
   const number = text(req.body?.number, 4);
   if (!name) return res.status(400).json({ error: "Enter the player's name." });

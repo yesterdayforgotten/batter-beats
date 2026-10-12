@@ -60,7 +60,7 @@ export function RosterEditPage() {
 
   return (
     <>
-      <PageHead back="/" eyebrow="Edit roster" />
+      <PageHead back="/" eyebrow="Edit team" />
       {error && <p className="error">{error}</p>}
       {roster && (
         <div className="stack" style={{ gap: 12 }}>
@@ -115,7 +115,7 @@ export function RosterEditPage() {
           {!sorting && <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster({ ...roster, players: [...roster.players, p] })} />}
 
           <button className="danger" style={{ marginTop: 24, alignSelf: "center" }} onClick={deleteRoster}>
-            Delete roster
+            Delete team
           </button>
         </div>
       )}

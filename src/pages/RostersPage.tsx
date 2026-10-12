@@ -19,10 +19,10 @@ export function RostersPage() {
 
   return (
     <section>
-      <h1 className="big-title">Rosters</h1>
+      <h1 className="big-title">Teams</h1>
       {error && <p className="error">{error}</p>}
       {rosters && rosters.length === 0 && (
-        <p className="empty">{editor ? "No rosters yet. Add your first roster below." : "No rosters yet."}</p>
+        <p className="empty">{editor ? "No teams yet. Add your first team below." : "No teams yet."}</p>
       )}
       <ul className="list">
         {rosters?.map((r) => (
@@ -67,7 +67,7 @@ function NewRoster() {
   if (!open) {
     return (
       <button className="add-button" style={{ marginTop: 10 }} onClick={() => setOpen(true)}>
-        + New roster
+        + New team
       </button>
     );
   }
