@@ -39,6 +39,13 @@ export const MenuIcon = () => (
   </svg>
 );
 
+/** Up and down arrows, for "reorder". */
+export const ReorderIcon = () => (
+  <svg {...common} width={22} height={22} strokeWidth={1.9}>
+    <path d="M8 4v16M4.5 7.5 8 4l3.5 3.5M16 20V4M12.5 16.5 16 20l3.5-3.5" />
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <path d="M7 4l13 8-13 8Z" fill="currentColor" />

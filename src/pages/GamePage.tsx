@@ -3,8 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
-import { PlayIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
-import { MoreMenu } from "../components/MoreMenu.tsx";
+import { EditIcon, PlayIcon, ReorderIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
@@ -278,29 +277,55 @@ export function GamePage() {
       <PageHead
         back="/"
         onBack={editing ? () => setEditing(false) : undefined}
-        eyebrow={editing ? "Reorder" : "Game mode"}
-        title={<div className="display truncate" style={{ fontSize: 30, color: "var(--accent)" }}>{roster?.name ?? ""}</div>}
+        eyebrow={editing ? "Reorder" : undefined}
+        title={
+          editing ? (
+            <div className="display truncate" style={{ fontSize: 30, color: "var(--accent)" }}>
+              {roster?.name ?? ""}
+            </div>
+          ) : (
+            // One compact row: team name, then the Lineup | Jukebox tabs.
+            <div className="game-title">
+              <span className="display truncate">{roster?.name ?? ""}</span>
+              {/* What the tab's icons do: on Lineup, reorder and edit the team; on Jukebox, edit the playlist. */}
+              <span className="head-icons">
+                {tab === "lineup" && (
+                  <button className="head-icon" aria-label="Reorder" onClick={() => setEditing(true)}>
+                    <ReorderIcon />
+                  </button>
+                )}
+                {tab === "lineup" && hasRole(user, "editor") && roster && !fromPhone && (
+                  <Link
+                    to={`/rosters/${roster.id}/edit`}
+                    className="head-icon"
+                    aria-label="Edit team"
+                    onClick={() => cameFromGame(roster.id)}
+                  >
+                    <EditIcon />
+                  </Link>
+                )}
+                {tab === "jukebox" && hasRole(user, "editor") && playlist && !fromPhone && (
+                  <Link to={`/playlists/${playlist.id}`} className="head-icon" aria-label="Edit playlist">
+                    <EditIcon />
+                  </Link>
+                )}
+              </span>
+              <div className="segmented game-tabs" role="tablist">
+                {(["lineup", "jukebox"] as const).map((t) => (
+                  <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                    {t === "lineup" ? "Lineup" : "Jukebox"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        }
         right={
           editing ? (
             <button className="link-button" style={{ color: "var(--accent)", padding: "8px 6px" }} onClick={() => setEditing(false)}>
               Done
             </button>
-          ) : (
-            <MoreMenu
-              items={[
-                {
-                  label: "Reorder",
-                  onSelect: () => {
-                    setTab("lineup");
-                    setEditing(true);
-                  },
-                },
-                ...(hasRole(user, "editor") && roster && !fromPhone
-                  ? [{ label: "Edit Team", to: `/rosters/${roster.id}/edit`, onSelect: () => cameFromGame(roster.id) }]
-                  : []),
-              ]}
-            />
-          )
+          ) : undefined
         }
       />
       {error && (
@@ -315,15 +340,6 @@ export function GamePage() {
             ? `${waiting} lineup ${waiting === 1 ? "change" : "changes"} will be sent when there's a connection.`
             : ""}
         </p>
-      )}
-      {!editing && (
-        <div className="segmented game-tabs" role="tablist">
-          {(["lineup", "jukebox"] as const).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-              {t === "lineup" ? "Lineup" : "Jukebox"}
-            </button>
-          ))}
-        </div>
       )}
       {!editing && tab === "jukebox" && playlists && (
         <JukeboxPanel
@@ -441,7 +457,9 @@ function NowPlaying({
     return (
       <div className="innings-bar">
         <button className="innings-button" disabled={playlist.songs.length === 0} onClick={() => onPlay(playlist)}>
-          <PlayIcon />
+          <span className="bar-icon" aria-hidden>
+            <PlayIcon />
+          </span>
           <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
             <span className="innings-title">Jukebox</span>
             <span className="innings-song truncate">

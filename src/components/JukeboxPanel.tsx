@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { SoundBars } from "./Icons.tsx";
+import { ChevronIcon, PlayIcon, SoundBars } from "./Icons.tsx";
 import { setJukeboxSettings, type JukeboxSettings, type JukeboxState } from "../playlist.ts";
 import type { Playlist } from "../../shared/types.ts";
 
@@ -27,6 +28,7 @@ export function JukeboxPanel({
   onSelect(id: number): void;
   onPlay(playlist: Playlist, songId?: number): void;
 }) {
+  const [showSettings, setShowSettings] = useState(false);
   if (playlists.length === 0) {
     return (
       <div className="stack" style={{ gap: 10 }}>
@@ -56,11 +58,6 @@ export function JukeboxPanel({
             </option>
           ))}
         </select>
-        {editor && selected && (
-          <Link to={`/playlists/${selected.id}`} className="link-button" style={{ padding: "8px 4px", textDecoration: "none" }}>
-            Edit
-          </Link>
-        )}
       </div>
 
       <div className="segmented" role="radiogroup" aria-label="Play order">
@@ -96,6 +93,11 @@ export function JukeboxPanel({
                       {formatLength(s.durationMs)}
                     </span>
                   </span>
+                  {!now && (
+                    <span className="jukebox-play" aria-hidden>
+                      <PlayIcon />
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -103,6 +105,18 @@ export function JukeboxPanel({
         </ol>
       )}
 
+      <button className="section-toggle settings-toggle" aria-expanded={showSettings} onClick={() => setShowSettings((o) => !o)}>
+        <span className={`toggle-chevron${showSettings ? " open" : ""}`} aria-hidden>
+          <ChevronIcon />
+        </span>
+        <span className="grow" style={{ textAlign: "left" }}>
+          Jukebox settings
+        </span>
+        <span className="muted small">
+          {Math.round(settings.volume * 100)}% · fade {settings.fadeSec} s
+        </span>
+      </button>
+      {showSettings && (
       <div className="card stack" style={{ gap: 10 }}>
         <span className="field-label">On this phone</span>
         <label className="slider-row">
@@ -131,6 +145,7 @@ export function JukeboxPanel({
         </label>
         <span className="muted small">Walkups always play at full volume; the jukebox fades out quickly when you tap a batter.</span>
       </div>
+      )}
     </div>
   );
 }
