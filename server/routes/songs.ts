@@ -20,7 +20,10 @@ songsRouter.get("/songs", (_req, res) => {
 songsRouter.post("/songs", requireRole("editor"), upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Choose an MP3 file to upload." });
   try {
-    const song = await addSong(req.file.path, req.file.originalname, req.user!.id);
+    // Browsers send the file name as UTF-8, but multer reads it as Latin-1, which garbles
+    // anything beyond plain ASCII (curly quotes, accents). Reinterpret the bytes.
+    const name = Buffer.from(req.file.originalname, "latin1").toString("utf8");
+    const song = await addSong(req.file.path, name, req.user!.id);
     res.status(201).json({ song });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message.includes("MP3") ? (err as Error).message : "That file isn't an MP3 we can use." });

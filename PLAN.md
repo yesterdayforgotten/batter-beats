@@ -173,8 +173,8 @@ These were not verified during planning. Test each one and tell the owner what y
 
 ## Status
 
-**Phase 1 (server foundation): built.** Owner has not yet reported phone test results.
-**Phase 2 (rosters and players): built, waiting for the owner to test on phones.**
+**Phase 1 (server foundation): built.**
+**Phase 2 (rosters and players): built.** Owner tested on the Pixel 9 (2026-10-12): preview plays, curved fade sounds better, drag-to-reorder works. iPhone checks (silent switch, 6s on iOS 15) postponed by the owner; do them before trusting game mode at a field.
 
 ### Phase 1 notes
 - Stack: Express 5 + better-sqlite3 server (`server/`), React 19 + Vite client (`src/`), shared types in `shared/`. `npm run dev` runs one process on port 8090 serving the API and the screens with hot reload (Vite in middleware mode, HMR on the same server).
@@ -208,4 +208,4 @@ These were not verified during planning. Test each one and tell the owner what y
 - No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
 - Background processes in this environment stop after 2 hours, so the dev server must be restarted for longer phone testing. A permanent fix is to have the Portainer stack run `npm run dev`.
 
-Next: owner tests phases 1 and 2 on phones, then phase 3 (game mode).
+Next: phase 3 (game mode). Owner will test the iPhone items later.
