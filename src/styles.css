@@ -1149,3 +1149,12 @@ label {
 .menu-item:hover {
   background: var(--card);
 }
+
+/* On grey panels, text boxes and dropdowns go near-black, the reverse of the
+   grey boxes on the black page, so they still stand out as places to type. */
+.card input:not([type="range"]):not([type="checkbox"]),
+.card select,
+.sheet input:not([type="range"]):not([type="checkbox"]),
+.sheet select {
+  background: var(--bg);
+}
