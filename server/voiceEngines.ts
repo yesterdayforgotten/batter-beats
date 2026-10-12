@@ -12,7 +12,7 @@
 
 import fs from "node:fs";
 import { config } from "./config.ts";
-import type { AnnouncerStyle, AnnouncerVoice, LibraryFilters, LibraryVoice, VoiceEngine } from "../shared/types.ts";
+import { splitCues, type AnnouncerStyle, type AnnouncerVoice, type LibraryFilters, type LibraryVoice, type VoiceEngine } from "../shared/types.ts";
 
 export interface Engine {
   id: VoiceEngine;
@@ -169,14 +169,17 @@ const elevenlabs: Engine = {
   speed: "none",
   pitch: "none",
   async speak(text, voice, style) {
-    const cue = style.elevenTag.trim().replace(/^\[|\]$/g, "");
+    // Each cue is its own tag: "[excited] [booming] Now batting…".
+    const cue = splitCues(style.elevenTag)
+      .map((c) => `[${c}]`)
+      .join(" ");
     const res = await elevenCall(
       `/v1/text-to-speech/${encodeURIComponent(voice || this.defaultVoice)}?output_format=mp3_44100_128`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: cue ? `[${cue}] ${text}` : text,
+          text: cue ? `${cue} ${text}` : text,
           model_id: "eleven_v3",
           voice_settings: { stability: elevenStability(style.excitement) },
         }),

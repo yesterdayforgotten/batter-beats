@@ -6,6 +6,7 @@ import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
 import {
   DEFAULT_STYLE,
   STYLE_LIMITS,
+  splitCues,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
   type LibraryFilters,
@@ -196,16 +197,23 @@ function AnnouncerVoice() {
             {eleven && (
               <>
                 <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
-                <Slider
-                  label="Range"
-                  aria="Emotional range"
-                  min={STYLE_LIMITS.minExcitement}
-                  max={STYLE_LIMITS.maxExcitement}
-                  step={0.05}
-                  value={style.excitement}
-                  show={style.excitement >= 1.4 ? "Wild" : style.excitement >= 0.75 ? "Natural" : "Steady"}
-                  onChange={(v) => change({ excitement: v })}
-                />
+                {/* ElevenLabs v3 has exactly three settings here (Robust, Natural, Creative), so three buttons, not a slider. */}
+                <div className="editor-row">
+                  <span className="label">Range</span>
+                  <div className="segmented grow" role="radiogroup" aria-label="Emotional range">
+                    {RANGES.map((r) => (
+                      <button
+                        key={r.label}
+                        role="radio"
+                        aria-checked={rangeOf(style.excitement) === r.label}
+                        className={rangeOf(style.excitement) === r.label ? "on" : ""}
+                        onClick={() => change({ excitement: r.value })}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
             {info.controls.speed && (
@@ -257,7 +265,7 @@ function AnnouncerVoice() {
           </div>
           <p className="muted small" style={{ margin: 0 }}>
             {eleven
-              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
+              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, several separated by commas, or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
               : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
             Reverb adds the echo of a big space; Space sets how big. A real ballpark's speakers add their own echo, so
             go easy. Listen to try a mix; the Listen buttons below use it too.
@@ -310,7 +318,18 @@ function AnnouncerVoice() {
   );
 }
 
-/** Suggested ElevenLabs delivery cues (any words work; they're written as [cue] before the announcement). */
+/**
+ * ElevenLabs' three emotional ranges, stored on the excitement scale the
+ * server maps to v3 stability (see elevenStability in server/voiceEngines.ts).
+ */
+const RANGES = [
+  { label: "Steady", value: 0.5 },
+  { label: "Natural", value: 1 },
+  { label: "Wild", value: 1.5 },
+] as const;
+const rangeOf = (excitement: number) => (excitement >= 1.4 ? "Wild" : excitement >= 0.75 ? "Natural" : "Steady");
+
+/** Suggested ElevenLabs delivery cues (any words work; each is written as [cue] before the announcement). */
 const CUE_SUGGESTIONS = [
   "excited",
   "enthusiastic",
@@ -318,19 +337,26 @@ const CUE_SUGGESTIONS = [
   "shouting",
   "dramatic",
   "sports announcer",
-  "stadium PA announcer, booming",
-  "excited, speaking quickly",
-  "slow and dramatic build-up",
+  "stadium PA announcer",
+  "booming",
+  "speaking quickly",
+  "slow build-up",
   "proud",
 ];
 
 /**
- * The ElevenLabs cue: free text, with suggestions shown while the box is in
- * use or hovered (phones have no hover, so tapping in shows them too).
+ * The ElevenLabs cues: free text, several separated by commas, with
+ * suggestions shown while the box is in use or hovered (phones have no
+ * hover, so tapping in shows them too). Tapping a suggestion adds it, or
+ * takes it out if it's already there.
  */
 function CueInput({ value, onChange }: { value: string; onChange(v: string): void }) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const cues = splitCues(value);
+  const has = (c: string) => cues.some((x) => x.toLowerCase() === c.toLowerCase());
+  const toggle = (c: string) =>
+    onChange((has(c) ? cues.filter((x) => x.toLowerCase() !== c.toLowerCase()) : [...cues, c]).join(", "));
   return (
     <div className="editor-row cue-row" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <span className="label">Cue</span>
@@ -339,27 +365,27 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
-          placeholder="How to say it, e.g. excited"
-          maxLength={60}
+          // Close only after the tap that moved focus away has landed: closing at once would
+          // shift everything below up mid-tap, so the tap would hit something else.
+          onBlur={() => window.setTimeout(() => setOpen(false), 250)}
+          placeholder="How to say it, e.g. excited, booming"
+          maxLength={200}
           aria-label="Delivery cue"
-          title={`Suggestions: ${CUE_SUGGESTIONS.join(", ")}`}
+          title={`Separate several with commas. Suggestions: ${CUE_SUGGESTIONS.join(", ")}`}
         />
         {(open || hover) && (
-          <div className="cue-suggestions" role="listbox" aria-label="Suggested cues">
+          <div className="cue-suggestions" role="listbox" aria-multiselectable="true" aria-label="Suggested cues">
+            <span className="muted small cue-hint">Tap to add or remove. Up to 5, separated by commas.</span>
             {CUE_SUGGESTIONS.map((c) => (
               <button
                 key={c}
                 type="button"
                 role="option"
-                aria-selected={c === value}
-                className={c === value ? "on" : ""}
-                // Keep the box focused so the list stays open while choosing.
+                aria-selected={has(c)}
+                className={has(c) ? "on" : ""}
+                // Keep the box focused so the list stays open while choosing several.
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(c);
-                  setHover(false);
-                }}
+                onClick={() => toggle(c)}
               >
                 {c}
               </button>

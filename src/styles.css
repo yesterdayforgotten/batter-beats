@@ -1001,12 +1001,9 @@ label {
   min-height: 42px;
   font-size: 15px;
 }
+/* Sits in place below the box (pushing the rest down) rather than floating over the settings and buttons. */
 .cue-suggestions {
-  position: absolute;
-  z-index: 5;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
+  margin-top: 6px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1026,4 +1023,7 @@ label {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
+}
+.cue-hint {
+  flex-basis: 100%;
 }

@@ -107,8 +107,25 @@ export interface AnnouncerStyle {
   reverbSize: number;
   /** ElevenLabs: emotional range, 0.25 (steady) to 2 (wild); shown as Range. */
   excitement: number;
-  /** ElevenLabs only: a delivery cue the voice acts out, e.g. "excited" (written as [excited] before the text). */
+  /**
+   * ElevenLabs only: delivery cues the voice acts out, comma-separated, e.g.
+   * "excited, booming" (sent as "[excited] [booming]" before the text).
+   */
   elevenTag: string;
+}
+
+/** The separate cues in a Cue box: split on commas or [brackets], tidied, no repeats, at most 5. */
+export function splitCues(text: string): string[] {
+  const seen = new Set<string>();
+  const cues: string[] = [];
+  for (const raw of text.split(/[,[\]]+/)) {
+    const cue = raw.trim().replace(/\s+/g, " ").slice(0, 40).trim();
+    if (!cue || seen.has(cue.toLowerCase())) continue;
+    seen.add(cue.toLowerCase());
+    cues.push(cue);
+    if (cues.length === 5) break;
+  }
+  return cues;
 }
 export const DEFAULT_STYLE: AnnouncerStyle = {
   speed: 1,
