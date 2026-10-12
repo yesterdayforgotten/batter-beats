@@ -37,8 +37,22 @@ let ctx: AudioContext | null = null;
 let iosKeepAlive: HTMLAudioElement | null = null;
 
 export function context(): AudioContext {
-  if (!ctx) ctx = new AudioContext();
+  if (!ctx) {
+    ctx = new AudioContext();
+    // A phone call, Siri or an alarm takes the phone's sound away ("interrupted" on
+    // iPhones, "suspended" elsewhere). Whatever was playing is then cut off.
+    ctx.addEventListener("statechange", () => {
+      if (ctx!.state !== "running" && ctx!.state !== "closed") interruptListeners.forEach((fn) => fn());
+    });
+  }
   return ctx;
+}
+
+const interruptListeners = new Set<() => void>();
+/** Called when something else (a call, Siri) takes the sound away. */
+export function onAudioInterrupted(fn: () => void): () => void {
+  interruptListeners.add(fn);
+  return () => interruptListeners.delete(fn);
 }
 
 let out: { input: GainNode; analyser: AnalyserNode } | null = null;
@@ -103,6 +117,8 @@ export function unlockAudio() {
   if (c.state !== "running") void c.resume();
   const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
   if (session) session.type = "playback";
+  // After an interruption the silent loop is left paused: start it again.
+  if (iosKeepAlive?.paused) void iosKeepAlive.play().catch(() => {});
   if (isIOS() && !iosKeepAlive) {
     iosKeepAlive = new Audio(silentWavUrl());
     iosKeepAlive.loop = true;

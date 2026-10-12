@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
+import { fetchClip, loadClip, onAudioInterrupted, Playback, unlockAudio } from "../audio/engine.ts";
 import { EditIcon, MusicIcon, PlayIcon, ReorderIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
@@ -10,7 +10,7 @@ import { AppVersion } from "../components/AppVersion.tsx";
 import { changeLineup, onOfflineChange, savedRoster, saveIfKept, stuckChanges, withPendingChanges } from "../offline.ts";
 import { cameFromGame } from "../editReturn.ts";
 import { teamStyle } from "../teamColors.ts";
-import { allowSleep, keepAwake } from "../wakeLock.ts";
+import { allowSleep, keepAwake, keepAwakeEarly } from "../wakeLock.ts";
 import {
   BATTER_FADE_SEC,
   jukebox,
@@ -101,15 +101,18 @@ export function GamePage() {
   // Reorder is its own history entry, so Back (the arrow, or the phone's back gesture) returns to game mode.
   const location = useLocation();
   const navigate = useNavigate();
-  const editing = (location.state as { reorder?: boolean } | null)?.reorder === true;
+  const navState = location.state as { reorder?: boolean; guard?: boolean } | null;
+  const editing = navState?.reorder === true;
   const setEditing = (on: boolean) => {
-    if (on) navigate(location.pathname, { state: { reorder: true } });
+    if (on) navigate(location.pathname, { state: { reorder: true, guard: navState?.guard } });
     // Leaving steps back over that entry; after a reload with nowhere to step back to, just clear it.
     else if (location.key !== "default") navigate(-1);
     else navigate(location.pathname, { replace: true, state: null });
   };
   const [atBatId, setAtBatId] = useState<number | null>(() => readAtBat(id));
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
+  /** Shown for a moment: Back was pressed while music plays, or a call took the sound away. */
+  const [heads, setHeads] = useState<string | null>(null);
   const playback = useRef<Playback | null>(null);
   const tapCount = useRef(0);
   /** Which batter's song stopped last, and when (see RESTART_GUARD_MS). */
@@ -170,6 +173,56 @@ export function GamePage() {
       }),
     [],
   );
+
+  // Keep the screen on from the moment game mode opens, where the browser allows it
+  // without a tap (Android, iOS 18.4+); older iPhones start at the first tap.
+  useEffect(() => keepAwakeEarly(), []);
+
+  // A call, Siri or an alarm cuts the sound off: reset what's shown so it doesn't
+  // claim to be playing, and the next tap wakes the sound up again.
+  useEffect(
+    () =>
+      onAudioInterrupted(() => {
+        if (!playback.current && jukebox.state.status === "stopped") return;
+        playback.current?.stop();
+        playback.current = null;
+        setSound(null);
+        jukebox.stop();
+        setHeads("The sound was interrupted (a call or Siri). Tap a batter or the jukebox to carry on.");
+      }),
+    [],
+  );
+
+  // While music plays, a stray Back gesture shouldn't leave game mode (which stops
+  // the music): an extra history entry catches the first Back, and a second one
+  // within a few seconds leaves.
+  const playingAny = sound !== null || jukeboxState.status !== "stopped";
+  const guarded = navState?.guard === true;
+  const wasGuarded = useRef(guarded);
+  const [backWarned, setBackWarned] = useState(false);
+  useEffect(() => {
+    if (wasGuarded.current && !guarded && playingAny && !editing) {
+      // Back was pressed while playing: warn, and arm again after a few seconds.
+      setBackWarned(true);
+      setHeads("Music is playing. Press Back again to leave game mode (the music will stop).");
+      const t = window.setTimeout(() => setBackWarned(false), 3000);
+      wasGuarded.current = guarded;
+      return () => window.clearTimeout(t);
+    }
+    wasGuarded.current = guarded;
+    if (playingAny && !guarded && !backWarned && !editing) {
+      navigate(location.pathname, { state: { ...(navState ?? {}), guard: true } });
+    } else if (!playingAny && guarded && !editing && location.key !== "default") {
+      navigate(-1); // music stopped: take the extra entry away again
+    }
+  }, [playingAny, guarded, backWarned, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The heads-up notice goes away by itself.
+  useEffect(() => {
+    if (!heads) return;
+    const t = window.setTimeout(() => setHeads(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [heads]);
 
   // Leaving game mode: stop the music and let the screen sleep.
   useEffect(
@@ -243,6 +296,8 @@ export function GamePage() {
     playback.current = null;
     const tapId = ++tapCount.current;
     setAtBatId(player.id);
+    // Keep the next batter in view (long lineups scroll); the rows leave room for the jukebox bar.
+    requestAnimationFrame(() => document.querySelector(".bat-row.on-deck")?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
     saveAtBat(id, player.id);
     const clip = player.clip?.url ? player.clip : null;
     const announcement = player.announcement;
@@ -375,6 +430,11 @@ export function GamePage() {
       {error && (
         <p className="error" role="alert" onClick={() => setError(null)}>
           {error}
+        </p>
+      )}
+      {heads && (
+        <p className="notice heads-up" role="status" onClick={() => setHeads(null)}>
+          {heads}
         </p>
       )}
       {(fromPhone || waiting > 0) && (

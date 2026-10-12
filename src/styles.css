@@ -1940,3 +1940,23 @@ label,
 .section-rule + .innings-bar {
   margin-top: 16px;
 }
+
+/* Game mode: a long press is just a tap (no text selection or magnifier on iPhone) */
+.lineup,
+.bat-row,
+.jukebox-tile,
+.jukebox-songs,
+.game-title {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Scrolling a batter into view leaves room for the jukebox bar along the bottom */
+.bat-row {
+  scroll-margin-bottom: 130px;
+  scroll-margin-top: 12px;
+}
+.notice.heads-up {
+  color: var(--text);
+  border: 1px solid var(--accent);
+}

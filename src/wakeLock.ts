@@ -62,6 +62,19 @@ export function keepAwake() {
   }
 }
 
+/**
+ * Asks to keep the screen on straight away, without a tap: works where the
+ * Screen Wake Lock API does (Android, iOS 18.4+). Older iPhones still need the
+ * first tap (keepAwake) for the video fallback.
+ */
+export function keepAwakeEarly() {
+  if (!wanted) {
+    wanted = true;
+    document.addEventListener("visibilitychange", onVisible);
+  }
+  void requestLock();
+}
+
 /** Lets the screen sleep again (leaving game mode). */
 export function allowSleep() {
   wanted = false;

@@ -280,6 +280,14 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
+### Game-day safeguards (2026-10-12)
+- Back while music plays (walkup or jukebox) doesn't leave game mode: an extra history entry catches it and a notice says to press Back again (within 3 s) to leave; the entry is taken away when the music stops. Reorder entries keep it.
+- A call, Siri or alarm interrupting the sound (AudioContext leaves "running"): playing state is cleared with a notice, and the next tap wakes the sound (the iOS silent keep-alive loop is restarted too). `onAudioInterrupted` in `src/audio/engine.ts`. Web apps can't silence ringtones or notifications; game-day runners should use Do Not Disturb / Focus.
+- Game-mode rows can't be text-selected or long-pressed into a magnifier.
+- After a tap, the on-deck batter is scrolled into view, clear of the sticky jukebox bar.
+- Installed app is portrait only (`orientation` in the manifest).
+- The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
+
 ### Credits note (2026-10-12)
 Under the Delivery Listen button in Edit team → Announcer: "28,360 of 30,000 ElevenLabs credits left · resets Nov 3" (red under 10%). `GET /api/announcer/credits` asks ElevenLabs' `/v1/user/subscription` (free; needs the key's user-read permission, otherwise the note is just left out; null for Kokoro). Refreshed after each Listen and shortly after saving. The owner chose not to remember whether the Announcer section was left open.
 
