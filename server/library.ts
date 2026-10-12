@@ -5,7 +5,7 @@ import { scanMp3, cutClip } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
 import { teamAnnouncer, wanted, type AnnouncerPlayerRow } from "./announcer.ts";
-import { CLIP_LIMITS, type Clip, type Player, type Roster, type LibrarySong, type RosterSummary, type Song, type TagSuggestions } from "../shared/types.ts";
+import { CLIP_LIMITS, TAG_LIMITS, type Clip, type Player, type Roster, type LibrarySong, type RosterSummary, type Song, type TagSuggestions } from "../shared/types.ts";
 
 // ── Songs ────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,24 @@ export function setSongTags(id: number, tags: string[]): Song | undefined {
     for (const t of tags) add.run(id, t);
   })();
   return getSong(id);
+}
+
+/** Adds and removes tags on many songs at once (tags are matched ignoring case). Returns the changed songs. */
+export function editTagsOf(songIds: number[], add: string[], remove: string[]): Song[] {
+  const ids = [...new Set(songIds)].filter((id) => getSong(id));
+  db.transaction(() => {
+    const del = db.prepare("DELETE FROM song_tags WHERE song_id = ? AND tag = ?"); // tag column ignores case
+    const ins = db.prepare("INSERT OR IGNORE INTO song_tags (song_id, tag) VALUES (?, ?)");
+    const count = db.prepare("SELECT COUNT(*) AS n FROM song_tags WHERE song_id = ?");
+    for (const id of ids) {
+      for (const t of remove) del.run(id, t);
+      for (const t of add) {
+        if ((count.get(id) as { n: number }).n >= TAG_LIMITS.maxTags) break;
+        ins.run(id, t);
+      }
+    }
+  })();
+  return ids.map((id) => getSong(id)!);
 }
 
 /** Tag ideas: every team and player name, and the tags already in use. */

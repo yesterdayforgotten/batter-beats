@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { Router } from "express";
 import multer from "multer";
 import { requireRole } from "../auth.ts";
-import { addSong, deleteSong, getSong, listLibrary, listSongs, renameSong, setSongTags, tagSuggestions, UserError } from "../library.ts";
+import { addSong, deleteSong, editTagsOf, getSong, listLibrary, listSongs, renameSong, setSongTags, tagSuggestions, UserError } from "../library.ts";
 import { cleanTags } from "../../shared/types.ts";
 import { announcementPath, clipPath, dirs, peaksPath, songPath } from "../storage.ts";
 
@@ -21,6 +21,13 @@ songsRouter.get("/songs", (_req, res) => {
 // The Songs screen: every song with where it's used; rename; delete.
 songsRouter.get("/songs/library", requireRole("editor"), (_req, res) => {
   res.json({ songs: listLibrary(), suggestions: tagSuggestions() });
+});
+
+// Many songs at once (the Music screen's Select): { songIds, add: [...], remove: [...] }.
+songsRouter.post("/songs/tags", requireRole("editor"), (req, res) => {
+  const songIds = Array.isArray(req.body?.songIds) ? req.body.songIds.map(Number).filter(Number.isInteger) : [];
+  if (songIds.length === 0) return res.status(400).json({ error: "Choose some songs first." });
+  res.json({ songs: editTagsOf(songIds, cleanTags(req.body?.add), cleanTags(req.body?.remove)) });
 });
 
 songsRouter.put("/songs/:id/tags", requireRole("editor"), (req, res) => {

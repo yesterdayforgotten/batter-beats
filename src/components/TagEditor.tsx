@@ -10,10 +10,12 @@ export function TagEditor({
   tags,
   suggestions,
   onChange,
+  label = "Tags",
 }: {
   tags: string[];
   suggestions: TagSuggestions;
   onChange(tags: string[]): void;
+  label?: string;
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
@@ -49,7 +51,7 @@ export function TagEditor({
 
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <span className="field-label">Tags</span>
+      <span className="field-label">{label}</span>
       {tags.length > 0 && (
         <div className="tag-chips">
           {tags.map((t) => (

@@ -1521,3 +1521,64 @@ label,
   height: 100%;
   background: var(--accent);
 }
+
+/* Music screen: select mode */
+.select-bar {
+  margin: 0 4px 6px;
+  gap: 14px;
+  min-height: 32px;
+}
+.select-bar .link-button {
+  padding: 4px 0;
+  font-size: 14px;
+}
+.select-box {
+  width: 26px;
+  height: 26px;
+  margin: 0 4px;
+  border-radius: 50%;
+  border: 2px solid var(--faint);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.select-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.song-item.selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* Bar along the bottom while selecting */
+.select-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 12px -12px 0;
+  padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.select-actions .primary {
+  min-height: 42px;
+}
+/* Bulk tag sheet: tags marked for removal */
+.chip.removing {
+  background: none;
+  border-color: var(--danger);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.chip-count {
+  font-weight: 500;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+.chip.removing .chip-count {
+  text-decoration: none;
+}

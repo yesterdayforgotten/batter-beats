@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.ts";
-import { PlayIcon, StopIcon } from "../components/Icons.tsx";
+import { CheckIcon, PlayIcon, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SongFilterBar, useSongFilter } from "../components/SongFilter.tsx";
 import { TagEditor } from "../components/TagEditor.tsx";
 import { UploadSheet } from "../components/UploadSheet.tsx";
+import { BulkTagSheet } from "../components/BulkTagSheet.tsx";
 import type { LibrarySong, Song, TagSuggestions } from "../../shared/types.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -31,6 +32,10 @@ export function MusicPage() {
   const [picked, setPicked] = useState<File[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
+  /** Select mode: tapping songs ticks them, for changing tags on many at once. */
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const load = () =>
     api<{ songs: LibrarySong[]; suggestions: TagSuggestions }>("/songs/library")
@@ -80,6 +85,27 @@ export function MusicPage() {
       setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags: s.tags } : x)) ?? null);
       setError((err as Error).message);
     }
+  }
+
+  function toggleSelected(id: number) {
+    setSelected((sel) => {
+      const next = new Set(sel);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+  }
+
+  async function applyBulk(add: string[], remove: string[]) {
+    const r = await api<{ songs: Song[] }>("/songs/tags", { method: "POST", body: { songIds: [...selected], add, remove } });
+    const byId = new Map(r.songs.map((x) => [x.id, x]));
+    setSongs((list) => list?.map((x) => (byId.has(x.id) ? { ...x, tags: byId.get(x.id)!.tags } : x)) ?? null);
+    setSuggestions((sg) => ({ ...sg, used: [...new Set([...sg.used, ...add])] }));
+    stopSelecting();
   }
 
   async function remove(s: LibrarySong) {
@@ -135,6 +161,45 @@ export function MusicPage() {
           <SongFilterBar filter={filter} />
         </div>
       )}
+      {songs && songs.length > 0 && (
+        <div className="row select-bar">
+          {selecting ? (
+            <>
+              <button
+                className="link-button"
+                onClick={() => setSelected(new Set([...selected, ...filter.shown.map((x) => x.id)]))}
+                disabled={filter.shown.every((x) => selected.has(x.id))}
+              >
+                {filter.filtering ? `Select all ${filter.shown.length} shown` : `Select all ${songs.length}`}
+              </button>
+              {selected.size > 0 && (
+                <button className="link-button" onClick={() => setSelected(new Set())}>
+                  Clear
+                </button>
+              )}
+              <span className="grow" />
+              <button className="link-button" style={{ color: "var(--accent)" }} onClick={stopSelecting}>
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="muted small grow">
+                {filter.filtering ? `${filter.shown.length} of ${songs.length} songs` : `${songs.length} ${songs.length === 1 ? "song" : "songs"}`}
+              </span>
+              <button
+                className="link-button"
+                onClick={() => {
+                  setOpenId(null);
+                  setSelecting(true);
+                }}
+              >
+                Select
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {songs?.length === 0 && <p className="empty">No songs yet.</p>}
       {songs && songs.length > 0 && filter.shown.length === 0 && <p className="empty">No songs match.</p>}
 
@@ -142,16 +207,27 @@ export function MusicPage() {
         {filter.shown.map((s) => {
           const open = openId === s.id;
           return (
-            <li key={s.id} className={`list-item song-item${open ? " open" : ""}`}>
+            <li key={s.id} className={`list-item song-item${open ? " open" : ""}${selected.has(s.id) ? " selected" : ""}`}>
               <div className="player-row">
+                {selecting ? (
+                  <span className={`select-box${selected.has(s.id) ? " on" : ""}`} aria-hidden>
+                    {selected.has(s.id) && <CheckIcon />}
+                  </span>
+                ) : (
+                  <button
+                    className={`song-play${playingId === s.id ? " on" : ""}`}
+                    aria-label={playingId === s.id ? `Stop ${s.title}` : `Play ${s.title}`}
+                    onClick={() => togglePlay(s)}
+                  >
+                    {playingId === s.id ? <StopIcon /> : <PlayIcon />}
+                  </button>
+                )}
                 <button
-                  className={`song-play${playingId === s.id ? " on" : ""}`}
-                  aria-label={playingId === s.id ? `Stop ${s.title}` : `Play ${s.title}`}
-                  onClick={() => togglePlay(s)}
+                  className="song-summary grow"
+                  aria-expanded={selecting ? undefined : open}
+                  aria-pressed={selecting ? selected.has(s.id) : undefined}
+                  onClick={() => (selecting ? toggleSelected(s.id) : setOpenId(open ? null : s.id))}
                 >
-                  {playingId === s.id ? <StopIcon /> : <PlayIcon />}
-                </button>
-                <button className="song-summary grow" aria-expanded={open} onClick={() => setOpenId(open ? null : s.id)}>
                   <span className="song-title truncate">{s.title}</span>
                   <span className="song-meta truncate">
                     {s.artist ? `${s.artist} · ` : ""}
@@ -162,7 +238,7 @@ export function MusicPage() {
                   </span>
                 </button>
               </div>
-              {open && (
+              {open && !selecting && (
                 <SongDetails
                   song={s}
                   suggestions={suggestions}
@@ -175,6 +251,28 @@ export function MusicPage() {
           );
         })}
       </ul>
+
+      {selecting && (
+        <div className="select-actions">
+          <span className="grow" style={{ fontWeight: 700 }}>
+            {selected.size === 0 ? "Tap songs to select them" : `${selected.size} selected`}
+            {selected.size > 0 && [...selected].some((id) => !filter.shown.some((x) => x.id === id)) && (
+              <span className="muted small"> (some hidden by the filter)</span>
+            )}
+          </span>
+          <button className="primary" disabled={selected.size === 0} onClick={() => setBulkOpen(true)}>
+            Edit tags
+          </button>
+        </div>
+      )}
+      {bulkOpen && songs && (
+        <BulkTagSheet
+          songs={songs.filter((x) => selected.has(x.id))}
+          suggestions={suggestions}
+          onApply={applyBulk}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
     </>
   );
 }
