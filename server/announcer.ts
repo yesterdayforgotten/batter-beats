@@ -10,13 +10,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db.ts";
-import { durationMs, normalizeVoice, removeQuietly, voiceEffects } from "./audio.ts";
+import { durationMs, normalizeVoice, removeQuietly } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
 import { engines, type Engine } from "./voiceEngines.ts";
 import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, splitCues, type AnnouncerStyle, type Energy } from "../shared/types.ts";
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
-const PROCESSING = "quality-3";
+const PROCESSING = "convolution-4";
 
 export interface AnnouncerPlayerRow {
   id: number;
@@ -166,7 +166,7 @@ async function makeAnnouncementFile(text: string, voice: string, style: Announce
     // Only what the engine can't do itself is done here, afterwards.
     const tempo = engine.speed === "after" ? style.speed : 1;
     const pitch = engine.pitch === "after" ? style.pitch : 0;
-    await normalizeVoice(raw, out, voiceEffects({ pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize }));
+    await normalizeVoice(raw, out, { pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize });
     return out;
   } finally {
     removeQuietly(raw);

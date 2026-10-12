@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
+import { dirs } from "./storage.ts";
 
 /** Runs a command and returns its standard output as a Buffer. */
 function run(cmd: string, args: string[]): Promise<Buffer> {
@@ -101,50 +103,94 @@ export async function durationMs(file: string): Promise<number> {
 /** Loudness the announcer's voice is set to (LUFS): about as loud as a typical walkup song. */
 export const VOICE_LUFS = -13;
 
-/** Integrated loudness of a file in LUFS (EBU R128). */
-async function loudness(file: string, effects: string): Promise<number> {
-  const filters = [effects, "ebur128"].filter(Boolean).join(",");
-  const { err } = await runFull("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", filters, "-f", "null", "-"]);
+/** The settings that change how an announcement sounds after the voice engine has spoken it. */
+export interface VoiceEffects {
+  /** Semitones up, keeping the voice's character (formants) natural. */
+  pitch: number;
+  /** Speed change for engines that can't do it themselves (1 = none). */
+  tempo: number;
+  /** Reverb: how much (0 = none … 1 = lots) and how big a space (0 = small room … 1 = ballpark). */
+  reverb: number;
+  reverbSize: number;
+}
+
+const SAMPLE_RATE = 44100;
+
+/**
+ * Makes (once, then reuses) an "impulse response": how a space answers a
+ * single clap. Convolving the voice with it gives a smooth, natural reverb;
+ * the earlier approach (many short echoes) rang at a pitch and sounded tinny.
+ * It's generated, not recorded, so there's nothing to license: a short
+ * pre-delay (distance to the walls), then pink noise fading away
+ * exponentially over the space's reverb time, darker the bigger the space
+ * (air and far walls soak up the highs).
+ */
+async function impulseResponse(size: number): Promise<string> {
+  const s = Math.round(Math.max(0, Math.min(1, size)) * 20) / 20; // 21 sizes, each made once
+  const file = path.join(dirs.tmp, `reverb-ir-${s.toFixed(2)}.wav`);
+  if (fs.existsSync(file)) return file;
+  const rt60 = 0.8 + 2.7 * s; // seconds to fade by 60 dB: 0.8 s room … 3.5 s ballpark
+  const preDelayMs = Math.round(12 + 60 * s);
+  const length = rt60 + 0.2;
+  const tmp = `${file}.${process.pid}.tmp.wav`;
+  await run("ffmpeg", [
+    "-v", "error", "-y",
+    "-f", "lavfi",
+    "-i", `anoisesrc=d=${length.toFixed(2)}:c=pink:r=${SAMPLE_RATE}:a=0.5:seed=7`,
+    "-af", [
+      `aeval='val(0)*exp(-6.9078*t/${rt60.toFixed(2)})':c=same`,
+      "highpass=f=180",
+      `lowpass=f=${Math.round(6500 - 3500 * s)}`,
+      `lowpass=f=${Math.round(9000 - 4000 * s)}`,
+      `adelay=${preDelayMs}`,
+    ].join(","),
+    "-ac", "1",
+    tmp,
+  ]);
+  await fs.promises.rename(tmp, file);
+  return file;
+}
+
+/**
+ * The ffmpeg graph for an announcement's effects, from the voice ([0:a]) to
+ * a stream labelled [fx]. With reverb, the impulse response is input 1.
+ */
+async function effectsGraph(o: VoiceEffects): Promise<{ inputs: string[]; graph: string }> {
+  const steps = [`aresample=${SAMPLE_RATE}`, "aformat=channel_layouts=mono"];
+  if (o.pitch > 0 || o.tempo !== 1) {
+    steps.push(`rubberband=pitch=${(2 ** (o.pitch / 12)).toFixed(4)}:tempo=${o.tempo.toFixed(3)}:formant=preserved`);
+  }
+  if (o.reverb <= 0) return { inputs: [], graph: `[0:a]${steps.join(",")}[fx]` };
+  const ir = await impulseResponse(o.reverbSize);
+  const tail = 0.8 + 2.7 * o.reverbSize + 0.3;
+  const wet = (0.6 * o.reverb).toFixed(3);
+  return {
+    inputs: ["-i", ir],
+    graph:
+      `[0:a]${steps.join(",")},apad=pad_dur=${tail.toFixed(2)},asplit=2[dry][wetin];` +
+      // gn: the impulse response is scaled so the reverb comes out at a steady level whatever the size.
+      `[wetin][1:a]afir=gtype=gn[wet];` +
+      `[dry][wet]amix=inputs=2:weights=1 ${wet}:normalize=0,` +
+      // End the file once the reverb has faded well below the voice (-42 dB), with a short fade so the cut
+      // doesn't click: the song stays quiet until the announcement ends, so a long faint tail would hold it down.
+      // Done on the reversed audio, so only the end is trimmed.
+      "areverse,silenceremove=start_periods=1:start_threshold=-42dB,afade=t=in:d=0.15,areverse[fx]",
+  };
+}
+
+/** Integrated loudness, in LUFS (EBU R128), of the voice with its effects. */
+async function loudness(file: string, fx: { inputs: string[]; graph: string }): Promise<number> {
+  const { err } = await runFull("ffmpeg", [
+    "-hide_banner", "-nostats",
+    "-i", file, ...fx.inputs,
+    "-filter_complex", `${fx.graph};[fx]ebur128[out]`,
+    "-map", "[out]", "-f", "null", "-",
+  ]);
   // The summary at the end (older ffmpeg also logs every frame before it).
   const m = /Integrated loudness:\s*I:\s*(-?[\d.]+) LUFS/.exec(err.slice(err.lastIndexOf("Summary:")));
   const value = m ? Number(m[1]) : NaN;
   if (!Number.isFinite(value)) throw new Error("Couldn't measure the announcement's loudness.");
   return value;
-}
-
-/**
- * ffmpeg filters for an announcer style.
- * - pitch: semitones up, keeping the voice's character (formants) natural;
- * - tempo: speed change for engines that can't do it themselves (1 = none);
- * - reverb: 0–1, how loud the reflections are; reverbSize: 0–1, small room to ballpark
- *   (how far apart the reflections are and how long they ring).
- */
-export function voiceEffects(o: { pitch: number; tempo: number; reverb: number; reverbSize: number }): string {
-  const filters: string[] = [];
-  if (o.pitch > 0 || o.tempo !== 1) {
-    filters.push(`rubberband=pitch=${(2 ** (o.pitch / 12)).toFixed(4)}:tempo=${o.tempo.toFixed(3)}:formant=preserved`);
-  }
-  if (o.reverb > 0) {
-    // A soft "big space" reverb: the voice is split, one copy gets a dense
-    // cluster of quiet, uneven reflections, darkened like sound off far walls,
-    // and is mixed back under the dry voice. (A few loud, even echoes sound metallic.)
-    const spread = 0.6 + 1.6 * o.reverbSize;
-    const taps = [19, 31, 47, 61, 79, 97, 127, 151, 181, 223, 269, 331].map((ms) => Math.round(ms * spread));
-    const decays = taps.map((_, i) => (0.6 * 0.82 ** i).toFixed(3));
-    const tail = (taps[taps.length - 1] * 4) / 1000 + 0.3;
-    const wet = (0.55 * o.reverb).toFixed(3);
-    filters.push(
-      `apad=pad_dur=${tail.toFixed(2)}`,
-      `asplit=2[dry][wet];[wet]aecho=0.8:0.9:${taps.join("|")}:${decays.join("|")},` +
-        `highpass=f=200,lowpass=f=${Math.round(5000 - 2500 * o.reverbSize)}[rev];` +
-        `[dry][rev]amix=inputs=2:weights=1 ${wet}:normalize=0`,
-      // Trim the silence left at the end once the reverb dies away (only at the end: reversed, trimmed, reversed back).
-      "areverse",
-      "silenceremove=start_periods=1:start_threshold=-60dB",
-      "areverse",
-    );
-  }
-  return filters.join(",");
 }
 
 /**
@@ -156,15 +202,17 @@ export function voiceEffects(o: { pitch: number; tempo: number; reverb: number; 
  * announcements are, so the loudness is measured and the gain set directly,
  * with a limiter catching the loudest syllables.
  */
-export async function normalizeVoice(input: string, output: string, effects = ""): Promise<void> {
-  // Effects (pitch, speed, reverb) come first, so the loudness is measured as heard.
-  const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input, effects))));
-  const filters = [effects, `volume=${gainDb.toFixed(2)}dB`, "alimiter=limit=0.84:attack=2:release=50:level=false"];
+export async function normalizeVoice(input: string, output: string, effects: VoiceEffects): Promise<void> {
+  const fx = await effectsGraph(effects);
+  // Effects come first, so the loudness is measured as heard.
+  const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input, fx))));
   await run("ffmpeg", [
     "-v", "error", "-y",
-    "-i", input,
-    "-af", filters.filter(Boolean).join(","),
-    "-ar", "44100", "-ac", "1",
+    "-i", input, ...fx.inputs,
+    "-filter_complex",
+    `${fx.graph};[fx]volume=${gainDb.toFixed(2)}dB,alimiter=limit=0.84:attack=2:release=50:level=false[out]`,
+    "-map", "[out]",
+    "-ar", `${SAMPLE_RATE}`, "-ac", "1",
     "-c:a", "libmp3lame", "-b:a", "128k",
     output,
   ]);
