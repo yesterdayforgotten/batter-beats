@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { PageHead } from "../components/PageHead.tsx";
@@ -69,9 +69,7 @@ export function RosterEditPage() {
                   <span className="jersey">{p.number}</span>
                   <span className="stack grow" style={{ gap: 2 }}>
                     <span className="player-name truncate">{p.name}</span>
-                    <span className={`small truncate ${p.clip ? "muted" : ""}`} style={p.clip ? undefined : { color: "var(--accent)" }}>
-                      {p.clip ? p.clip.song.title : "Choose a song"}
-                    </span>
+                    <span className="small truncate muted">{p.clip ? p.clip.song.title : "No song yet"}</span>
                   </span>
                   <span className="muted">
                     <ChevronIcon />
@@ -80,7 +78,7 @@ export function RosterEditPage() {
               </li>
             ))}
           </ul>
-          <AddPlayer rosterId={roster.id} onAdded={(p) => navigate(`/players/${p.id}`)} />
+          <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster({ ...roster, players: [...roster.players, p] })} />
 
           <button className="danger" style={{ marginTop: 24, alignSelf: "center" }} onClick={deleteRoster}>
             Delete roster
@@ -96,12 +94,18 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
   const [number, setNumber] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const numberInput = useRef<HTMLInputElement>(null);
 
+  // Stays open after each add so a whole team can be typed in one go; songs are chosen later in the player editor.
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     try {
       const r = await api<{ player: Player }>(`/rosters/${rosterId}/players`, { body: { name, number } });
       onAdded(r.player);
+      setNumber("");
+      setName("");
+      setError(null);
+      numberInput.current?.focus();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -118,6 +122,7 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
     <form className="card stack" onSubmit={handleSubmit}>
       <div className="row">
         <input
+          ref={numberInput}
           className="number-input"
           value={number}
           onChange={(e) => setNumber(e.target.value)}
@@ -131,9 +136,9 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
       </div>
       {error && <p className="error">{error}</p>}
       <div className="row">
-        <button className="primary">Add and choose song</button>
+        <button className="primary">Add player</button>
         <button type="button" onClick={() => setOpen(false)}>
-          Cancel
+          Done
         </button>
       </div>
     </form>
