@@ -26,7 +26,7 @@ export const CLIP_LIMITS = {
   minLengthMs: 1000,
   maxLengthMs: 120_000,
   defaultLengthMs: 30_000,
-  defaultFadeMs: 3000,
+  defaultFadeMs: 1500,
   maxFadeMs: 15_000,
   gainStepDb: 0.5,
   /** The lossless frame-gain step that MP3 files allow. */
