@@ -7,30 +7,11 @@ import { MoreMenu } from "./MoreMenu.tsx";
 
 /** Frame for the top-level screens (rosters, users). */
 export function Layout() {
-  const { user, signOut } = useAuth();
-
-  function handleSignOut() {
-    if (confirm("Sign out of Batter Beats on this phone? Teams saved for offline use are removed from it too.")) signOut();
-  }
+  const { user } = useAuth();
 
   return (
     <div className="app">
-      <header className="topbar">
-        <Link to="/" className="brand">
-          <img src="/favicon.svg" alt="" width={28} height={28} />
-          Batter Beats
-        </Link>
-        <MoreMenu
-          icon={<MenuIcon />}
-          label="Menu"
-          items={[
-            { label: "Playlist", to: "/playlist" },
-            ...(hasRole(user, "editor") ? [{ label: "Music", to: "/music" }] : []),
-            ...(hasRole(user, "admin") ? [{ label: "Admin", to: "/admin" }] : []),
-            { label: "Sign out", onSelect: handleSignOut },
-          ]}
-        />
-      </header>
+      <TopBar />
       <Outlet />
       <footer className="faint small" style={{ marginTop: 28, textAlign: "center" }}>
         {user!.username} · {ROLE_LABELS[user!.role]}
@@ -40,11 +21,40 @@ export function Layout() {
   );
 }
 
-/** Frame for inner screens, which bring their own header with a back button. */
+/** Frame for inner screens: the app's top bar, then the screen's own header with a back button. */
 export function Plain() {
   return (
     <div className="app">
+      <TopBar />
       <Outlet />
     </div>
+  );
+}
+
+/** The app's top bar on every screen: icon and name (back to Teams), and the ☰ menu. */
+function TopBar() {
+  const { user, signOut } = useAuth();
+
+  function handleSignOut() {
+    if (confirm("Sign out of Batter Beats on this phone? Teams saved for offline use are removed from it too.")) signOut();
+  }
+
+  return (
+    <header className="topbar">
+      <Link to="/" className="brand">
+        <img src="/favicon.svg" alt="" width={28} height={28} />
+        Batter Beats
+      </Link>
+      <MoreMenu
+        icon={<MenuIcon />}
+        label="Menu"
+        items={[
+          { label: "Playlist", to: "/playlist" },
+          ...(hasRole(user, "editor") ? [{ label: "Music", to: "/music" }] : []),
+          ...(hasRole(user, "admin") ? [{ label: "Admin", to: "/admin" }] : []),
+          { label: "Sign out", onSelect: handleSignOut },
+        ]}
+      />
+    </header>
   );
 }
