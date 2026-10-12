@@ -63,7 +63,7 @@ announcerRouter.post("/announcer/sample", requireRole("editor"), async (req, res
   const text =
     typeof req.body?.text === "string" && req.body.text.trim()
       ? req.body.text.trim().slice(0, 300)
-      : announcementText(template, "Alex Rivera", "12");
+      : announcementText(template, "Melody", "12");
   try {
     // A style can be tried out before it's saved.
     const style = req.body?.style === undefined ? currentStyle() : cleanStyle(req.body.style);
