@@ -14,7 +14,7 @@ import { songsRouter } from "./routes/songs.ts";
 import { announcerRouter } from "./routes/announcer.ts";
 import { playlistRouter } from "./routes/playlist.ts";
 import { adminRouter } from "./routes/admin.ts";
-import { refreshAllAnnouncements } from "./announcer.ts";
+import { startAnnouncer } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
 
 await ensureFirstAdmin();
@@ -92,5 +92,5 @@ if (config.isProduction) {
 server.listen(config.port, "0.0.0.0", () => {
   console.log(`Batter Beats listening on http://0.0.0.0:${config.port}`);
   // Make any announcements that are missing or out of date (for example after the voice engine was down).
-  void refreshAllAnnouncements();
+  startAnnouncer();
 });

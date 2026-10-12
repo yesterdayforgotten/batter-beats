@@ -3,6 +3,11 @@ import { spawn } from "node:child_process";
 
 /** Runs a command and returns its standard output as a Buffer. */
 function run(cmd: string, args: string[]): Promise<Buffer> {
+  return runFull(cmd, args).then((r) => r.out);
+}
+
+/** Runs a command and returns both what it printed and its messages (ffmpeg reports measurements there). */
+function runFull(cmd: string, args: string[]): Promise<{ out: Buffer; err: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
     const out: Buffer[] = [];
@@ -11,7 +16,7 @@ function run(cmd: string, args: string[]): Promise<Buffer> {
     child.stderr.on("data", (d: Buffer) => (err += d.toString()));
     child.on("error", reject);
     child.on("close", (code) => {
-      if (code === 0) resolve(Buffer.concat(out));
+      if (code === 0) resolve({ out: Buffer.concat(out), err });
       else reject(new Error(`${cmd} failed (${code}): ${err.slice(-500)}`));
     });
   });
@@ -93,16 +98,34 @@ export async function durationMs(file: string): Promise<number> {
   return Math.round(Number(out.toString().trim()) * 1000);
 }
 
+/** Loudness the announcer's voice is set to (LUFS): about as loud as a typical walkup song. */
+export const VOICE_LUFS = -13;
+
+/** Integrated loudness of a file in LUFS (EBU R128). */
+async function loudness(file: string): Promise<number> {
+  const { err } = await runFull("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128", "-f", "null", "-"]);
+  // The summary at the end (older ffmpeg also logs every frame before it).
+  const m = /Integrated loudness:\s*I:\s*(-?[\d.]+) LUFS/.exec(err.slice(err.lastIndexOf("Summary:")));
+  const value = m ? Number(m[1]) : NaN;
+  if (!Number.isFinite(value)) throw new Error("Couldn't measure the announcement's loudness.");
+  return value;
+}
+
 /**
  * Turns the voice engine's output into an announcement MP3 at a steady
  * loudness, so every player's announcement is equally loud. (Speech is
  * re-encoded; only songs have to stay untouched.)
+ *
+ * ffmpeg's loudnorm filter misjudges clips under about 3 seconds, which most
+ * announcements are, so the loudness is measured and the gain set directly,
+ * with a limiter catching the loudest syllables.
  */
 export async function normalizeVoice(input: string, output: string): Promise<void> {
+  const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input))));
   await run("ffmpeg", [
     "-v", "error", "-y",
     "-i", input,
-    "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+    "-af", `volume=${gainDb.toFixed(2)}dB,alimiter=limit=0.84:attack=2:release=50:level=false`,
     "-ar", "44100", "-ac", "1",
     "-c:a", "libmp3lame", "-b:a", "96k",
     output,

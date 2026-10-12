@@ -18,6 +18,9 @@ import { ANNOUNCER } from "../shared/types.ts";
 /** A deep, clear American voice that suits a stadium announcer. Changeable by an admin. */
 export const DEFAULT_VOICE = "am_michael";
 
+/** Bumped when the way announcements are processed changes, so existing ones are remade. */
+const PROCESSING = "loudness-2";
+
 export interface AnnouncerPlayerRow {
   id: number;
   roster_id: number;
@@ -74,7 +77,7 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
   if (!r?.announce_enabled) return null;
   const text = announcementText(r.announce_template, p.pronunciation.trim() || p.name, p.number);
   const voice = currentVoice();
-  const key = crypto.createHash("sha1").update(`${voice}\n${text}`).digest("hex").slice(0, 12);
+  const key = crypto.createHash("sha1").update(`${PROCESSING}\n${voice}\n${text}`).digest("hex").slice(0, 12);
   return { text, key, voice };
 }
 
@@ -200,4 +203,25 @@ export async function listVoices(): Promise<string[]> {
   if (!res.ok) throw new Error(`The announcer voice engine said no (${res.status}).`);
   const data = (await res.json()) as { voices?: (string | { id: string })[] };
   return (data.voices ?? []).map((v) => (typeof v === "string" ? v : v.id)).filter(Boolean);
+}
+
+/**
+ * Tries again for players whose announcement failed, for example because the
+ * voice engine was still starting when this server did (they start together).
+ */
+export function retryFailedAnnouncements() {
+  const failed = db.prepare("SELECT * FROM players WHERE announce_error IS NOT NULL").all() as AnnouncerPlayerRow[];
+  const ids = failed.filter((p) => {
+    const w = wanted(p);
+    return w && w.key !== p.announce_key;
+  });
+  return refreshAnnouncements(ids.map((p) => p.id));
+}
+
+const RETRY_EVERY_MS = 30_000;
+
+/** At server start: bring every announcement up to date, then keep retrying any that fail. */
+export function startAnnouncer() {
+  void refreshAllAnnouncements();
+  setInterval(() => void retryFailedAnnouncements(), RETRY_EVERY_MS).unref();
 }

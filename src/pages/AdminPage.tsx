@@ -16,7 +16,8 @@ const ACCENTS: Record<string, string> = { a: "American", b: "British" };
 function describe(id: string): { name: string; detail: string } | null {
   const m = /^([a-z])([fm])_(.+)$/.exec(id);
   if (!m || !ACCENTS[m[1]]) return null; // only English voices: announcements are in English
-  const name = m[3].replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  if (m[3].startsWith("v0")) return null; // older copies of voices that are also listed under their plain name
+  const name = m[3].replace(/_inno$/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return { name, detail: `${ACCENTS[m[1]]} · ${m[2] === "m" ? "male" : "female"}` };
 }
 
