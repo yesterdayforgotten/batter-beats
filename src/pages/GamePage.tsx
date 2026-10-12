@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
-import { EditIcon, PlayIcon, ReorderIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
+import { EditIcon, MusicIcon, PlayIcon, ReorderIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
@@ -501,6 +501,8 @@ function NowPlaying({
     const next = jukebox.upNext(playlist);
     return (
       <div className="innings-bar">
+        <div className="jukebox-tile">
+        <JukeboxHead />
         {/* Like a batter's row: details on the left, Skip, then the play circle on the right. */}
         <div className="innings-button">
           <button className="bar-play" disabled={!next} onClick={() => !jukebox.justStopped() && onPlay(playlist)}>
@@ -524,11 +526,14 @@ function NowPlaying({
             <PlayIcon />
           </button>
         </div>
+        </div>
       </div>
     );
   }
   return (
     <div className="innings-bar">
+      <div className="jukebox-tile on">
+      <JukeboxHead />
       <div className="innings-button on">
         <span className="bar-text">
           <span className="innings-title now-title">
@@ -557,6 +562,17 @@ function NowPlaying({
           <StopIcon />
         </button>
       </div>
+      </div>
+    </div>
+  );
+}
+
+/** The jukebox tile's own heading, like the lineup's section titles. */
+function JukeboxHead() {
+  return (
+    <div className="jukebox-head">
+      <MusicIcon />
+      Jukebox
     </div>
   );
 }

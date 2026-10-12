@@ -1872,3 +1872,54 @@ label,
   border: 1px solid var(--accent);
   color: var(--accent);
 }
+
+/* The jukebox tile: its own heading, a wash of the team colour and a tinted
+   edge (lit up while playing), so it reads as something other than a batter. */
+.jukebox-tile {
+  border-radius: 18px;
+  padding: 8px 4px 4px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--card)) 0%, var(--card) 70%);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.jukebox-tile.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+.jukebox-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 2px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* Inside the tile the row itself is plain */
+.jukebox-tile .innings-button,
+.jukebox-tile .innings-button.on {
+  min-height: 56px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+}
+/* The song title in the regular font, so the heading stands out */
+.jukebox-tile .innings-title {
+  font-family: var(--body);
+  font-size: 17px;
+  font-weight: 800;
+  text-transform: none;
+  line-height: 1.2;
+}
+.jukebox-tile .innings-button.on .innings-title {
+  color: var(--accent);
+}
+.jukebox-tile .bar-skip {
+  background: rgba(255, 255, 255, 0.09);
+}

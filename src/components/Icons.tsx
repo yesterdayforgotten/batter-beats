@@ -48,6 +48,15 @@ export const ReorderIcon = () => (
   </svg>
 );
 
+/** A pair of music notes, for the jukebox. */
+export const MusicIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" aria-hidden>
+    <path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinejoin="round" />
+    <circle cx="6.5" cy="18" r="2.8" fill="currentColor" />
+    <circle cx="17.5" cy="16" r="2.8" fill="currentColor" />
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <path d="M7 4l13 8-13 8Z" fill="currentColor" />
