@@ -25,7 +25,7 @@ The code will be public on GitHub under the MIT licence, in a repo named `batter
 - `ffmpeg` is installed. `mp3gain` was attempted at container start; check with `command -v mp3gain`.
 - You cannot install system packages or start other containers. If you need either, tell the owner what to add to the Portainer stack and why.
 - Run the dev server on `0.0.0.0:8090` with hot reload. That is the only published port, so the API and the screens must share it in development.
-- An https dev address is planned but not set up yet (the owner's Apache reverse proxy will forward to port 8090, and must pass WebSockets for hot reload). Home-screen install and offline storage only work over https, so phases 1 to 3 can be tested over plain http on the home network, but phase 4 needs the https address first. Remind the owner before phase 4.
+- An https dev address is set up (2026-10-12): the owner's Apache forwards it to port 8090 with WebSockets (hot reload works through it), using a wildcard Let's Encrypt certificate. Its host name is in `DEV_HOSTS` in the git-ignored `.env`; never commit it. Home-screen install and offline storage only work over https, so phases 1 to 3 can be tested over plain http on the home network, but phase 4 needs the https address first. Remind the owner before phase 4.
 - Pushing to GitHub needs credentials the owner has not set up yet. Commit locally until then.
 
 ## Decisions
