@@ -821,8 +821,8 @@ label,
   color: var(--muted);
 }
 .bat-row.at-bat .bat-status.song {
-  color: inherit;
-  opacity: 0.8;
+  color: var(--accent-ink);
+  font-weight: 700;
 }
 .bat-row.at-bat,
 .bat-row.at-bat:active {
