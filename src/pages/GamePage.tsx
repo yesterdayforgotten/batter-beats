@@ -216,19 +216,23 @@ export function GamePage() {
     setRoster(changeLineup(roster, { kind: "available", playerId: player.id, available }));
   }
 
+  /** The line under a batter's name: what's happening with their sound, otherwise their song. */
   function status(p: Player) {
     if (sound?.playerId === p.id) {
       if (sound.state === "loading") return <span className="bat-status">Loading…</span>;
       if (sound.state === "fading") return <span className="bat-status">Fading out</span>;
       return (
         <span className="bat-status">
-          <SoundBars /> At bat · tap to fade
+          <SoundBars /> <span className="truncate">{p.clip?.song.title ?? "Announcement"}</span>
         </span>
       );
     }
-    if (p.id === atBatId) return <span className="bat-status">At bat{p.clip || p.announcement ? " · tap to play again" : ""}</span>;
     if (!p.clip) return <span className="bat-status muted">No song</span>;
-    return null;
+    return (
+      <span className="bat-status song">
+        <span className="truncate">{p.clip.song.title}</span>
+      </span>
+    );
   }
 
   return (
@@ -302,6 +306,7 @@ export function GamePage() {
                     <span className="bat-name truncate">{p.name}</span>
                     {status(p)}
                   </span>
+                  {atBat && <span className="tag at-bat-tag">At bat</span>}
                   {p.id === onDeck?.id && !atBat && <span className="tag on-deck-tag">On deck</span>}
                   {(p.clip || p.announcement) && (
                     <span className="bat-action" aria-hidden>

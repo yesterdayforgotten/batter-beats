@@ -782,6 +782,21 @@ label {
   color: var(--accent-ink);
   flex-shrink: 0;
 }
+/* The at-bat tag is the on-deck tag inverted, to sit on the blue row */
+.at-bat-tag {
+  background: var(--accent-ink);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.bat-status.song {
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.bat-row.at-bat .bat-status.song {
+  color: inherit;
+  opacity: 0.8;
+}
 .bat-row.at-bat,
 .bat-row.at-bat:active {
   background: var(--accent);
