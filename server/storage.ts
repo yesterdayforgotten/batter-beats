@@ -8,6 +8,8 @@ export const dirs = {
   peaks: path.join(config.dataDir, "peaks"),
   clips: path.join(config.dataDir, "clips"),
   announcements: path.join(config.dataDir, "announcements"),
+  /** Raw speech from the voice engine, reused when only the echo changes (a cache; safe to delete). */
+  speech: path.join(config.dataDir, "speech-cache"),
   tmp: path.join(config.dataDir, "tmp"),
 };
 

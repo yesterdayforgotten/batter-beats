@@ -167,21 +167,56 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
 }
 
 /** Speaks text and returns a finished, loudness-matched announcement file in tmp (the caller moves or deletes it). */
+/** How many raw recordings to keep (about 50 KB each); the least recently used go first. */
+const SPEECH_CACHE_FILES = 500;
+
+/**
+ * The voice engine's raw recording of some text, reused when nothing that
+ * shapes the speech has changed: only the echo (and any speed or pitch we
+ * apply afterwards) is redone. So trying echo settings, or changing them for
+ * every announcement, costs no ElevenLabs credits. (The same settings also
+ * give the same take, which makes comparing echo settings fair.)
+ */
+async function rawSpeech(engine: Engine, text: string, voice: string, style: AnnouncerStyle): Promise<string> {
+  // Everything except what's done afterwards in ffmpeg.
+  const { reverb: _reverb, reverbSize: _reverbSize, ...speech } = style;
+  const spoken: Partial<AnnouncerStyle> = { ...speech };
+  if (engine.speed !== "native") delete spoken.speed;
+  if (engine.pitch !== "native") delete spoken.pitch;
+  const key = crypto.createHash("sha1").update(JSON.stringify([engine.id, voice, text, spoken])).digest("hex");
+  const file = path.join(dirs.speech, key);
+  if (fs.existsSync(file)) {
+    const now = new Date();
+    await fs.promises.utimes(file, now, now).catch(() => {}); // recently used: keep it
+    return file;
+  }
+  const tmp = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
+  await fs.promises.writeFile(tmp, await engine.speak(text, voice, style));
+  await fs.promises.rename(tmp, file);
+  void pruneSpeechCache();
+  return file;
+}
+
+async function pruneSpeechCache() {
+  const names = await fs.promises.readdir(dirs.speech).catch(() => [] as string[]);
+  if (names.length <= SPEECH_CACHE_FILES) return;
+  const files = await Promise.all(
+    names.map(async (n) => ({ n, t: (await fs.promises.stat(path.join(dirs.speech, n))).mtimeMs })),
+  );
+  files.sort((a, b) => a.t - b.t);
+  for (const f of files.slice(0, files.length - SPEECH_CACHE_FILES)) removeQuietly(path.join(dirs.speech, f.n));
+}
+
 async function makeAnnouncementFile(text: string, voice: string, style: AnnouncerStyle): Promise<string> {
   const engine = activeEngine();
   if (!engine) throw new Error("No announcer voice engine is set up.");
-  const raw = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
+  const raw = await rawSpeech(engine, withEnergy(text, style.energy), voice, style);
   const out = path.join(dirs.tmp, `${crypto.randomUUID()}.mp3`);
-  try {
-    await fs.promises.writeFile(raw, await engine.speak(withEnergy(text, style.energy), voice, style));
-    // Only what the engine can't do itself is done here, afterwards.
-    const tempo = engine.speed === "after" ? style.speed : 1;
-    const pitch = engine.pitch === "after" ? style.pitch : 0;
-    await normalizeVoice(raw, out, { pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize });
-    return out;
-  } finally {
-    removeQuietly(raw);
-  }
+  // Only what the engine can't do itself is done here, afterwards.
+  const tempo = engine.speed === "after" ? style.speed : 1;
+  const pitch = engine.pitch === "after" ? style.pitch : 0;
+  await normalizeVoice(raw, out, { pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize });
+  return out;
 }
 
 /** Speaks text in a voice and returns the finished MP3 data (for "listen" buttons and voice samples). */
