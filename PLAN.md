@@ -280,6 +280,9 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
+### Credits note (2026-10-12)
+Under the Delivery Listen button in Edit team → Announcer: "28,360 of 30,000 ElevenLabs credits left · resets Nov 3" (red under 10%). `GET /api/announcer/credits` asks ElevenLabs' `/v1/user/subscription` (free; needs the key's user-read permission, otherwise the note is just left out; null for Kokoro). Refreshed after each Listen and shortly after saving. The owner chose not to remember whether the Announcer section was left open.
+
 ### Sound bars (2026-10-12)
 The "playing now" bars (walkup status line, jukebox song list, the now-playing bar, previews) follow the real sound: every sound goes through one output (`output()` in `src/audio/engine.ts`) with an AnalyserNode tap, and `SoundBars` reads it each frame, bass on the left to treble on the right. A canned bounce is the fallback; reduced-motion keeps them still.
 

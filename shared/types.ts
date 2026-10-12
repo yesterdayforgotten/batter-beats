@@ -299,3 +299,11 @@ export const DEFAULT_TEAM_COLOR = "blue";
 
 export const teamColor = (id: string | undefined) =>
   TEAM_COLORS.find((c) => c.id === id) ?? TEAM_COLORS.find((c) => c.id === DEFAULT_TEAM_COLOR)!;
+
+/** This month's voice-service credits (ElevenLabs), for the "credits left" note by Listen. */
+export interface AnnouncerCredits {
+  used: number;
+  limit: number;
+  /** When the monthly allowance starts again (ISO date), if known. */
+  resetsAt: string | null;
+}

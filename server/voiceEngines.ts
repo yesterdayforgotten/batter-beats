@@ -13,7 +13,7 @@
 
 import fs from "node:fs";
 import { config } from "./config.ts";
-import { splitCues, type AnnouncerStyle, type AnnouncerVoice, type VoiceEngine } from "../shared/types.ts";
+import { splitCues, type AnnouncerCredits, type AnnouncerStyle, type AnnouncerVoice, type VoiceEngine } from "../shared/types.ts";
 
 export interface Engine {
   id: VoiceEngine;
@@ -29,6 +29,8 @@ export interface Engine {
   /** Speaks text; returns audio data in whatever format the engine produces (ffmpeg reads it). */
   speak(text: string, voice: string, style: AnnouncerStyle): Promise<Buffer>;
   voices(): Promise<AnnouncerVoice[]>;
+  /** This month's credits, for engines that charge by use (free to ask). */
+  credits?(): Promise<AnnouncerCredits>;
 }
 
 const UNREACHABLE = "The announcer voice engine isn't reachable.";
@@ -208,6 +210,19 @@ const elevenlabs: Engine = {
       60_000,
     );
     return Buffer.from(await res.arrayBuffer());
+  },
+  // One credit per character spoken; asking how many are left costs nothing.
+  async credits() {
+    const data = (await (await elevenCall("/v1/user/subscription", {}, 10_000)).json()) as {
+      character_count?: number;
+      character_limit?: number;
+      next_character_count_reset_unix?: number;
+    };
+    return {
+      used: data.character_count ?? 0,
+      limit: data.character_limit ?? 0,
+      resetsAt: data.next_character_count_reset_unix ? new Date(data.next_character_count_reset_unix * 1000).toISOString() : null,
+    };
   },
   async voices() {
     const data = (await (await elevenCall("/v2/voices?page_size=100", {}, 15_000)).json()) as { voices?: ElevenVoice[] };

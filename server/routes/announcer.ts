@@ -45,6 +45,17 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
   });
 });
 
+// This month's credits left with the voice service; null when the engine is free or the
+// key isn't allowed to read them (the note by Listen is then simply left out).
+announcerRouter.get("/announcer/credits", requireRole("editor"), async (_req, res) => {
+  const engine = activeEngine();
+  try {
+    res.json({ credits: engine?.credits ? await engine.credits() : null });
+  } catch {
+    res.json({ credits: null });
+  }
+});
+
 // Switch engine (ElevenLabs or Kokoro); every announcement is remade.
 announcerRouter.put("/announcer/engine", requireRole("admin"), (req, res) => {
   if (!setEngine(String(req.body?.engine ?? ""))) return res.status(400).json({ error: "That voice engine isn't set up." });

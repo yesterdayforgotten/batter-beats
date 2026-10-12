@@ -6,6 +6,7 @@ import {
   STYLE_LIMITS,
   formatCues,
   splitCues,
+  type AnnouncerCredits,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
   type VoiceFilters as Filters,
@@ -54,12 +55,19 @@ export function AnnouncerSettings(props: {
   const [filters, setFilters] = useState<Filters>({ gender: "Male" });
   /** The full voice list opens in a sheet; the page shows only the voice in use. */
   const [choosing, setChoosing] = useState(false);
+  /** This month's voice-service credits (ElevenLabs only), shown under Listen. */
+  const [credits, setCredits] = useState<AnnouncerCredits | null>(null);
+  const loadCredits = () =>
+    api<{ credits: AnnouncerCredits | null }>("/announcer/credits")
+      .then((r) => setCredits(r.credits))
+      .catch(() => {});
   const playback = useRef<Playback | null>(null);
 
   useEffect(() => {
     api<AnnouncerEngineInfo>("/announcer")
       .then(setInfo)
       .catch((err) => setError(err.message));
+    void loadCredits();
   }, []);
 
   // A fresh copy from the server (another editor, or the saved, tidied cues) replaces the draft.
@@ -83,6 +91,7 @@ export function AnnouncerSettings(props: {
         }),
       );
       setSavedNote(true);
+      window.setTimeout(() => void loadCredits(), 15_000); // once the team's announcements are remade
     } catch (err) {
       setError((err as Error).message);
     }
@@ -100,6 +109,7 @@ export function AnnouncerSettings(props: {
         body: JSON.stringify({ voice, style, template: props.template }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "The sample didn't play.");
+      void loadCredits(); // making the sample used some
       const buffer = await context().decodeAudioData(await res.arrayBuffer());
       const p = new Playback(null, null, { buffer, songDelayMs: 0 });
       playback.current = p;
@@ -146,6 +156,7 @@ export function AnnouncerSettings(props: {
               {playing === current ? "…" : "Listen"}
             </button>
           </div>
+          {credits && credits.limit > 0 && <CreditsNote credits={credits} />}
           <div className="editor-rows" style={{ padding: 0 }}>
             {eleven && (
               <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} help={HELP.cue} />
@@ -527,4 +538,18 @@ function Slider(props: {
 function LockPageScroll() {
   useLockPageScroll();
   return null;
+}
+
+/** "28,400 of 30,000 credits left · resets Nov 3", in red when under a tenth is left. */
+function CreditsNote({ credits }: { credits: AnnouncerCredits }) {
+  const left = Math.max(0, credits.limit - credits.used);
+  const low = left < credits.limit / 10;
+  const resets = credits.resetsAt
+    ? ` · resets ${new Date(credits.resetsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+    : "";
+  return (
+    <span className="small" style={{ color: low ? "var(--danger)" : "var(--muted)", textAlign: "right" }}>
+      {left.toLocaleString()} of {credits.limit.toLocaleString()} ElevenLabs credits left{resets}
+    </span>
+  );
 }
