@@ -261,7 +261,7 @@ export function GamePage() {
       {editing ? (
         <>
           <p className="muted small" style={{ margin: "0 4px 10px" }}>
-            Drag to change the batting order. Tap Out for anyone who isn't playing today.
+            Drag to change the batting order. Tap Away for anyone who isn't playing today.
           </p>
           <SortableList items={lineup} keyOf={(p) => p.id} sorting compact onReorder={saveOrder}>
             {(p) => (
@@ -269,7 +269,7 @@ export function GamePage() {
                 <span className="jersey">{p.number}</span>
                 <span className="player-name truncate grow">{p.name}</span>
                 <button className="small-button" onClick={() => setAvailable(p, false)}>
-                  Out
+                  Away
                 </button>
               </div>
             )}
@@ -316,7 +316,7 @@ export function GamePage() {
                   <span className="player-name truncate grow">{p.name}</span>
                   {editing && (
                     <button className="small-button" onClick={() => setAvailable(p, true)}>
-                      In
+                      Back
                     </button>
                   )}
                 </div>
