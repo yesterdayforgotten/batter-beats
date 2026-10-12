@@ -266,19 +266,31 @@ export interface Roster {
  * the text on top of the colour.
  */
 export const TEAM_COLORS = [
+  // Reds and oranges
   { id: "red", name: "Red", accent: "#ff4d4d", ink: "#2b0000" },
   { id: "maroon", name: "Maroon", accent: "#d4506a", ink: "#2a0610" },
+  { id: "coral", name: "Coral", accent: "#ff7a59", ink: "#2b0c03" },
   { id: "orange", name: "Orange", accent: "#ff8a2b", ink: "#2b1100" },
   { id: "gold", name: "Gold", accent: "#f2b630", ink: "#2b1d00" },
+  { id: "oldgold", name: "Old gold", accent: "#c9b16b", ink: "#221b06" },
   { id: "yellow", name: "Yellow", accent: "#ffe04a", ink: "#2b2400" },
+  { id: "lime", name: "Lime", accent: "#b5e63c", ink: "#172300" },
+  // Greens and blues
   { id: "green", name: "Green", accent: "#36d46c", ink: "#00230c" },
   { id: "forest", name: "Forest", accent: "#4caf74", ink: "#00200d" },
+  { id: "mint", name: "Mint", accent: "#5fe3b0", ink: "#00231a" },
   { id: "teal", name: "Teal", accent: "#22c7b8", ink: "#002622" },
+  { id: "cyan", name: "Cyan", accent: "#3fd5e8", ink: "#00222a" },
   { id: "sky", name: "Sky blue", accent: "#5cc8ff", ink: "#001f2e" },
   { id: "blue", name: "Blue", accent: "#3d9bff", ink: "#00142b" },
+  { id: "royal", name: "Royal blue", accent: "#4262ff", ink: "#000530" },
+  // Purples, pinks and neutrals
   { id: "navy", name: "Navy", accent: "#6b82ff", ink: "#000a2b" },
   { id: "purple", name: "Purple", accent: "#a66bff", ink: "#170030" },
+  { id: "magenta", name: "Magenta", accent: "#e05cff", ink: "#26002e" },
   { id: "pink", name: "Pink", accent: "#ff6fae", ink: "#2b0014" },
+  { id: "rose", name: "Rose", accent: "#ff9cb4", ink: "#2b0a12" },
+  { id: "brown", name: "Brown", accent: "#c98a5a", ink: "#221004" },
   { id: "silver", name: "Silver", accent: "#b9c2cf", ink: "#11161d" },
   { id: "white", name: "Black & white", accent: "#f2f3f5", ink: "#111214" },
 ] as const;
