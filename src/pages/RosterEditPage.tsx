@@ -13,12 +13,14 @@ export function RosterEditPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState(false);
+  const [template, setTemplate] = useState("");
 
   useEffect(() => {
     api<{ roster: Roster }>(`/rosters/${id}`)
       .then((r) => {
         setRoster(r.roster);
         setName(r.roster.name);
+        setTemplate(r.roster.announceTemplate);
       })
       .catch((err) => setError(err.message));
   }, [id]);
@@ -51,6 +53,18 @@ export function RosterEditPage() {
     }
   }
 
+  async function saveAnnouncer(changes: { announce?: boolean; announceTemplate?: string }) {
+    if (!roster) return;
+    try {
+      const r = await api<{ roster: Roster }>(`/rosters/${roster.id}`, { method: "PATCH", body: changes });
+      setRoster(r.roster);
+      setTemplate(r.roster.announceTemplate);
+    } catch (err) {
+      setError((err as Error).message);
+      setTemplate(roster.announceTemplate);
+    }
+  }
+
   async function deleteRoster() {
     if (!roster) return;
     if (!confirm(`Delete ${roster.name} and all its players? Songs stay in the library.`)) return;
@@ -74,6 +88,40 @@ export function RosterEditPage() {
               maxLength={80}
             />
           </label>
+
+          <div className="card stack">
+            <div className="row">
+              <span className="section-title grow">Announcer</span>
+              <button
+                role="switch"
+                aria-checked={roster.announce}
+                className={`switch${roster.announce ? " on" : ""}`}
+                onClick={() => void saveAnnouncer({ announce: !roster.announce })}
+              >
+                <span className="switch-label">{roster.announce ? "On" : "Off"}</span>
+                <span className="switch-track">
+                  <span className="switch-knob" />
+                </span>
+              </button>
+            </div>
+            {roster.announce && (
+              <>
+                <label>
+                  What it says
+                  <input
+                    value={template}
+                    onChange={(e) => setTemplate(e.target.value)}
+                    onBlur={() => template.trim() !== roster.announceTemplate && void saveAnnouncer({ announceTemplate: template })}
+                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                    maxLength={200}
+                  />
+                </label>
+                <p className="muted small" style={{ margin: 0 }}>
+                  {"{number}"} and {"{name}"} are filled in for each player. Players with no number skip the number.
+                </p>
+              </>
+            )}
+          </div>
 
           <div className="row" style={{ marginTop: 8 }}>
             <span className="section-title grow">{sorting ? "Drag to set batting order" : "Players"}</span>

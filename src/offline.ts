@@ -68,7 +68,9 @@ export function saveIfKept(roster: Roster) {
   if (isKept(roster.id)) write(rosterKey(roster.id), roster);
 }
 
-const clipUrls = (roster: Roster) => roster.players.flatMap((p) => (p.clip?.url ? [p.clip.url] : []));
+/** Every audio file game mode needs for a roster: clips and announcements. */
+const clipUrls = (roster: Roster) =>
+  roster.players.flatMap((p) => [p.clip?.url, p.announcement?.url].filter((u): u is string => !!u));
 
 /** How many of a roster's clips are on the phone. */
 export async function clipProgress(roster: Roster): Promise<{ done: number; total: number }> {

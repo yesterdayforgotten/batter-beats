@@ -2,7 +2,9 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { db } from "../db.ts";
 import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
-import { clipPath } from "../storage.ts";
+import { announcementPath, clipPath } from "../storage.ts";
+import { refreshAnnouncements, refreshRosterAnnouncements } from "../announcer.ts";
+import { ANNOUNCER } from "../../shared/types.ts";
 import {
   getPlayer,
   getRoster,
@@ -44,6 +46,10 @@ function removeClipFiles(where: string, id: number) {
     )
     .all(id) as { clip_file: string }[];
   for (const f of files) removeQuietly(clipPath(f.clip_file));
+  const spoken = db
+    .prepare(`SELECT p.announce_file FROM players p WHERE ${where} = ? AND p.announce_file IS NOT NULL`)
+    .all(id) as { announce_file: string }[];
+  for (const f of spoken) removeQuietly(announcementPath(f.announce_file));
 }
 
 // ── Rosters ──────────────────────────────────────────────────────────────
@@ -67,11 +73,24 @@ rostersRouter.get("/rosters/:id", (req, res) => {
 
 rostersRouter.patch("/rosters/:id", editor, (req, res) => {
   const id = Number(req.params.id);
-  if (!getRoster(id)) return res.status(404).json({ error: "Team not found." });
-  const name = text(req.body?.name, 80);
+  const roster = getRoster(id);
+  if (!roster) return res.status(404).json({ error: "Team not found." });
+  const name = req.body?.name === undefined ? roster.name : text(req.body.name, 80);
   if (!name) return res.status(400).json({ error: "Give the team a name." });
-  db.prepare("UPDATE rosters SET name = ? WHERE id = ?").run(name, id);
+  const announce = req.body?.announce === undefined ? roster.announce : !!req.body.announce;
+  const template =
+    req.body?.announceTemplate === undefined
+      ? roster.announceTemplate
+      : text(req.body.announceTemplate, 200) || ANNOUNCER.defaultTemplate;
+  if (!template.includes("{name}")) return res.status(400).json({ error: "The wording needs {name} where the name goes." });
+  db.prepare("UPDATE rosters SET name = ?, announce_enabled = ?, announce_template = ? WHERE id = ?").run(
+    name,
+    announce ? 1 : 0,
+    template,
+    id,
+  );
   touchRoster(id);
+  void refreshRosterAnnouncements(id);
   res.json({ roster: getRoster(id) });
 });
 
@@ -137,6 +156,7 @@ rostersRouter.post("/rosters/:id/players", editor, (req, res) => {
       .run(rosterId, name, number, next).lastInsertRowid,
   );
   touchRoster(rosterId);
+  void refreshAnnouncements([id]);
   res.status(201).json({ player: getPlayer(id) });
 });
 
@@ -149,13 +169,28 @@ rostersRouter.get("/players/:id", (req, res) => {
 rostersRouter.patch("/players/:id", editor, (req, res) => {
   const player = getPlayer(Number(req.params.id));
   if (!player) return res.status(404).json({ error: "Player not found." });
-  const name = req.body?.name === undefined ? player.name : text(req.body.name, 80);
-  const number = req.body?.number === undefined ? player.number : text(req.body.number, 4);
+  const b = req.body ?? {};
+  const name = b.name === undefined ? player.name : text(b.name, 80);
+  const number = b.number === undefined ? player.number : text(b.number, 4);
+  const pronunciation = b.pronunciation === undefined ? player.pronunciation : text(b.pronunciation, 200);
+  const announce = b.announce === undefined ? player.announce : !!b.announce;
+  const delay = b.songDelayMs === undefined ? player.songDelayMs : Number(b.songDelayMs);
   if (!name) return res.status(400).json({ error: "Enter the player's name." });
+  if (!Number.isFinite(delay)) return res.status(400).json({ error: "The song timing isn't a number." });
   db.prepare(
-    "UPDATE players SET name = ?, number = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
-  ).run(name, number, player.id);
+    `UPDATE players SET name = ?, number = ?, pronunciation = ?, announce_enabled = ?, song_delay_ms = ?,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+  ).run(name, number, pronunciation, announce ? 1 : 0, Math.round(Math.max(0, Math.min(delay, ANNOUNCER.maxSongDelayMs))), player.id);
   touchRoster(player.rosterId);
+  void refreshAnnouncements([player.id]);
+  res.json({ player: getPlayer(player.id) });
+});
+
+// Brings the player's announcement up to date and waits for it, for the editor's "Listen" button.
+rostersRouter.post("/players/:id/announcement", editor, async (req, res) => {
+  const player = getPlayer(Number(req.params.id));
+  if (!player) return res.status(404).json({ error: "Player not found." });
+  await refreshAnnouncements([player.id]);
   res.json({ player: getPlayer(player.id) });
 });
 

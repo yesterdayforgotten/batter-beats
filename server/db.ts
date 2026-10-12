@@ -84,6 +84,24 @@ const migrations: string[] = [
   ALTER TABLE rosters ADD COLUMN order_changed_at TEXT;
   ALTER TABLE players ADD COLUMN available_changed_at TEXT;
   `,
+  `
+  -- Announcer. Wording and on/off per team; spelling, on/off and song timing per player.
+  ALTER TABLE rosters ADD COLUMN announce_enabled INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE rosters ADD COLUMN announce_template TEXT NOT NULL DEFAULT 'Now batting, number {number}, {name}';
+  ALTER TABLE players ADD COLUMN pronunciation TEXT NOT NULL DEFAULT '';
+  ALTER TABLE players ADD COLUMN announce_enabled INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE players ADD COLUMN song_delay_ms INTEGER NOT NULL DEFAULT 0;
+  -- The generated announcement: file, what it was made from (so it is only remade when that changes), length.
+  ALTER TABLE players ADD COLUMN announce_file TEXT;
+  ALTER TABLE players ADD COLUMN announce_key TEXT;
+  ALTER TABLE players ADD COLUMN announce_ms INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE players ADD COLUMN announce_error TEXT;
+  -- App-wide settings (for example the announcer voice).
+  CREATE TABLE settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 const current = db.pragma("user_version", { simple: true }) as number;

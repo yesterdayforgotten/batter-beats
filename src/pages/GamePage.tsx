@@ -66,7 +66,9 @@ export function GamePage() {
     const show = (r: Roster) => {
       setRoster(r);
       // Fetch every clip now (from the phone if saved there) so taps don't wait.
-      for (const p of r.players) if (p.clip?.url) void fetchClip(p.clip.url).catch(() => {});
+      for (const p of r.players) {
+        for (const url of [p.clip?.url, p.announcement?.url]) if (url) void fetchClip(url).catch(() => {});
+      }
     };
     api<{ roster: Roster }>(`/rosters/${id}`, { timeoutMs: 5000 })
       .then((r) => {
@@ -111,10 +113,10 @@ export function GamePage() {
   const bench = order.filter((p) => !p.available);
   const onDeck = useMemo(() => nextBatter(order, atBatId), [order, atBatId]);
 
-  // Have the on-deck batter's song decoded and ready before anyone taps.
+  // Have the on-deck batter's announcement and song decoded and ready before anyone taps.
   useEffect(() => {
-    if (onDeck?.clip?.url) void loadClip(onDeck.clip.url).catch(() => {});
-  }, [onDeck?.clip?.url]);
+    for (const url of [onDeck?.announcement?.url, onDeck?.clip?.url]) if (url) void loadClip(url).catch(() => {});
+  }, [onDeck?.clip?.url, onDeck?.announcement?.url]);
 
   async function tap(player: Player) {
     unlockAudio(); // both of these must start inside the tap
@@ -135,15 +137,21 @@ export function GamePage() {
     const tapId = ++tapCount.current;
     setAtBatId(player.id);
     saveAtBat(id, player.id);
-    if (!player.clip?.url) {
+    const clip = player.clip?.url ? player.clip : null;
+    const announcement = player.announcement;
+    if (!clip && !announcement) {
       setSound(null);
       return;
     }
     setSound({ playerId: player.id, state: "loading" });
     try {
-      const buffer = await loadClip(player.clip.url);
+      const [buffer, voice] = await Promise.all([
+        clip ? loadClip(clip.url!) : null,
+        // A missing announcement shouldn't stop the song.
+        announcement ? loadClip(announcement.url).catch(() => null) : null,
+      ]);
       if (tapId !== tapCount.current) return; // another batter was tapped meanwhile
-      const p = new Playback(buffer, player.clip);
+      const p = new Playback(buffer, clip, voice && { buffer: voice, songDelayMs: player.songDelayMs });
       playback.current = p;
       setSound({ playerId: player.id, state: "playing" });
       p.onEnded = () => {
@@ -182,7 +190,7 @@ export function GamePage() {
         </span>
       );
     }
-    if (p.id === atBatId) return <span className="bat-status">At bat{p.clip ? " · tap to play again" : ""}</span>;
+    if (p.id === atBatId) return <span className="bat-status">At bat{p.clip || p.announcement ? " · tap to play again" : ""}</span>;
     if (!p.clip) return <span className="bat-status muted">No song</span>;
     return null;
   }
@@ -262,7 +270,7 @@ export function GamePage() {
                     {status(p)}
                   </span>
                   {p.id === onDeck?.id && !atBat && <span className="tag on-deck-tag">On deck</span>}
-                  {p.clip && (
+                  {(p.clip || p.announcement) && (
                     <span className="bat-action" aria-hidden>
                       {sound?.playerId === p.id && sound.state !== "loading" ? <StopIcon /> : <PlayIcon />}
                     </span>

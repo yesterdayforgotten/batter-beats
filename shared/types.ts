@@ -62,6 +62,11 @@ export interface Clip {
   version: number;
 }
 
+export interface Announcement {
+  url: string;
+  durationMs: number;
+}
+
 export interface Player {
   id: number;
   rosterId: number;
@@ -70,7 +75,26 @@ export interface Player {
   lineupPosition: number;
   available: boolean;
   clip: Clip | null;
+  /** Spelling used only by the announcer; empty means use the name. */
+  pronunciation: string;
+  /** Announce this player (the team's switch also has to be on). */
+  announce: boolean;
+  /** How long after the announcement starts the song comes in. */
+  songDelayMs: number;
+  /** The announcement to play, or null when it's off, not made yet, or failed. */
+  announcement: Announcement | null;
+  announcementStatus: "ready" | "pending" | "off" | "error";
+  announcementError: string | null;
 }
+
+export const ANNOUNCER = {
+  defaultTemplate: "Now batting, number {number}, {name}",
+  maxSongDelayMs: 10_000,
+  /** How loud the song is while the voice speaks over it. */
+  duckGain: 0.25,
+  /** How long the song takes to come up to full volume after the voice. */
+  duckReleaseMs: 700,
+} as const;
 
 export interface RosterSummary {
   id: number;
@@ -83,5 +107,9 @@ export interface Roster {
   id: number;
   name: string;
   updatedAt: string;
+  /** Announcer on for this team. */
+  announce: boolean;
+  /** Wording, with {number} and {name}. */
+  announceTemplate: string;
   players: Player[];
 }

@@ -4,6 +4,7 @@ import { db } from "./db.ts";
 import { scanMp3, cutClip } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
+import { wanted, type AnnouncerPlayerRow } from "./announcer.ts";
 import { CLIP_LIMITS, type Clip, type Player, type Roster, type RosterSummary, type Song } from "../shared/types.ts";
 
 // ── Songs ────────────────────────────────────────────────────────────────
@@ -52,13 +53,11 @@ export async function addSong(tmpFile: string, originalName: string, userId: num
 
 // ── Rosters and players ──────────────────────────────────────────────────
 
-interface PlayerRow {
-  id: number;
-  roster_id: number;
-  name: string;
-  number: string;
+interface PlayerRow extends AnnouncerPlayerRow {
   lineup_position: number;
   available: number;
+  song_delay_ms: number;
+  announce_ms: number;
 }
 
 interface ClipRow {
@@ -117,7 +116,27 @@ function toPlayer(r: PlayerRow): Player {
     lineupPosition: r.lineup_position,
     available: !!r.available,
     clip: clipFor(r.id),
+    pronunciation: r.pronunciation,
+    announce: !!r.announce_enabled,
+    songDelayMs: r.song_delay_ms,
+    ...announcementOf(r),
   };
+}
+
+/** The player's announcement, if there is an up-to-date one. */
+function announcementOf(r: PlayerRow): Pick<Player, "announcement" | "announcementStatus" | "announcementError"> {
+  const w = wanted(r);
+  if (!w) return { announcement: null, announcementStatus: "off", announcementError: null };
+  if (r.announce_file && r.announce_key === w.key) {
+    return {
+      announcement: { url: `/api/media/announcements/${r.announce_file}`, durationMs: r.announce_ms },
+      announcementStatus: "ready",
+      announcementError: null,
+    };
+  }
+  return r.announce_error
+    ? { announcement: null, announcementStatus: "error", announcementError: r.announce_error }
+    : { announcement: null, announcementStatus: "pending", announcementError: null };
 }
 
 export function touchRoster(rosterId: number) {
@@ -137,14 +156,21 @@ export function listRosters(): RosterSummary[] {
 }
 
 export function getRoster(id: number): Roster | undefined {
-  const r = db.prepare("SELECT id, name, updated_at FROM rosters WHERE id = ?").get(id) as
-    | { id: number; name: string; updated_at: string }
+  const r = db.prepare("SELECT id, name, updated_at, announce_enabled, announce_template FROM rosters WHERE id = ?").get(id) as
+    | { id: number; name: string; updated_at: string; announce_enabled: number; announce_template: string }
     | undefined;
   if (!r) return undefined;
   const players = (
     db.prepare("SELECT * FROM players WHERE roster_id = ? ORDER BY lineup_position, id").all(id) as PlayerRow[]
   ).map(toPlayer);
-  return { id: r.id, name: r.name, updatedAt: r.updated_at, players };
+  return {
+    id: r.id,
+    name: r.name,
+    updatedAt: r.updated_at,
+    announce: !!r.announce_enabled,
+    announceTemplate: r.announce_template,
+    players,
+  };
 }
 
 export function getPlayer(id: number): Player | undefined {

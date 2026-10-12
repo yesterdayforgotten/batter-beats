@@ -2,6 +2,7 @@
 // game mode both use this, so they sound the same.
 
 import { CLIP_CACHE } from "../offline.ts";
+import { ANNOUNCER } from "../../shared/types.ts";
 
 export interface PlaybackSettings {
   /** Where the requested start is inside the clip file (after lead-in frames). */
@@ -91,7 +92,7 @@ export function unlockAudio() {
 // A decoded 30-second clip takes about 10 MB, too much to keep a whole roster
 // decoded on an older iPhone. So every clip's file is kept (about 1 MB each),
 // and only the last few used are kept decoded, ready to play instantly.
-const MAX_DECODED = 4;
+const MAX_DECODED = 6; // about 4 songs plus announcements, which are small
 const files = new Map<string, Promise<ArrayBuffer>>();
 const decoded = new Map<string, Promise<AudioBuffer>>(); // oldest first
 
@@ -132,62 +133,113 @@ export function loadClip(url: string): Promise<AudioBuffer> {
 
 const dbToGain = (db: number) => Math.pow(10, db / 20);
 
-/** One playing clip. */
+/** The announcement played with a clip, and when the song comes in. */
+export interface VoiceOver {
+  buffer: AudioBuffer;
+  /** How long after the voice starts the song starts. */
+  songDelayMs: number;
+}
+
+/**
+ * One walkup: the player's announcement and/or their clip. While the voice
+ * speaks the song plays quietly underneath, then rises to full volume.
+ */
 export class Playback {
-  private source: AudioBufferSourceNode;
-  private bass: BiquadFilterNode;
-  private treble: BiquadFilterNode;
-  private level: GainNode;
+  private sources: AudioBufferSourceNode[] = [];
+  private bass: BiquadFilterNode | null = null;
+  private treble: BiquadFilterNode | null = null;
+  private level: GainNode | null = null;
   /** Fade-in, and the fade at the end of the clip. */
-  private envelope: GainNode;
-  /** The fade when a player taps to stop. Its own node, so it never has to interrupt the envelope's schedule. */
+  private envelope: GainNode | null = null;
+  /** The fade when a player taps to stop. Its own node, so it never has to interrupt the other schedules. */
   private stopFader: GainNode;
   private fadingOut = false;
+  /** When the song starts (or the voice, if there's no song). */
   private startedAt: number;
   private lengthSec: number;
   private stopped = false;
   onEnded: (() => void) | null = null;
 
-  constructor(buffer: AudioBuffer, private settings: PlaybackSettings) {
+  constructor(
+    buffer: AudioBuffer | null,
+    private settings: PlaybackSettings | null,
+    voice?: VoiceOver | null,
+  ) {
     const c = context();
-    this.source = c.createBufferSource();
-    this.source.buffer = buffer;
-    this.bass = c.createBiquadFilter();
-    this.bass.type = "lowshelf";
-    this.bass.frequency.value = BASS_HZ;
-    this.treble = c.createBiquadFilter();
-    this.treble.type = "highshelf";
-    this.treble.frequency.value = TREBLE_HZ;
-    this.level = c.createGain();
-    this.envelope = c.createGain();
     this.stopFader = c.createGain();
-    // Connected one by one: chained connect() calls are not reliable on iOS 15.
-    this.source.connect(this.bass);
-    this.bass.connect(this.treble);
-    this.treble.connect(this.level);
-    this.level.connect(this.envelope);
-    this.envelope.connect(this.stopFader);
     this.stopFader.connect(c.destination);
-    this.applyLive(settings, true);
-
-    const offset = settings.offsetMs / 1000;
-    this.lengthSec = Math.max(0.1, Math.min((settings.endMs - settings.startMs) / 1000, settings.playMs / 1000, buffer.duration - offset));
-    // The end fade can't overlap the fade-in (Web Audio refuses overlapping curves).
-    const fade = Math.min(settings.fadeMs / 1000, this.lengthSec - FADE_IN_SEC);
     const now = c.currentTime + 0.02;
-    const g = this.envelope.gain;
-    g.setValueAtTime(0, now);
-    g.linearRampToValueAtTime(1, now + FADE_IN_SEC);
-    if (fade > 0) g.setValueCurveAtTime(FADE_CURVE, now + this.lengthSec - fade, fade);
-    this.source.start(now, offset, this.lengthSec);
+    const voiceEnd = voice ? now + voice.buffer.duration : now;
+
+    if (voice) {
+      const v = c.createBufferSource();
+      v.buffer = voice.buffer;
+      v.connect(this.stopFader);
+      v.start(now);
+      this.sources.push(v);
+    }
+
     this.startedAt = now;
-    this.source.onended = () => {
-      this.stopped = true;
-      this.onEnded?.();
-    };
+    this.lengthSec = voice ? voice.buffer.duration : 0;
+
+    if (buffer && settings) {
+      const songStart = now + (voice ? voice.songDelayMs / 1000 : 0);
+      const source = c.createBufferSource();
+      source.buffer = buffer;
+      this.bass = c.createBiquadFilter();
+      this.bass.type = "lowshelf";
+      this.bass.frequency.value = BASS_HZ;
+      this.treble = c.createBiquadFilter();
+      this.treble.type = "highshelf";
+      this.treble.frequency.value = TREBLE_HZ;
+      this.level = c.createGain();
+      this.envelope = c.createGain();
+      const duck = c.createGain();
+      // Connected one by one: chained connect() calls are not reliable on iOS 15.
+      source.connect(this.bass);
+      this.bass.connect(this.treble);
+      this.treble.connect(this.level);
+      this.level.connect(this.envelope);
+      this.envelope.connect(duck);
+      duck.connect(this.stopFader);
+      this.applyLive(settings, true);
+
+      // Under the voice: quiet, then up to full volume once the voice ends.
+      if (voice && voiceEnd > songStart) {
+        duck.gain.setValueAtTime(ANNOUNCER.duckGain, now);
+        duck.gain.setValueAtTime(ANNOUNCER.duckGain, voiceEnd);
+        duck.gain.linearRampToValueAtTime(1, voiceEnd + ANNOUNCER.duckReleaseMs / 1000);
+      }
+
+      const offset = settings.offsetMs / 1000;
+      this.lengthSec = Math.max(
+        0.1,
+        Math.min((settings.endMs - settings.startMs) / 1000, settings.playMs / 1000, buffer.duration - offset),
+      );
+      // The end fade can't overlap the fade-in (Web Audio refuses overlapping curves).
+      const fade = Math.min(settings.fadeMs / 1000, this.lengthSec - FADE_IN_SEC);
+      const g = this.envelope.gain;
+      g.setValueAtTime(0, songStart);
+      g.linearRampToValueAtTime(1, songStart + FADE_IN_SEC);
+      if (fade > 0) g.setValueCurveAtTime(FADE_CURVE, songStart + this.lengthSec - fade, fade);
+      source.start(songStart, offset, this.lengthSec);
+      this.sources.push(source);
+      this.startedAt = songStart;
+    }
+
+    // Finished when every part has finished.
+    let left = this.sources.length;
+    for (const src of this.sources) {
+      src.onended = () => {
+        if (--left > 0) return;
+        this.stopped = true;
+        this.onEnded?.();
+      };
+    }
+    if (left === 0) this.stopped = true;
   }
 
-  /** Seconds into the clip (from the start point). */
+  /** Seconds into the song (from its start point); 0 while only the voice is playing. */
   get position(): number {
     return Math.max(0, Math.min(this.lengthSec, context().currentTime - this.startedAt));
   }
@@ -198,11 +250,13 @@ export class Playback {
 
   /** Volume, gain and tone changes are heard straight away. */
   update(settings: Partial<PlaybackSettings>) {
+    if (!this.settings) return;
     this.settings = { ...this.settings, ...settings };
     this.applyLive(this.settings, false);
   }
 
   private applyLive(s: PlaybackSettings, immediate: boolean) {
+    if (!this.level || !this.bass || !this.treble) return;
     const t = context().currentTime;
     const set = (p: AudioParam, v: number) => (immediate ? (p.value = v) : p.setTargetAtTime(v, t, 0.03));
     set(this.level.gain, s.volume * dbToGain(s.gainDb - s.fileGainDb));
@@ -219,19 +273,27 @@ export class Playback {
     if (this.stopped || this.fadingOut) return;
     this.fadingOut = true;
     const now = context().currentTime;
-    const fade = seconds ?? Math.max(MIN_STOP_FADE_SEC, Math.min(this.settings.fadeMs / 1000, 5));
+    const fade = seconds ?? Math.max(MIN_STOP_FADE_SEC, Math.min((this.settings?.fadeMs ?? 0) / 1000, 5));
     this.stopFader.gain.setValueCurveAtTime(FADE_CURVE, now, fade);
-    this.source.stop(now + fade + 0.05);
+    for (const src of this.sources) {
+      try {
+        src.stop(now + fade + 0.05);
+      } catch {
+        // already stopped
+      }
+    }
   }
 
   /** Stops immediately (for example when leaving the screen). */
   stop() {
     if (this.stopped) return;
     this.onEnded = null;
-    try {
-      this.source.stop();
-    } catch {
-      // already stopped
+    for (const src of this.sources) {
+      try {
+        src.stop();
+      } catch {
+        // already stopped
+      }
     }
     this.stopped = true;
   }

@@ -87,6 +87,28 @@ export async function applyFrameGain(file: string, steps: number): Promise<void>
   await run("mp3gain", ["-g", String(steps), "-c", "-q", "-s", "s", file]);
 }
 
+/** Length of an audio file in milliseconds. */
+export async function durationMs(file: string): Promise<number> {
+  const out = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]);
+  return Math.round(Number(out.toString().trim()) * 1000);
+}
+
+/**
+ * Turns the voice engine's output into an announcement MP3 at a steady
+ * loudness, so every player's announcement is equally loud. (Speech is
+ * re-encoded; only songs have to stay untouched.)
+ */
+export async function normalizeVoice(input: string, output: string): Promise<void> {
+  await run("ffmpeg", [
+    "-v", "error", "-y",
+    "-i", input,
+    "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+    "-ar", "44100", "-ac", "1",
+    "-c:a", "libmp3lame", "-b:a", "96k",
+    output,
+  ]);
+}
+
 export async function ensureTools(): Promise<void> {
   for (const [cmd, args] of [["ffmpeg", ["-version"]], ["ffprobe", ["-version"]], ["mp3gain", ["-v"]]] as const) {
     try {

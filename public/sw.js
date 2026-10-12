@@ -1,7 +1,7 @@
 // Batter Beats service worker: lets the app open and game mode run without a
 // connection. Plain JavaScript, served as-is from /sw.js.
 //
-// - Clips kept for offline use (cache "bb-clips", filled by the app) are served from the phone.
+// - Clips and announcements kept for offline use (cache "bb-clips", filled by the app) are served from the phone.
 // - The app itself (page, scripts, styles, fonts, icons) is stored as it loads.
 //   The page is fetched fresh when there's a connection, so updates arrive on the
 //   next open; after a few seconds with no answer the stored copy is used.
@@ -62,7 +62,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith("/api/media/clips/")) {
+  if (url.pathname.startsWith("/api/media/")) {
     event.respondWith(caches.match(request, { cacheName: CLIPS, ignoreVary: true }).then((kept) => kept || fetch(request)));
     return;
   }

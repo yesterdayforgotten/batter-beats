@@ -174,6 +174,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ## Status
 
 **Phase 1 (server foundation): built.**
+**Phase 5 (announcer): built 2026-10-12, waiting for the owner to add the voice engine container and listen.**
 **Phase 4 (offline): built 2026-10-12, waiting for the owner to test on phones** (a full mock game in airplane mode on every phone, per the build order).
 **Phase 3 (game mode): built 2026-10-12.** Owner has not yet reported phone results.
 **Phase 2 (rosters and players): built.** Owner tested on the Pixel 9 (2026-10-12): preview plays, curved fade sounds better, drag-to-reorder works. iPhone checks (silent switch, 6s on iOS 15) postponed by the owner; do them before trusting game mode at a field.
@@ -238,4 +239,12 @@ These were not verified during planning. Test each one and tell the owner what y
 - Tested in headless Chromium, in dev mode and with a production build: keep a team, reopen with no connection, play, sit a player out offline, reload offline, reconnect and confirm the server got the change; older changes ignored; Update button appears.
 - **Not yet verified on real phones**, in particular: iPhone storage limits for home-screen apps, and that iOS keeps the service worker and Cache Storage across days (being a home-screen app should exempt it from Safari's 7-day clearing).
 
-Next: owner tests phase 4 on phones (full mock game in airplane mode), then phase 5 (announcer).
+### Phase 5 notes
+- Voice engine: Kokoro-FastAPI (`ghcr.io/remsky/kokoro-fastapi-cpu`), port 8880, OpenAI-style `POST /v1/audio/speech` (`model: "kokoro"`, `input`, `voice`, `response_format: "mp3"`) and `GET /v1/audio/voices`. The app talks to it only through `server/announcer.ts`, at `TTS_URL` (default `http://kokoro:8880`; empty turns the announcer off). Swapping engines means changing that one file and the URL.
+- **Checked (Kokoro docs):** exact pronunciations are written in the input as `[Word](/IPA/)`, e.g. `[Siobhan](/ʃɪvˈɔːn/)`. The "Say it like this" field passes text through unchanged, so plain respellings ("Kay-den") and this syntax both work. Not yet heard with the real engine.
+- Each player's announcement is an MP3 in `data/announcements/<playerId>-<key>.mp3`, where the key is a hash of voice + text, so it's remade only when the voice, wording, name, number or spelling changes. Made one at a time in the background (on every change, and at server start for anything missing or out of date), loudness-matched with ffmpeg `loudnorm` (speech may be re-encoded; songs never are). `POST /api/players/:id/announcement` waits for it (the editor's Listen button).
+- Wording per team (`{number}`, `{name}`; must include `{name}`); players with no number skip the "number …" part. Announcer on/off per team and per player. Default voice `am_michael`; stored in the new `settings` table (`announcer_voice`), chosen by an admin in phase 7. API for that already exists: `GET /api/announcer`, `POST /api/announcer/sample`, `PUT /api/announcer/voice`.
+- Playback (`Playback` in `src/audio/engine.ts`): the voice starts at once; the song starts `songDelayMs` later (per player, 0–10 s, the "Song in" slider), plays at 25% under the voice and rises to full over 0.7 s when the voice ends. Tap fades both. Announcements are kept offline with the clips. A player with an announcement but no song still gets announced.
+- Tested against a stand-in for Kokoro (same API, returns a tone): generation, regeneration on changes, wording with and without numbers, team/player off, offline storage, game mode, Listen and Preview.
+
+Next: owner adds the Kokoro container (dev and production stacks) and listens to the voices; phone tests for phases 3–5. Then phase 6 (between-innings playlist).

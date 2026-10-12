@@ -11,6 +11,8 @@ import { authRouter } from "./routes/auth.ts";
 import { usersRouter } from "./routes/users.ts";
 import { rostersRouter } from "./routes/rosters.ts";
 import { songsRouter } from "./routes/songs.ts";
+import { announcerRouter } from "./routes/announcer.ts";
+import { refreshAllAnnouncements } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
 
 await ensureFirstAdmin();
@@ -48,6 +50,7 @@ app.get("/api/version", (_req, res) => {
 });
 app.use("/api", rostersRouter);
 app.use("/api", songsRouter);
+app.use("/api", announcerRouter);
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found." }));
 app.use("/api", (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
@@ -81,4 +84,6 @@ if (config.isProduction) {
 
 server.listen(config.port, "0.0.0.0", () => {
   console.log(`Batter Beats listening on http://0.0.0.0:${config.port}`);
+  // Make any announcements that are missing or out of date (for example after the voice engine was down).
+  void refreshAllAnnouncements();
 });
