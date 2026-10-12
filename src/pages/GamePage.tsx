@@ -224,27 +224,23 @@ export function GamePage() {
     <>
       <PageHead
         back="/"
-        eyebrow={editing ? "Edit lineup" : "Game mode"}
+        eyebrow={editing ? "Reorder" : "Game mode"}
         title={<div className="display truncate" style={{ fontSize: 30 }}>{roster?.name ?? ""}</div>}
         right={
-          <div className="row" style={{ gap: 2 }}>
-            <button
-              role="switch"
-              aria-checked={editing}
-              className={`switch${editing ? " on" : ""}`}
-              onClick={() => setEditing(!editing)}
-            >
-              <span className="switch-label">Edit lineup</span>
-              <span className="switch-track">
-                <span className="switch-knob" />
-              </span>
+          editing ? (
+            <button className="link-button" style={{ color: "var(--accent)", padding: "8px 6px" }} onClick={() => setEditing(false)}>
+              Done
             </button>
-            {hasRole(user, "editor") && roster && !fromPhone && (
-              <Link to={`/rosters/${roster.id}/edit`} aria-label="Edit team" className="kebab">
-                <KebabIcon />
-              </Link>
-            )}
-          </div>
+          ) : (
+            <MoreMenu
+              items={[
+                { label: "Reorder", onSelect: () => setEditing(true) },
+                ...(hasRole(user, "editor") && roster && !fromPhone
+                  ? [{ label: "Edit Team", to: `/rosters/${roster.id}/edit` }]
+                  : []),
+              ]}
+            />
+          )
         }
       />
       {error && (
@@ -354,5 +350,51 @@ export function GamePage() {
         <AppVersion />
       </footer>
     </>
+  );
+}
+
+type MenuItem = { label: string; onSelect: () => void } | { label: string; to: string };
+
+/** The ⋮ button and its small menu. Tapping outside closes it. */
+function MoreMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <div className="more-menu" ref={ref}>
+      <button className="kebab" aria-label="More" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <KebabIcon />
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {items.map((item) =>
+            "to" in item ? (
+              <Link key={item.label} to={item.to} role="menuitem" className="menu-item">
+                {item.label}
+              </Link>
+            ) : (
+              <button
+                key={item.label}
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setOpen(false);
+                  item.onSelect();
+                }}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
   );
 }
