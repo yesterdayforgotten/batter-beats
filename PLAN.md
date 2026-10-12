@@ -176,7 +176,7 @@ These were not verified during planning. Test each one and tell the owner what y
 **Phase 1 (server foundation): built.**
 **Phase 7 (admin extras): built 2026-10-12.** All seven phases are built; what's left is the owner's phone testing and listening to the real voice engine.
 **Phase 6 (between-innings playlist): built 2026-10-12, waiting for the owner to test on phones.**
-**Phase 5 (announcer): built 2026-10-12, waiting for the owner to add the voice engine container and listen.**
+**Phase 5 (announcer): built 2026-10-12.** Owner uses ElevenLabs (paid plan) on the dev stack and has tuned voice and delivery per team; Kokoro is the free fallback. Still to hear: announcements on real speakers at a field.
 **Phase 4 (offline): built 2026-10-12, waiting for the owner to test on phones** (a full mock game in airplane mode on every phone, per the build order).
 **Phase 3 (game mode): built 2026-10-12.** Owner has not yet reported phone results.
 **Phase 2 (rosters and players): built.** Owner tested on the Pixel 9 (2026-10-12): preview plays, curved fade sounds better, drag-to-reorder works. iPhone checks (silent switch, 6s on iOS 15) postponed by the owner; do them before trusting game mode at a field.
@@ -280,4 +280,4 @@ These were not verified during planning. Test each one and tell the owner what y
 - README is now the setup guide (stack, https proxy, first sign-in, phones, updating, backups, settings).
 - Tested on a test server: backup download, bad file refused with nothing changed, restore brings back deleted data and files, regular users refused; Admin screen Listen/Use/download/restore in headless Chromium. Offline test re-run with announcements (stored and played offline).
 
-Next: owner tests on phones (iPhone 6s, newer iPhone, Pixel), including a full mock game in airplane mode, and adds the Kokoro container to the dev stack to hear the real voices.
+Next: owner tests on phones (iPhone 6s, newer iPhone, Pixel), including a full mock game in airplane mode; then the production stack is deployed.
