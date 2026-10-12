@@ -206,7 +206,7 @@ These were not verified during planning. Test each one and tell the owner what y
 - Roster screen (`/rosters/:id`) is a read-only lineup until game mode in phase 3.
 
 ### App icon
-- 2026-10-12: at 16 px the five sound bars blurred together, so `favicon.svg` holds a second drawing made on the 16-pixel grid (1-pixel bars with 1-pixel gaps) and switches to it at 24 px and below (a media query inside the SVG); `favicon.ico`'s 16 px image is that drawing.
+- 2026-10-12: at 16 px the five sound bars blurred together, so `favicon.svg` holds a second drawing made on the 16-pixel grid (1-pixel bars with 1-pixel gaps) and switches to it at 24 px and below and at 30–40 px (a media query inside the SVG), so 32 px is the same drawing with 2-pixel bars; `favicon.ico`'s 16 and 32 px images are that drawing. Bars are 3, 5, 7, 5, 3 px tall, centred a little above the plate's middle (owner tuned the height). Icon links carry `?v=N`; bump it when the icon changes, as browsers cache icons hard.
 - Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png`, and `icon-maskable-*.png` (plate shrunk to fit Android's circle crop). `public/manifest.webmanifest` (added 2026-10-12) gives the installed app its name, the near-black background and theme colour (Android's start-up screen) and these icons.
 
 ### GitHub and Docker (done early, 2026-10-12, at the owner's request)
