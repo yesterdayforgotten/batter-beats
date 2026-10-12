@@ -968,3 +968,18 @@ label {
   background: var(--accent);
   color: var(--accent-ink);
 }
+
+/* Gender / accent / age filters above a voice list */
+.voice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.voice-filters select {
+  width: auto;
+  min-height: 38px;
+  font-size: 14px;
+  padding: 0 8px;
+}

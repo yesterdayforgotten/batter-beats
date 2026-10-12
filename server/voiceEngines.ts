@@ -12,7 +12,7 @@
 
 import fs from "node:fs";
 import { config } from "./config.ts";
-import type { AnnouncerStyle, AnnouncerVoice, LibraryVoice, VoiceEngine } from "../shared/types.ts";
+import type { AnnouncerStyle, AnnouncerVoice, LibraryFilters, LibraryVoice, VoiceEngine } from "../shared/types.ts";
 
 export interface Engine {
   id: VoiceEngine;
@@ -27,11 +27,45 @@ export interface Engine {
   voices(): Promise<AnnouncerVoice[]>;
   addVoice(name: string, file: string, fileName: string): Promise<void>;
   /** Searching and adding voices from the engine's shared library (ElevenLabs). */
-  searchLibrary?(query: string): Promise<LibraryVoice[]>;
+  searchLibrary?(query: string, filters: LibraryFilters): Promise<LibraryVoice[]>;
   addFromLibrary?(ownerId: string, voiceId: string, name: string): Promise<void>;
 }
 
 const UNREACHABLE = "The announcer voice engine isn't reachable.";
+
+// Engines describe voices differently; these put gender, accent and age into
+// the same few words so the Admin screen can filter by them.
+const LOCALE_ACCENTS: Record<string, string> = {
+  US: "American",
+  UK: "British",
+  GB: "British",
+  AU: "Australian",
+  IN: "Indian",
+  SCOTT: "Scottish",
+  CA: "Canadian",
+  IE: "Irish",
+  NZ: "New Zealand",
+  ZA: "South African",
+};
+const titleCase = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+export function normGender(g?: string): string | undefined {
+  const v = g?.toLowerCase();
+  return v === "male" || v === "m" ? "Male" : v === "female" || v === "f" ? "Female" : v ? titleCase(v) : undefined;
+}
+export function normAccent(a?: string): string | undefined {
+  if (!a) return undefined;
+  const locale = /^en-([A-Za-z]+)$/.exec(a)?.[1]?.toUpperCase();
+  if (locale) return LOCALE_ACCENTS[locale] ?? locale;
+  return titleCase(a.toLowerCase() === "us" ? "american" : a);
+}
+export function normAge(a?: string): string | undefined {
+  const v = a?.toLowerCase().replace(/_/g, " ");
+  if (!v) return undefined;
+  if (/middle/.test(v)) return "Middle-aged";
+  if (/young|teen|kid|child/.test(v)) return "Young";
+  if (/old|senior|elder/.test(v)) return "Older";
+  return undefined;
+}
 
 async function call(path: string, init: RequestInit, timeoutMs: number, base = config.ttsUrl): Promise<Response> {
   let res: Response;
@@ -55,7 +89,8 @@ function describeKokoro(id: string): AnnouncerVoice | null {
   if (!m || !ACCENTS[m[1]]) return null; // only English voices: announcements are in English
   if (m[3].startsWith("v0")) return null; // older copies of voices also listed under their plain name
   const name = m[3].replace(/_inno$/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  return { id, name, detail: `${ACCENTS[m[1]]} · ${m[2] === "m" ? "male" : "female"}` };
+  const gender = m[2] === "m" ? "Male" : "Female";
+  return { id, name, detail: `${ACCENTS[m[1]]} · ${gender.toLowerCase()}`, gender, accent: ACCENTS[m[1]] };
 }
 
 const kokoro: Engine = {
@@ -199,6 +234,9 @@ const murf: Engine = {
         name: (v.displayName ?? v.voiceId!).replace(/\s*\([MF]\)$/, ""),
         detail: [v.locale, v.gender?.toLowerCase(), v.description].filter(Boolean).join(" · "),
         styles: v.supportedLocales?.[v.locale ?? ""]?.availableStyles ?? v.availableStyles ?? [],
+        gender: normGender(v.gender),
+        accent: normAccent(v.locale),
+        age: normAge(v.description),
       }))
       .sort((a, b) => a.detail.localeCompare(b.detail) || a.name.localeCompare(b.name));
     murfVoiceCache = { at: Date.now(), voices };
@@ -280,15 +318,22 @@ const elevenlabs: Engine = {
         name: v.name.split(" - ")[0],
         detail: elevenDetail(v.labels ?? {}) || (v.category === "premade" ? "ElevenLabs voice" : "Added to your account"),
         previewUrl: v.preview_url,
+        gender: normGender(v.labels?.gender),
+        accent: normAccent(v.labels?.accent),
+        age: normAge(v.labels?.age),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
   async addVoice() {
     throw new Error("Add ElevenLabs voices from its library instead.");
   },
-  async searchLibrary(query) {
+  async searchLibrary(query, filters) {
     const params = new URLSearchParams({ page_size: "30", language: "en", sort: "cloned_by_count" });
     if (query.trim()) params.set("search", query.trim());
+    // ElevenLabs' own label values: "male", "american", "middle_aged".
+    if (filters.gender) params.set("gender", filters.gender.toLowerCase());
+    if (filters.accent) params.set("accent", filters.accent.toLowerCase());
+    if (filters.age) params.set("age", { Young: "young", "Middle-aged": "middle_aged", Older: "old" }[filters.age] ?? filters.age);
     const data = (await (await elevenCall(`/v1/shared-voices?${params}`, {}, 15_000)).json()) as {
       voices?: (ElevenVoice & { public_owner_id: string; gender?: string; age?: string; accent?: string; descriptive?: string; use_case?: string; cloned_by_count?: number })[];
     };
@@ -299,6 +344,9 @@ const elevenlabs: Engine = {
       detail: elevenDetail({ gender: v.gender, accent: v.accent, age: v.age, descriptive: v.descriptive, use_case: v.use_case }),
       previewUrl: v.preview_url,
       uses: v.cloned_by_count ?? 0,
+      gender: normGender(v.gender),
+      accent: normAccent(v.accent),
+      age: normAge(v.age),
     }));
   },
   async addFromLibrary(ownerId, voiceId, name) {

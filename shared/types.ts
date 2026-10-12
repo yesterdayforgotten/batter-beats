@@ -144,6 +144,17 @@ export interface AnnouncerVoice {
   styles?: string[];
   /** A short sample to hear the voice without spending credit (ElevenLabs library). */
   previewUrl?: string;
+  /** For filtering, where the engine says: "Male" / "Female", "American", "Young" / "Middle-aged" / "Older". */
+  gender?: string;
+  accent?: string;
+  age?: string;
+}
+
+/** Filters for an engine's shared voice library (ElevenLabs). Empty = any. */
+export interface LibraryFilters {
+  gender?: string;
+  accent?: string;
+  age?: string;
 }
 
 /** A voice found in an engine's shared library, not yet added to the account (ElevenLabs). */

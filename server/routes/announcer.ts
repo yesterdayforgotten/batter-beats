@@ -114,7 +114,14 @@ announcerRouter.get("/announcer/library", requireRole("admin"), async (req, res)
   const engine = activeEngine();
   if (!engine?.searchLibrary) return res.status(400).json({ error: "This voice engine has no voice library." });
   try {
-    res.json({ voices: await engine.searchLibrary(String(req.query.q ?? "").slice(0, 100)) });
+    const pick = (k: string) => (typeof req.query[k] === "string" ? (req.query[k] as string).slice(0, 40) : undefined);
+    res.json({
+      voices: await engine.searchLibrary(String(req.query.q ?? "").slice(0, 100), {
+        gender: pick("gender"),
+        accent: pick("accent"),
+        age: pick("age"),
+      }),
+    });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }

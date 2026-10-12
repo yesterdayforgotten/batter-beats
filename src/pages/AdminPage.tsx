@@ -8,6 +8,7 @@ import {
   STYLE_LIMITS,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
+  type LibraryFilters,
   type LibraryVoice,
   type Energy,
   type VoiceEngine,
@@ -50,7 +51,8 @@ function AnnouncerVoice() {
   const [info, setInfo] = useState<AnnouncerInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  // Male voices first, since they suit a stadium announcer; change the filters to see others.
+  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male" });
   /** Delivery settings being tried out; saved with "Use these settings". */
   const [style, setStyle] = useState<AnnouncerStyle>(DEFAULT_STYLE);
   const [savedNote, setSavedNote] = useState(false);
@@ -72,6 +74,7 @@ function AnnouncerVoice() {
     if (id === info?.engine) return;
     setError(null);
     setInfo((i) => i && { ...i, engine: id, voices: [], error: null });
+    setFilters({ gender: "Male" }); // each engine starts with its male voices
     try {
       await api("/announcer/engine", { method: "PUT", body: { engine: id } });
       await load();
@@ -140,10 +143,16 @@ function AnnouncerVoice() {
   const styleFilter = murf && style.murfStyle ? style.murfStyle : "";
   const styleMissing = !!styleFilter && !(currentVoice?.styles ?? []).includes(styleFilter);
   const withStyle = styleFilter ? voices.filter((v) => v.styles?.includes(styleFilter)) : voices;
-  const shown =
-    chatterbox || eleven || showAll || styleFilter
-      ? withStyle
-      : voices.filter((v) => /(^|· )male( ·|$)/.test(v.detail) || v.id === info?.voice);
+  const filterable = voices.some((v) => v.gender || v.accent || v.age);
+  const matches = (v: Voice) =>
+    !filterable ||
+    v.id === info?.voice || // the voice in use always shows
+    ((!filters.gender || v.gender === filters.gender) &&
+      (!filters.accent || v.accent === filters.accent) &&
+      (!filters.age || v.age === filters.age));
+  const shown = withStyle.filter(matches);
+  const optionsFor = (key: keyof LibraryFilters) =>
+    [...new Set(voices.map((v) => v[key]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
   const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
 
   return (
@@ -357,6 +366,14 @@ function AnnouncerVoice() {
           Showing the voices that have the {styleFilter} style.
         </p>
       )}
+      {filterable && (
+        <VoiceFilters
+          filters={filters}
+          onChange={setFilters}
+          options={{ gender: optionsFor("gender"), accent: optionsFor("accent"), age: optionsFor("age") }}
+          note={`${shown.length} of ${withStyle.length} voices`}
+        />
+      )}
       <ul className="list">
         {shown.map(({ id, name, detail, styles }) => (
           <li key={id || "default"} className="list-item">
@@ -382,11 +399,7 @@ function AnnouncerVoice() {
           </li>
         ))}
       </ul>
-      {!chatterbox && !styleFilter && voices.length > shown.length && (
-        <button className="link-button" style={{ marginTop: 6 }} onClick={() => setShowAll(true)}>
-          Show all {voices.length} English voices
-        </button>
-      )}
+      {filterable && shown.length === 0 && <p className="empty">No voices match. Try other filters.</p>}
       {info?.canAddVoices && <AddVoice onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
       {eleven && <VoiceLibrary onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
     </>
@@ -399,6 +412,7 @@ const ELEVEN_CUES = ["", "excited", "enthusiastic", "shouting", "energetic", "sp
 /** Search ElevenLabs' shared library and add voices to the account. Previews are free; adding costs nothing. */
 function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
   const [query, setQuery] = useState("sports announcer");
+  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male", accent: "American" });
   const [results, setResults] = useState<LibraryVoice[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -409,7 +423,9 @@ function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
     setBusy(true);
     setError(null);
     try {
-      setResults((await api<{ voices: LibraryVoice[] }>(`/announcer/library?q=${encodeURIComponent(query)}`)).voices);
+      const params = new URLSearchParams({ q: query });
+      for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
+      setResults((await api<{ voices: LibraryVoice[] }>(`/announcer/library?${params}`)).voices);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -455,8 +471,9 @@ function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
           {busy ? "…" : "Search"}
         </button>
       </div>
+      <VoiceFilters filters={filters} onChange={setFilters} options={LIBRARY_OPTIONS} />
       {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
-      {results?.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing found. Try other words.</p>}
+      {results?.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing found. Try other words or filters.</p>}
       <ul className="list">
         {results?.map((v) => (
           <li key={v.id} className="list-item">
@@ -483,6 +500,45 @@ function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Filter choices for ElevenLabs' library (its own labels, shown in our words). */
+const LIBRARY_OPTIONS = {
+  gender: ["Male", "Female"],
+  accent: ["American", "Australian", "British", "Canadian", "Irish", "Scottish"],
+  age: ["Young", "Middle-aged", "Older"],
+};
+
+/** Gender / accent / age dropdowns ("Any" = no filter). */
+function VoiceFilters(props: {
+  filters: LibraryFilters;
+  onChange(f: LibraryFilters): void;
+  options: Record<keyof LibraryFilters, string[]>;
+  note?: string;
+}) {
+  const labels: Record<keyof LibraryFilters, string> = { gender: "Gender", accent: "Accent", age: "Age" };
+  return (
+    <div className="voice-filters">
+      {(Object.keys(labels) as (keyof LibraryFilters)[])
+        .filter((k) => props.options[k].length > 0)
+        .map((k) => (
+          <select
+            key={k}
+            value={props.filters[k] ?? ""}
+            onChange={(e) => props.onChange({ ...props.filters, [k]: e.target.value || undefined })}
+            aria-label={labels[k]}
+          >
+            <option value="">Any {labels[k].toLowerCase()}</option>
+            {props.options[k].map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        ))}
+      {props.note && <span className="muted small">{props.note}</span>}
     </div>
   );
 }
