@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
+import { CheckIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { SongFilterBar, useSongFilter } from "../components/SongFilter.tsx";
@@ -71,7 +71,7 @@ export function PlaylistsPage() {
         </p>
       )}
       {playlists?.length === 0 && <p className="empty">{editor ? "No playlists yet. Make the first one below." : "No playlists yet."}</p>}
-      <ul className="list">
+      <ul className="list team-list">
         {playlists?.map((p) => (
           <li key={p.id} className="list-item">
             <Link to={`/playlists/${p.id}`}>
@@ -79,13 +79,11 @@ export function PlaylistsPage() {
                 <span className="player-name truncate">{p.name}</span>
                 <span className="muted small">
                   {summary(p)}
-                  {keepsPlaylist(p.id) ? " · on this phone" : ""}
+                  {p.songs.length > 0 ? ` · ${formatSize(p.songs.reduce((t, x) => t + x.sizeBytes, 0))}` : ""}
                 </span>
               </span>
-              <span className="muted">
-                <ChevronIcon />
-              </span>
             </Link>
+            {p.songs.length > 0 && <OfflineSwitch playlist={p} />}
           </li>
         ))}
       </ul>
@@ -198,7 +196,6 @@ export function PlaylistEditPage() {
             </label>
           )}
 
-          {playlist.songs.length > 0 && <KeepOnPhone playlist={playlist} />}
 
           <div className="row" style={{ marginTop: 6 }}>
             <span className="section-title">Songs</span>
@@ -315,13 +312,15 @@ function AddSongsSheet({ inPlaylist, onChange, onClose }: { inPlaylist: number[]
   );
 }
 
-/** Switch to keep a playlist's songs on this phone, with the space it takes. */
-function KeepOnPhone({ playlist }: { playlist: Playlist }) {
+/**
+ * A playlist row's Offline switch (like the Teams screen's): keeps its songs on
+ * this phone, showing download progress, then a tick once they're all there.
+ */
+function OfflineSwitch({ playlist }: { playlist: Playlist }) {
   const [keep, setKeep] = useState(() => keepsPlaylist(playlist.id));
   const [stored, setStored] = useState(0);
   const [progress, setProgress] = useState(() => songDownloadProgress(playlist.id));
   const [busy, setBusy] = useState(false);
-  const total = playlist.songs.reduce((sum, s) => sum + s.sizeBytes, 0);
 
   useEffect(() => {
     let live = true;
@@ -342,6 +341,7 @@ function KeepOnPhone({ playlist }: { playlist: Playlist }) {
 
   async function toggle() {
     if (busy) return;
+    if (keep && !confirm(`Remove ${playlist.name} from this phone? It can still be played with a connection.`)) return;
     setBusy(true);
     try {
       await setKeepPlaylist(playlist.id, !keep);
@@ -354,27 +354,29 @@ function KeepOnPhone({ playlist }: { playlist: Playlist }) {
 
   const ready = keep && stored === playlist.songs.length;
   return (
-    <div className="card row">
-      <span className="stack grow" style={{ gap: 2 }}>
-        <span style={{ fontWeight: 800 }}>Keep on this phone</span>
-        <span className="muted small">
-          {progress
-            ? `Downloading ${progress.done} of ${progress.total}…`
-            : ready
-              ? `All ${playlist.songs.length} songs saved · ${formatSize(total)}`
-              : `Plays without a connection · uses ${formatSize(total)}`}
-        </span>
-      </span>
-      <button role="switch" aria-checked={keep} aria-label="Keep playlist on this phone" className={`switch${keep ? " on" : ""}`} onClick={toggle}>
-        {ready && (
-          <span className="switch-label">
-            <CheckIcon />
-          </span>
+    <button
+      role="switch"
+      aria-checked={keep}
+      aria-label={`Keep ${playlist.name} on this phone for offline use`}
+      className={`switch offline-switch${keep ? " on" : ""}`}
+      onClick={toggle}
+    >
+      <span className="switch-label">
+        {progress ? (
+          `${progress.done}/${progress.total}`
+        ) : ready ? (
+          <>
+            <CheckIcon /> Offline
+          </>
+        ) : keep ? (
+          `${stored}/${playlist.songs.length}`
+        ) : (
+          "Offline"
         )}
-        <span className="switch-track">
-          <span className="switch-knob" />
-        </span>
-      </button>
-    </div>
+      </span>
+      <span className="switch-track">
+        <span className="switch-knob" />
+      </span>
+    </button>
   );
 }
