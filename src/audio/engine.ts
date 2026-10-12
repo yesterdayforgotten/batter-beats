@@ -23,6 +23,13 @@ const TREBLE_HZ = 3500;
 const FADE_IN_SEC = 0.015;
 const MIN_STOP_FADE_SEC = 0.3;
 
+/**
+ * Volume steps for a fade-out from full to silent. Ears judge loudness on a
+ * curve, so a straight-line fade sounds loud for most of its length and then
+ * drops away. Squaring the line (about −12 dB halfway) sounds like an even fade.
+ */
+const FADE_CURVE = Float32Array.from({ length: 128 }, (_, i) => (1 - i / 127) ** 2);
+
 let ctx: AudioContext | null = null;
 let iosKeepAlive: HTMLAudioElement | null = null;
 
@@ -105,7 +112,11 @@ export class Playback {
   private bass: BiquadFilterNode;
   private treble: BiquadFilterNode;
   private level: GainNode;
+  /** Fade-in, and the fade at the end of the clip. */
   private envelope: GainNode;
+  /** The fade when a player taps to stop. Its own node, so it never has to interrupt the envelope's schedule. */
+  private stopFader: GainNode;
+  private fadingOut = false;
   private startedAt: number;
   private lengthSec: number;
   private stopped = false;
@@ -123,25 +134,25 @@ export class Playback {
     this.treble.frequency.value = TREBLE_HZ;
     this.level = c.createGain();
     this.envelope = c.createGain();
+    this.stopFader = c.createGain();
     // Connected one by one: chained connect() calls are not reliable on iOS 15.
     this.source.connect(this.bass);
     this.bass.connect(this.treble);
     this.treble.connect(this.level);
     this.level.connect(this.envelope);
-    this.envelope.connect(c.destination);
+    this.envelope.connect(this.stopFader);
+    this.stopFader.connect(c.destination);
     this.applyLive(settings, true);
 
     const offset = settings.offsetMs / 1000;
     this.lengthSec = Math.max(0.1, Math.min((settings.endMs - settings.startMs) / 1000, settings.playMs / 1000, buffer.duration - offset));
-    const fade = Math.min(settings.fadeMs / 1000, this.lengthSec);
+    // The end fade can't overlap the fade-in (Web Audio refuses overlapping curves).
+    const fade = Math.min(settings.fadeMs / 1000, this.lengthSec - FADE_IN_SEC);
     const now = c.currentTime + 0.02;
     const g = this.envelope.gain;
     g.setValueAtTime(0, now);
     g.linearRampToValueAtTime(1, now + FADE_IN_SEC);
-    if (fade > 0) {
-      g.setValueAtTime(1, now + this.lengthSec - fade);
-      g.linearRampToValueAtTime(0, now + this.lengthSec);
-    }
+    if (fade > 0) g.setValueCurveAtTime(FADE_CURVE, now + this.lengthSec - fade, fade);
     this.source.start(now, offset, this.lengthSec);
     this.startedAt = now;
     this.source.onended = () => {
@@ -175,14 +186,11 @@ export class Playback {
 
   /** Fades out over the clip's fade length, then stops. */
   fadeOut() {
-    if (this.stopped) return;
-    const c = context();
-    const now = c.currentTime;
+    if (this.stopped || this.fadingOut) return;
+    this.fadingOut = true;
+    const now = context().currentTime;
     const fade = Math.max(MIN_STOP_FADE_SEC, Math.min(this.settings.fadeMs / 1000, 5));
-    const g = this.envelope.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(g.value, now);
-    g.linearRampToValueAtTime(0, now + fade);
+    this.stopFader.gain.setValueCurveAtTime(FADE_CURVE, now, fade);
     this.source.stop(now + fade + 0.05);
   }
 
