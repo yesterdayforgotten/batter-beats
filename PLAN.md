@@ -208,6 +208,7 @@ These were not verified during planning. Test each one and tell the owner what y
 - Repo: `github.com/yesterdayforgotten/batter-beats` (public), remote `origin`.
 - `Dockerfile`: multi-stage; builds the screens, keeps production dependencies only, runs `node server/index.ts` (Node 22 strips TypeScript types itself, so server code must avoid enums and other non-erasable syntax). Includes ffmpeg, mp3gain and tini; runs as `node`; data in `/data`; health check on `/api/health`.
 - `.github/workflows/docker.yml` publishes `ghcr.io/yesterdayforgotten/batter-beats` (`latest`, short SHA, and version tags `v*`) on each push to `main`.
+- Dev container: `Dockerfile.dev` (Node 22, ffmpeg, mp3gain, headless-browser libraries) published as `ghcr.io/yesterdayforgotten/batter-beats-dev` by `.github/workflows/docker-dev.yml` when it changes. Its start-up (`scripts/dev-container-start.sh`) installs Claude into the mounted home on first run, starts the dev server, then runs the Claude loop. `/workspace` and `/home/node` are host folders, so switching images keeps sessions and credentials.
 - `docker-compose.yml` is the production stack for Portainer; the voice engine container joins it in phase 5.
 
 ### Dev environment notes
