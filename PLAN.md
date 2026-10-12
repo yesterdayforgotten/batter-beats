@@ -174,6 +174,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ## Status
 
 **Phase 1 (server foundation): built.**
+**Phase 7 (admin extras): built 2026-10-12.** All seven phases are built; what's left is the owner's phone testing and listening to the real voice engine.
 **Phase 6 (between-innings playlist): built 2026-10-12, waiting for the owner to test on phones.**
 **Phase 5 (announcer): built 2026-10-12, waiting for the owner to add the voice engine container and listen.**
 **Phase 4 (offline): built 2026-10-12, waiting for the owner to test on phones** (a full mock game in airplane mode on every phone, per the build order).
@@ -255,4 +256,11 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
-Next: owner adds the Kokoro container and listens to the voices; phone tests for phases 3–6. Then phase 7 (admin extras).
+### Phase 7 notes
+- Admin screen (`/admin`, "Admin" in the top menu, admins only): link to Users; announcer voice (English Kokoro voices, male first; Listen plays "Now batting, number 12, Alex Rivera"; Use switches and remakes every announcement); backup.
+- Backup: `GET /api/admin/backup` streams a plain `.tar` of the data folder (consistent database copy via SQLite's backup, plus songs, peaks, clips, announcements and a `batter-beats-backup.json` marker). Restore: `POST /api/admin/restore` unpacks to tmp, checks it's a backup whose database opens (upgrading an older one) and has an admin, then closes the database, moves current data to `tmp/before-restore-<time>` (only the newest kept), moves the backup in and reopens; any failure puts everything back. `db` is `export let` so the reopen reaches every module.
+- Fixed while testing: the request safety check refused DELETE requests (they have no body), so Delete team and Remove player never worked. DELETEs are now allowed: other sites can't send them without a CORS preflight, which the server never grants.
+- README is now the setup guide (stack, https proxy, first sign-in, phones, updating, backups, settings).
+- Tested on a test server: backup download, bad file refused with nothing changed, restore brings back deleted data and files, regular users refused; Admin screen Listen/Use/download/restore in headless Chromium. Offline test re-run with announcements (stored and played offline).
+
+Next: owner tests on phones (iPhone 6s, newer iPhone, Pixel), including a full mock game in airplane mode, and adds the Kokoro container to the dev stack to hear the real voices.

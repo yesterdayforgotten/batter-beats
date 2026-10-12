@@ -19,7 +19,7 @@ export function Layout() {
         </Link>
         <nav className="topnav">
           <NavLink to="/playlist">Playlist</NavLink>
-          {hasRole(user, "admin") && <NavLink to="/admin/users">Users</NavLink>}
+          {hasRole(user, "admin") && <NavLink to="/admin">Admin</NavLink>}
           <button className="link-button" onClick={handleSignOut}>
             Sign out
           </button>

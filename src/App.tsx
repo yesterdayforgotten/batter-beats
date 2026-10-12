@@ -8,6 +8,7 @@ import { RosterEditPage } from "./pages/RosterEditPage.tsx";
 import { PlayerEditPage } from "./pages/PlayerEditPage.tsx";
 import { UsersPage } from "./pages/UsersPage.tsx";
 import { PlaylistPage } from "./pages/PlaylistPage.tsx";
+import { AdminPage } from "./pages/AdminPage.tsx";
 
 export function App() {
   const { user, loading, error } = useAuth();
@@ -21,6 +22,7 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<RostersPage />} />
+        {hasRole(user, "admin") && <Route path="admin" element={<AdminPage />} />}
         {hasRole(user, "admin") && <Route path="admin/users" element={<UsersPage />} />}
       </Route>
       <Route element={<Plain />}>

@@ -13,6 +13,7 @@ import { rostersRouter } from "./routes/rosters.ts";
 import { songsRouter } from "./routes/songs.ts";
 import { announcerRouter } from "./routes/announcer.ts";
 import { playlistRouter } from "./routes/playlist.ts";
+import { adminRouter } from "./routes/admin.ts";
 import { refreshAllAnnouncements } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
 
@@ -33,6 +34,9 @@ app.use(express.json({ limit: "1mb" }));
 // request forgery.
 app.use("/api", (req, res, next) => {
   if (req.method === "GET" || req.method === "HEAD") return next();
+  // Another site can only send DELETE after the browser asks this server's
+  // permission (a CORS preflight), which it never gives; and deletes have no body to check.
+  if (req.method === "DELETE") return next();
   if (req.is("application/json")) return next();
   if (req.is("multipart/form-data") && req.get("x-batter-beats") === "1") return next();
   res.status(415).json({ error: "Requests must be JSON." });
@@ -53,6 +57,7 @@ app.use("/api", rostersRouter);
 app.use("/api", songsRouter);
 app.use("/api", announcerRouter);
 app.use("/api", playlistRouter);
+app.use("/api", adminRouter);
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found." }));
 app.use("/api", (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

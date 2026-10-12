@@ -2,9 +2,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { config } from "./config.ts";
 
-export const db = new Database(path.join(config.dataDir, "batter-beats.db"));
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+export const DB_FILE = path.join(config.dataDir, "batter-beats.db");
 
 // Each entry upgrades the database by one version. Never edit an entry that
 // has shipped; add a new one instead.
@@ -113,10 +111,30 @@ const migrations: string[] = [
   `,
 ];
 
-const current = db.pragma("user_version", { simple: true }) as number;
-for (let v = current; v < migrations.length; v++) {
-  db.transaction(() => {
-    db.exec(migrations[v]);
-    db.pragma(`user_version = ${v + 1}`);
-  })();
+/** Opens a database file and brings it up to the current version. */
+export function openDatabase(file: string): Database.Database {
+  const d = new Database(file);
+  d.pragma("journal_mode = WAL");
+  d.pragma("foreign_keys = ON");
+  const current = d.pragma("user_version", { simple: true }) as number;
+  if (current > migrations.length) {
+    d.close();
+    throw new Error("This database is from a newer version of Batter Beats.");
+  }
+  for (let v = current; v < migrations.length; v++) {
+    d.transaction(() => {
+      d.exec(migrations[v]);
+      d.pragma(`user_version = ${v + 1}`);
+    })();
+  }
+  return d;
+}
+
+// `let`, so a restore can swap in a different database; modules that import
+// `db` always see the current one.
+export let db = openDatabase(DB_FILE);
+
+/** Reopens the database file (after a restore has replaced it). */
+export function reopenDatabase() {
+  db = openDatabase(DB_FILE);
 }
