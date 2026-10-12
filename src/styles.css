@@ -1833,3 +1833,10 @@ label,
 .team-list {
   margin-top: 8px;
 }
+/* Now-playing bar: sound bars before the song title while it plays */
+.now-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}

@@ -281,7 +281,7 @@ These were not verified during planning. Test each one and tell the owner what y
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
 ### Sound bars (2026-10-12)
-The "playing now" bars (walkup status line, jukebox song list, previews) follow the real sound: every sound goes through one output (`output()` in `src/audio/engine.ts`) with an AnalyserNode tap, and `SoundBars` reads it each frame, bass on the left to treble on the right. A canned bounce is the fallback; reduced-motion keeps them still.
+The "playing now" bars (walkup status line, jukebox song list, the now-playing bar, previews) follow the real sound: every sound goes through one output (`output()` in `src/audio/engine.ts`) with an AnalyserNode tap, and `SoundBars` reads it each frame, bass on the left to treble on the right. A canned bounce is the fallback; reduced-motion keeps them still.
 
 ### UI review (2026-10-12)
 Owner-approved conventions from a full review at iPhone 6s size:

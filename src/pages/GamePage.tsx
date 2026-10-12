@@ -492,7 +492,10 @@ function NowPlaying({
           <StopIcon />
         </button>
         <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
-          <span className="innings-title truncate">{state.song.title}</span>
+          <span className="innings-title now-title">
+            {state.status === "playing" && <SoundBars />}
+            <span className="truncate">{state.song.title}</span>
+          </span>
           <span className="innings-song truncate">
             {state.status === "fading" ? "Fading out · " : state.status === "loading" ? "Loading… · " : ""}
             {state.song.artist ? `${state.song.artist} · ` : ""}
