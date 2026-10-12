@@ -264,6 +264,16 @@ export async function clearAll() {
 }
 
 // Send queued changes and refresh kept rosters whenever the connection comes back.
+// A change can also be queued while the phone still has signal (the server was
+// restarting, or a request timed out), when no "online" event will come; so
+// while anything is waiting, try again every 20 seconds and on returning to the app.
+const RETRY_QUEUE_MS = 20_000;
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => void refreshKept());
+  window.setInterval(() => {
+    if (queue().length > 0) void flushQueue();
+  }, RETRY_QUEUE_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && queue().length > 0) void flushQueue();
+  });
 }
