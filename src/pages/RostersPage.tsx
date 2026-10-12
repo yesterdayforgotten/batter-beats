@@ -48,7 +48,7 @@ export function RostersPage() {
       {!offline && rosters && rosters.length === 0 && (
         <p className="empty">{editor ? "No teams yet. Add your first team below." : "No teams yet."}</p>
       )}
-      <ul className="list">
+      <ul className="list team-list">
         {rosters?.map((r) => (
           <li key={r.id} className="list-item">
             <Link to={`/rosters/${r.id}`}>

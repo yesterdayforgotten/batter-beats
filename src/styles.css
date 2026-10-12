@@ -353,6 +353,14 @@ label,
   min-height: 64px;
 }
 
+/* Teams list: roomier tiles than the player lists */
+.team-list .list-item {
+  padding-right: 10px;
+}
+.team-list .list-item > a {
+  padding-left: 20px;
+}
+
 /* Team colour swatches in Edit team */
 .swatches {
   display: grid;
