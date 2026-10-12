@@ -1395,8 +1395,8 @@ label,
   font-size: 12px;
   color: var(--muted);
 }
-.song-usage {
-  color: var(--accent-soft);
+.song-playlists {
+  color: var(--text);
 }
 .song-tags {
   color: var(--faint);

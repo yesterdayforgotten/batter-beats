@@ -106,7 +106,7 @@ export interface LibrarySong extends Song {
   uploadedBy: string | null;
   createdAt: string;
   /** Players who walk up to it. */
-  players: { id: number; name: string; number: string; rosterId: number; rosterName: string }[];
+  players: { id: number; name: string; number: string; rosterId: number; rosterName: string; rosterColor: string }[];
   /** How many people's between-innings playlists have it. */
   playlists: number;
 }

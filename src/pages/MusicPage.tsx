@@ -7,17 +7,41 @@ import { SongFilterBar, useSongFilter } from "../components/SongFilter.tsx";
 import { TagEditor } from "../components/TagEditor.tsx";
 import { UploadSheet } from "../components/UploadSheet.tsx";
 import { BulkTagSheet } from "../components/BulkTagSheet.tsx";
-import type { LibrarySong, Song, TagSuggestions } from "../../shared/types.ts";
+import { teamColor, type LibrarySong, type Song, type TagSuggestions } from "../../shared/types.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 
-/** Where a song is used, in a few words: "Ava, Ben (Waves) · 2 playlists". */
-function usage(s: LibrarySong): string {
-  const byTeam = new Map<string, string[]>();
-  for (const p of s.players) byTeam.set(p.rosterName, [...(byTeam.get(p.rosterName) ?? []), p.name]);
-  const parts = [...byTeam].map(([team, names]) => `${names.join(", ")} (${team})`);
-  if (s.playlists > 0) parts.push(`${s.playlists} ${s.playlists === 1 ? "playlist" : "playlists"}`);
-  return parts.length ? parts.join(" · ") : "Not used";
+/** Where a song is used, in a few words: "Ava, Ben (Waves) · 2 playlists", each team in its colour. */
+function Usage({ song }: { song: LibrarySong }) {
+  const byTeam = new Map<number, { name: string; color: string; players: string[] }>();
+  for (const p of song.players) {
+    const t = byTeam.get(p.rosterId) ?? { name: p.rosterName, color: p.rosterColor, players: [] };
+    t.players.push(p.name);
+    byTeam.set(p.rosterId, t);
+  }
+  const parts = [...byTeam].map(([id, t]) => (
+    <span key={id} style={{ color: teamColor(t.color).accent }}>
+      {t.players.join(", ")} ({t.name})
+    </span>
+  ));
+  if (song.playlists > 0) {
+    parts.push(
+      <span key="playlists" className="song-playlists">
+        {song.playlists} {song.playlists === 1 ? "playlist" : "playlists"}
+      </span>,
+    );
+  }
+  if (parts.length === 0) return <span className="faint">Not used</span>;
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && " · "}
+          {part}
+        </span>
+      ))}
+    </>
+  );
 }
 
 /** The shared music library (editors): listen, fix titles, tag, upload and delete. */
@@ -235,7 +259,7 @@ export function MusicPage() {
                     {s.artist ? `${s.artist} · ` : ""}
                     {formatLength(s.durationMs)}
                     {" · "}
-                    <span className={s.players.length || s.playlists ? "song-usage" : "faint"}>{usage(s)}</span>
+                    <Usage song={s} />
                     {s.tags.length > 0 && <span className="song-tags">{s.tags.map((t) => ` #${t}`).join("")}</span>}
                   </span>
                 </button>
@@ -312,7 +336,7 @@ function SongDetails({
         <div className="stack" style={{ gap: 4 }}>
           <span className="field-label">Walkup song for</span>
           {song.players.map((p) => (
-            <Link key={p.id} to={`/players/${p.id}`} className="small song-player-link">
+            <Link key={p.id} to={`/players/${p.id}`} className="small song-player-link" style={{ color: teamColor(p.rosterColor).accent }}>
               {p.number ? `#${p.number} ` : ""}
               {p.name} · {p.rosterName}
             </Link>

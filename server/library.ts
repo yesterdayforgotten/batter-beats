@@ -97,11 +97,11 @@ export function listLibrary(): LibrarySong[] {
     .all() as (SongRow & { uploaded_by_name: string | null; created_at: string; playlists: number })[];
   const uses = db
     .prepare(
-      `SELECT DISTINCT ps.song_id, p.id, p.name, p.number, r.id AS roster_id, r.name AS roster_name
+      `SELECT DISTINCT ps.song_id, p.id, p.name, p.number, r.id AS roster_id, r.name AS roster_name, r.color AS roster_color
        FROM player_songs ps JOIN players p ON p.id = ps.player_id JOIN rosters r ON r.id = p.roster_id
        ORDER BY r.name COLLATE NOCASE, p.lineup_position`,
     )
-    .all() as { song_id: number; id: number; name: string; number: string; roster_id: number; roster_name: string }[];
+    .all() as { song_id: number; id: number; name: string; number: string; roster_id: number; roster_name: string; roster_color: string }[];
   const tags = allTags();
   return rows.map((r) => ({
     ...toSong(r, tags.get(r.id)),
@@ -110,7 +110,14 @@ export function listLibrary(): LibrarySong[] {
     createdAt: r.created_at,
     players: uses
       .filter((u) => u.song_id === r.id)
-      .map((u) => ({ id: u.id, name: u.name, number: u.number, rosterId: u.roster_id, rosterName: u.roster_name })),
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        number: u.number,
+        rosterId: u.roster_id,
+        rosterName: u.roster_name,
+        rosterColor: u.roster_color,
+      })),
     playlists: r.playlists,
   }));
 }
