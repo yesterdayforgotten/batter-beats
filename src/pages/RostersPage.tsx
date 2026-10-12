@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { cameFromTeams } from "../editReturn.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { CheckIcon, KebabIcon } from "../components/Icons.tsx";
+import { CheckIcon, EditIcon } from "../components/Icons.tsx";
 import {
   clipProgress,
   downloadProgress,
@@ -64,7 +64,7 @@ export function RostersPage() {
             {!offline && <OfflineSwitch id={r.id} name={r.name} />}
             {editor && !offline && (
               <Link to={`/rosters/${r.id}/edit`} onClick={cameFromTeams} aria-label={`Edit ${r.name}`} className="kebab">
-                <KebabIcon />
+                <EditIcon />
               </Link>
             )}
           </li>
