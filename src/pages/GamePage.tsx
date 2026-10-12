@@ -15,6 +15,7 @@ import {
   BATTER_FADE_SEC,
   jukebox,
   jukeboxSettings,
+  keepsPlaylist,
   loadPlaylists,
   onPlaylistChange,
   setTeamPlaylist,
@@ -70,6 +71,8 @@ export function GamePage() {
   const [waiting, setWaiting] = useState(() => stuckChanges());
   const [reloads, setReloads] = useState(0);
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
+  /** No connection when the playlists were loaded: only the ones kept on this phone can play. */
+  const [playlistsOffline, setPlaylistsOffline] = useState(false);
   const [jukeboxState, setJukeboxState] = useState(jukebox.state);
   const [settings, setSettings] = useState(jukeboxSettings);
   const [chosenPlaylist, setChosenPlaylist] = useState(() => teamPlaylistId(id ?? ""));
@@ -141,16 +144,24 @@ export function GamePage() {
 
   useEffect(() => onOfflineChange(() => setWaiting(stuckChanges())), []);
 
-  // Playlists for the jukebox.
+  // Playlists for the jukebox (fetched again when the connection comes back).
   useEffect(() => {
     loadPlaylists()
-      .then((r) => setPlaylists(r.playlists))
+      .then((r) => {
+        setPlaylists(r.playlists);
+        setPlaylistsOffline(r.offline);
+      })
       .catch(() => setPlaylists([]));
-    return onPlaylistChange(() => {
-      setJukeboxState(jukebox.state);
-      setSettings(jukeboxSettings());
-    });
-  }, []);
+  }, [reloads]);
+
+  useEffect(
+    () =>
+      onPlaylistChange(() => {
+        setJukeboxState(jukebox.state);
+        setSettings(jukeboxSettings());
+      }),
+    [],
+  );
 
   // Leaving game mode: stop the music and let the screen sleep.
   useEffect(
@@ -162,8 +173,15 @@ export function GamePage() {
     [],
   );
 
+  // Without a connection only playlists kept on this phone can play; with none of
+  // those the jukebox is left out altogether (unless something is still playing).
+  const offline = playlistsOffline || fromPhone;
+  const playable = offline ? (playlists ?? []).filter((p) => keepsPlaylist(p.id) && p.songs.length > 0) : playlists;
+  const showJukebox = !offline || (playable?.length ?? 0) > 0 || jukeboxState.status !== "stopped";
+  const shownTab = showJukebox ? tab : "lineup";
+
   /** The team's playlist: the one chosen on this phone, or the first one. */
-  const playlist = playlists?.find((p) => p.id === chosenPlaylist) ?? playlists?.[0] ?? null;
+  const playlist = playable?.find((p) => p.id === chosenPlaylist) ?? playable?.[0] ?? null;
 
   function choosePlaylist(playlistId: number) {
     setChosenPlaylist(playlistId);
@@ -295,12 +313,12 @@ export function GamePage() {
               </span>
               {/* What the tab's icons do: on Lineup, reorder and edit the team; on Jukebox, edit the playlist. */}
               <span className="head-icons">
-                {tab === "lineup" && (
+                {shownTab === "lineup" && (
                   <button className="head-icon" aria-label="Reorder" onClick={() => setEditing(true)}>
                     <ReorderIcon />
                   </button>
                 )}
-                {tab === "lineup" && hasRole(user, "editor") && roster && !fromPhone && (
+                {shownTab === "lineup" && hasRole(user, "editor") && roster && !fromPhone && (
                   <Link
                     to={`/rosters/${roster.id}/edit`}
                     className="head-icon"
@@ -310,7 +328,7 @@ export function GamePage() {
                     <EditIcon />
                   </Link>
                 )}
-                {tab === "jukebox" && hasRole(user, "editor") && playlist && !fromPhone && (
+                {shownTab === "jukebox" && hasRole(user, "editor") && playlist && !offline && (
                   <Link
                     to={`/playlists/${playlist.id}`}
                     state={{ from: location.pathname }}
@@ -321,13 +339,15 @@ export function GamePage() {
                   </Link>
                 )}
               </span>
-              <div className="segmented game-tabs" role="tablist">
-                {(["lineup", "jukebox"] as const).map((t) => (
-                  <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-                    {t === "lineup" ? "Lineup" : "Jukebox"}
-                  </button>
-                ))}
-              </div>
+              {showJukebox && (
+                <div className="segmented game-tabs" role="tablist">
+                  {(["lineup", "jukebox"] as const).map((t) => (
+                    <button key={t} role="tab" aria-selected={shownTab === t} className={shownTab === t ? "on" : ""} onClick={() => setTab(t)}>
+                      {t === "lineup" ? "Lineup" : "Jukebox"}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         }
@@ -352,9 +372,9 @@ export function GamePage() {
             : ""}
         </p>
       )}
-      {!editing && tab === "jukebox" && playlists && (
+      {!editing && shownTab === "jukebox" && playable && (
         <JukeboxPanel
-          playlists={playlists}
+          playlists={playable}
           selected={playlist}
           state={jukeboxState}
           settings={settings}
@@ -363,9 +383,9 @@ export function GamePage() {
           onPlay={playJukebox}
         />
       )}
-      {(editing || tab === "lineup") && roster && order.length === 0 && <p className="empty">No players on this roster yet.</p>}
+      {(editing || shownTab === "lineup") && roster && order.length === 0 && <p className="empty">No players on this roster yet.</p>}
 
-      {!editing && tab === "jukebox" ? null : editing ? (
+      {!editing && shownTab === "jukebox" ? null : editing ? (
         <>
           <p className="muted small" style={{ margin: "0 4px 10px" }}>
             Drag to change the batting order. Tap Away for anyone who isn't playing today.
@@ -411,7 +431,7 @@ export function GamePage() {
         </ol>
       )}
 
-      {bench.length > 0 && (editing || tab === "lineup") && (
+      {bench.length > 0 && (editing || shownTab === "lineup") && (
         <>
           <div className="section-title" style={{ margin: "22px 4px 8px" }}>
             Unavailable
@@ -433,7 +453,7 @@ export function GamePage() {
           </ul>
         </>
       )}
-      {!editing && playlists && <NowPlaying state={jukeboxState} playlist={playlist} onPlay={playJukebox} />}
+      {!editing && playable && showJukebox && <NowPlaying state={jukeboxState} playlist={playlist} onPlay={playJukebox} />}
       <footer style={{ marginTop: 28 }}>
         <AppVersion />
       </footer>
