@@ -62,12 +62,12 @@ select {
   /* Typed text in bright white, like dropdowns, so it reads as editable (browsers default it to grey). */
   color: var(--text);
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 input::placeholder {
   color: var(--faint);
-  font-weight: 600;
+  font-weight: 500;
   opacity: 1;
 }
 
