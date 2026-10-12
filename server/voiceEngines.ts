@@ -146,6 +146,10 @@ const elevenCall = (path: string, init: RequestInit, timeoutMs: number) =>
       const what = missing.startsWith("voices") ? "Voices (read and write)" : missing;
       throw new Error(`The ElevenLabs key needs the "${what}" permission. Edit the key on elevenlabs.io and switch it on.`);
     }
+    // ElevenLabs answers an empty balance with 401 too, so check for that first.
+    if (/quota_exceeded|credits remaining|out of credits/i.test(err.message)) {
+      throw new Error("The ElevenLabs account is out of credits for this month. Add credits on elevenlabs.io or wait for the monthly reset.");
+    }
     if (/\((401|403)\)/.test(err.message)) throw new Error("ElevenLabs refused the API key. Check ELEVENLABS_API_KEY.");
     // Voices from the shared library need a paid plan (or $5 of credit) to use through the API.
     if (/paid_plan_required|library voices/i.test(err.message)) {
@@ -153,9 +157,7 @@ const elevenCall = (path: string, init: RequestInit, timeoutMs: number) =>
         "This voice is from the ElevenLabs library, which free accounts can't use from apps. Add $5 of credit or upgrade to Starter on elevenlabs.io, or pick one of ElevenLabs' own voices.",
       );
     }
-    if (/quota_exceeded|quota|out of credits|insufficient/i.test(err.message)) {
-      throw new Error("The ElevenLabs account is out of credits for this month.");
-    }
+
     throw new Error(err.message.replace("The announcer voice engine", "ElevenLabs"));
   });
 
