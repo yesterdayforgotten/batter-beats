@@ -6,6 +6,8 @@ import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
 import {
   DEFAULT_STYLE,
   STYLE_LIMITS,
+  ELEVEN_MODELS,
+  formatCues,
   splitCues,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
@@ -197,6 +199,22 @@ function AnnouncerVoice() {
             {eleven && (
               <>
                 <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
+                <div className="editor-row">
+                  <span className="label">Model</span>
+                  <div className="segmented grow" role="radiogroup" aria-label="ElevenLabs model">
+                    {ELEVEN_MODELS.map((m) => (
+                      <button
+                        key={m}
+                        role="radio"
+                        aria-checked={style.elevenModel === m}
+                        className={style.elevenModel === m ? "on" : ""}
+                        onClick={() => change({ elevenModel: m })}
+                      >
+                        {m === "eleven_v4" ? "v4 (newest)" : "v3"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {/* ElevenLabs v3 has exactly three settings here (Robust, Natural, Creative), so three buttons, not a slider. */}
                 <div className="editor-row">
                   <span className="label">Range</span>
@@ -265,7 +283,7 @@ function AnnouncerVoice() {
           </div>
           <p className="muted small" style={{ margin: 0 }}>
             {eleven
-              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, several separated by commas, or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
+              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, each cue in [square brackets] (or separated by commas), or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
               : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
             Reverb adds the echo of a big space; Space sets how big. A real ballpark's speakers add their own echo, so
             go easy. Listen to try a mix; the Listen buttons below use it too.
@@ -330,19 +348,9 @@ const RANGES = [
 const rangeOf = (excitement: number) => (excitement >= 1.4 ? "Wild" : excitement >= 0.75 ? "Natural" : "Steady");
 
 /** Suggested ElevenLabs delivery cues (any words work; each is written as [cue] before the announcement). */
-const CUE_SUGGESTIONS = [
-  "excited",
-  "enthusiastic",
-  "energetic",
-  "shouting",
-  "dramatic",
-  "sports announcer",
-  "stadium PA announcer",
-  "booming",
-  "speaking quickly",
-  "slow build-up",
-  "proud",
-];
+// Emotion and delivery words: in tests (Adam, Brian; v3 and v4) these changed the delivery,
+// [shouting] most of all on v4, while descriptions like "stadium PA announcer" did little.
+const CUE_SUGGESTIONS = ["shouting", "excited", "enthusiastic", "energetic", "proud", "dramatic", "speaking quickly"];
 
 /**
  * The ElevenLabs cues: free text, several separated by commas, with
@@ -356,7 +364,7 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
   const cues = splitCues(value);
   const has = (c: string) => cues.some((x) => x.toLowerCase() === c.toLowerCase());
   const toggle = (c: string) =>
-    onChange((has(c) ? cues.filter((x) => x.toLowerCase() !== c.toLowerCase()) : [...cues, c]).join(", "));
+    onChange(formatCues(has(c) ? cues.filter((x) => x.toLowerCase() !== c.toLowerCase()) : [...cues, c]));
   return (
     <div className="editor-row cue-row" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <span className="label">Cue</span>
@@ -367,15 +375,19 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
           onFocus={() => setOpen(true)}
           // Close only after the tap that moved focus away has landed: closing at once would
           // shift everything below up mid-tap, so the tap would hit something else.
-          onBlur={() => window.setTimeout(() => setOpen(false), 250)}
-          placeholder="How to say it, e.g. excited, booming"
+          onBlur={() => {
+            // Show what was typed the way ElevenLabs gets it: "shouting, excited" becomes "[shouting] [excited]".
+            if (value.trim()) onChange(formatCues(cues));
+            window.setTimeout(() => setOpen(false), 250);
+          }}
+          placeholder="e.g. [shouting] [excited]"
           maxLength={200}
           aria-label="Delivery cue"
-          title={`Separate several with commas. Suggestions: ${CUE_SUGGESTIONS.join(", ")}`}
+          title={`Each cue in square brackets. Suggestions: ${formatCues(CUE_SUGGESTIONS)}`}
         />
         {(open || hover) && (
           <div className="cue-suggestions" role="listbox" aria-multiselectable="true" aria-label="Suggested cues">
-            <span className="muted small cue-hint">Tap to add or remove. Up to 5, separated by commas.</span>
+            <span className="muted small cue-hint">Tap to add or remove. Up to 5, each in [square brackets].</span>
             {CUE_SUGGESTIONS.map((c) => (
               <button
                 key={c}
@@ -387,7 +399,7 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => toggle(c)}
               >
-                {c}
+                [{c}]
               </button>
             ))}
           </div>

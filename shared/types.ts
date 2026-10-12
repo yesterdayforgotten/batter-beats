@@ -108,13 +108,21 @@ export interface AnnouncerStyle {
   /** ElevenLabs: emotional range, 0.25 (steady) to 2 (wild); shown as Range. */
   excitement: number;
   /**
-   * ElevenLabs only: delivery cues the voice acts out, comma-separated, e.g.
-   * "excited, booming" (sent as "[excited] [booming]" before the text).
+   * ElevenLabs only: delivery cues the voice acts out, written exactly as sent,
+   * e.g. "[shouting] [excited]" (before the announcement's text).
    */
   elevenTag: string;
+  /** ElevenLabs only: which model speaks. v4 responds to cues more than v3 (tested 2026-10-12); same price. */
+  elevenModel: ElevenModel;
 }
 
-/** The separate cues in a Cue box: split on commas or [brackets], tidied, no repeats, at most 5. */
+export const ELEVEN_MODELS = ["eleven_v4", "eleven_v3"] as const;
+export type ElevenModel = (typeof ELEVEN_MODELS)[number];
+
+/** Cues written the way ElevenLabs gets them: "[shouting] [excited]". */
+export const formatCues = (cues: string[]) => cues.map((c) => `[${c}]`).join(" ");
+
+/** The separate cues in a Cue box: split on [brackets] or commas, tidied, no repeats, at most 5. */
 export function splitCues(text: string): string[] {
   const seen = new Set<string>();
   const cues: string[] = [];
@@ -134,7 +142,8 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   reverb: 0,
   reverbSize: 0.6,
   excitement: 1,
-  elevenTag: "excited",
+  elevenTag: "[shouting] [excited]",
+  elevenModel: "eleven_v4",
 };
 export const STYLE_LIMITS = {
   minSpeed: 0.8,

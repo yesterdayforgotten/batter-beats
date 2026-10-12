@@ -13,7 +13,17 @@ import { db } from "./db.ts";
 import { durationMs, normalizeVoice, removeQuietly } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
 import { engines, type Engine } from "./voiceEngines.ts";
-import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, splitCues, type AnnouncerStyle, type Energy } from "../shared/types.ts";
+import {
+  ANNOUNCER,
+  DEFAULT_STYLE,
+  ELEVEN_MODELS,
+  formatCues,
+  STYLE_LIMITS,
+  splitCues,
+  type AnnouncerStyle,
+  type ElevenModel,
+  type Energy,
+} from "../shared/types.ts";
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
 const PROCESSING = "convolution-4";
@@ -90,7 +100,8 @@ export function cleanStyle(input: unknown): AnnouncerStyle {
       0.05,
     ),
     elevenTag:
-      typeof s.elevenTag === "string" ? splitCues(s.elevenTag).join(", ") : DEFAULT_STYLE.elevenTag,
+      typeof s.elevenTag === "string" ? formatCues(splitCues(s.elevenTag)) : DEFAULT_STYLE.elevenTag,
+    elevenModel: ELEVEN_MODELS.includes(s.elevenModel as ElevenModel) ? (s.elevenModel as ElevenModel) : DEFAULT_STYLE.elevenModel,
   };
 }
 
