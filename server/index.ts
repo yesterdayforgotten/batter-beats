@@ -54,7 +54,8 @@ if (config.isProduction) {
   // reload over the same server.
   const { createServer } = await import("vite");
   const vite = await createServer({
-    server: { middlewareMode: true, hmr: { server } },
+    // Vite refuses requests for unknown host names; the dev address behind the proxy is listed in DEV_HOSTS.
+    server: { middlewareMode: true, hmr: { server }, allowedHosts: config.devHosts },
     appType: "custom",
   });
   app.use(vite.middlewares);

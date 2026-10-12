@@ -10,6 +10,8 @@ export const config = {
   dataDir: path.resolve(env.DATA_DIR || "./data"),
   adminUsername: env.ADMIN_USERNAME || "admin",
   adminPassword: env.ADMIN_PASSWORD || "",
+  /** Extra host names the dev server answers to (for example the https dev address), comma-separated. */
+  devHosts: (env.DEV_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
   trustProxy: env.TRUST_PROXY || "loopback, linklocal, uniquelocal",
   isProduction: env.NODE_ENV === "production",
 };
