@@ -465,19 +465,28 @@ function NowPlaying({
         </div>
       );
     }
+    const next = jukebox.upNext(playlist);
     return (
       <div className="innings-bar">
-        <button className="innings-button" disabled={playlist.songs.length === 0} onClick={() => onPlay(playlist)}>
-          <span className="bar-icon" aria-hidden>
-            <PlayIcon />
-          </span>
-          <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
-            <span className="innings-title">Jukebox</span>
-            <span className="innings-song truncate">
-              {playlist.name} · {playlist.songs.length} {playlist.songs.length === 1 ? "song" : "songs"}
+        <div className="innings-button">
+          <button className="bar-play" disabled={!next} onClick={() => onPlay(playlist)}>
+            <span className="bar-icon" aria-hidden>
+              <PlayIcon />
             </span>
-          </span>
-        </button>
+            <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
+              <span className="innings-title truncate">{next ? next.title : "Jukebox"}</span>
+              <span className="innings-song truncate">
+                {next ? `Up next · ${playlist.name}` : `${playlist.name} has no songs yet`}
+              </span>
+            </span>
+          </button>
+          {playlist.songs.length > 1 && (
+            // Picks a different song to play next; nothing starts.
+            <button className="bar-icon" aria-label="Pick a different next song" onClick={() => jukebox.skip(playlist)}>
+              <SkipIcon />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -502,7 +511,7 @@ function NowPlaying({
             {state.playlist.name}
           </span>
         </span>
-        <button className="bar-icon" aria-label="Next song" disabled={state.status === "fading"} onClick={() => jukebox.skip()}>
+        <button className="bar-icon" aria-label="Next song" disabled={state.status === "fading"} onClick={() => jukebox.skip(state.playlist)}>
           <SkipIcon />
         </button>
       </div>

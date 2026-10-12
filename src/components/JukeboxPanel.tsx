@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronIcon, PlayIcon, SoundBars } from "./Icons.tsx";
-import { setJukeboxSettings, type JukeboxSettings, type JukeboxState } from "../playlist.ts";
+import { jukebox, setJukeboxSettings, type JukeboxSettings, type JukeboxState } from "../playlist.ts";
 import type { Playlist } from "../../shared/types.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -42,6 +42,7 @@ export function JukeboxPanel({
     );
   }
   const nowId = state.status !== "stopped" && state.playlist.id === selected?.id ? state.song.id : null;
+  const nextId = state.status === "stopped" && selected ? jukebox.upNext(selected)?.id : null;
 
   return (
     <div className="stack" style={{ gap: 12 }}>
@@ -93,6 +94,7 @@ export function JukeboxPanel({
                       {formatLength(s.durationMs)}
                     </span>
                   </span>
+                  {s.id === nextId && <span className="tag next-tag">Up next</span>}
                   {!now && (
                     <span className="jukebox-play" aria-hidden>
                       <PlayIcon />

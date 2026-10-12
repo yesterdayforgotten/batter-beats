@@ -1840,3 +1840,22 @@ label,
   gap: 8px;
   min-width: 0;
 }
+/* Now-playing bar when quiet: the play area (icon + up-next song) and Skip */
+.bar-play {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.next-tag {
+  flex-shrink: 0;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}

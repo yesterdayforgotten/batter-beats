@@ -127,6 +127,7 @@ export const jukeboxSettings = (): JukeboxSettings => ({ ...DEFAULT_SETTINGS, ..
 export function setJukeboxSettings(changes: Partial<JukeboxSettings>) {
   write(SETTINGS_KEY, { ...jukeboxSettings(), ...changes });
   if (changes.volume !== undefined) jukebox.applyVolume();
+  if (changes.shuffle !== undefined) jukebox.resetQueues(); // the next songs follow the new order
   notify();
 }
 
@@ -214,7 +215,11 @@ export type JukeboxState =
 class Jukebox {
   private audio: HTMLAudioElement | null = null;
   private gain: GainNode | null = null;
-  private queue: PlaylistSong[] = [];
+  /**
+   * The songs still to come for each playlist, kept between stops so the jukebox
+   * carries on where it left off; the first one is "up next".
+   */
+  private queues = new Map<number, PlaylistSong[]>();
   private playlist: Playlist | null = null;
   private blobUrl: string | null = null;
   private failures = 0;
@@ -244,10 +249,35 @@ class Jukebox {
     });
   }
 
+  /** A playlist's songs still to come (a fresh round, shuffled or in order, once they've all played). */
+  private queueFor(playlist: Playlist): PlaylistSong[] {
+    // Songs taken out of the playlist since are dropped; the latest copies of the rest are used.
+    const byId = new Map(playlist.songs.map((s) => [s.id, s]));
+    let queue = (this.queues.get(playlist.id) ?? []).flatMap((s) => byId.get(s.id) ?? []);
+    if (queue.length === 0) {
+      queue = jukeboxSettings().shuffle ? shuffled(playlist.songs) : playlist.songs.slice();
+      // A new shuffled round doesn't open with the song that just played.
+      const last = this.state.status === "stopped" ? null : this.state.song.id;
+      if (queue.length > 1 && queue[0].id === last) queue.push(queue.shift()!);
+    }
+    this.queues.set(playlist.id, queue);
+    return queue;
+  }
+
+  /** The song that plays next from this playlist (shown before pressing play). */
+  upNext(playlist: Playlist): PlaylistSong | null {
+    return playlist.songs.length ? this.queueFor(playlist)[0] : null;
+  }
+
+  /** Starts the next songs afresh (after switching between shuffle and in order). */
+  resetQueues() {
+    this.queues.clear();
+  }
+
   /**
-   * Plays a playlist: from the given song if one was tapped, otherwise from the
-   * top (or a random song when shuffling). Carries on through the playlist,
-   * shuffled or in order, and starts over at the end.
+   * Plays a playlist: from the given song if one was tapped, otherwise the one
+   * up next. Carries on through the playlist, shuffled or in order, and starts
+   * over at the end.
    */
   play(playlist: Playlist, songId?: number) {
     if (playlist.songs.length === 0) return;
@@ -255,21 +285,33 @@ class Jukebox {
     window.clearTimeout(this.stopTimer);
     this.playlist = playlist;
     this.failures = 0;
-    const { shuffle } = jukeboxSettings();
-    if (shuffle) {
-      const rest = shuffled(playlist.songs.filter((s) => s.id !== songId));
+    if (songId !== undefined) {
+      // A tapped song plays now; the rest follow it (shuffled, or in list order from there).
       const first = playlist.songs.find((s) => s.id === songId);
-      this.queue = first ? [first, ...rest] : rest;
-    } else {
-      const from = Math.max(0, playlist.songs.findIndex((s) => s.id === songId));
-      this.queue = [...playlist.songs.slice(from), ...playlist.songs.slice(0, from)];
+      if (jukeboxSettings().shuffle) {
+        const rest = shuffled(playlist.songs.filter((s) => s.id !== songId));
+        this.queues.set(playlist.id, first ? [first, ...rest] : rest);
+      } else {
+        const from = Math.max(0, playlist.songs.findIndex((s) => s.id === songId));
+        this.queues.set(playlist.id, [...playlist.songs.slice(from), ...playlist.songs.slice(0, from)]);
+      }
     }
     void this.next();
   }
 
-  /** Moves on to the next song now. */
-  skip() {
-    if (this.state.status === "stopped") return;
+  /**
+   * Moves on: while playing, to the next song now; while stopped, just picks a
+   * different song to play next (nothing starts).
+   */
+  skip(playlist?: Playlist) {
+    if (this.state.status === "stopped") {
+      if (!playlist || playlist.songs.length < 2) return;
+      const queue = this.queueFor(playlist);
+      queue.shift();
+      this.queueFor(playlist); // a new round if that was the last one
+      notify();
+      return;
+    }
     window.clearTimeout(this.stopTimer);
     void this.next();
   }
@@ -279,11 +321,7 @@ class Jukebox {
     const playlist = this.playlist;
     if (!playlist) return this.stop();
     if (failed && ++this.failures >= playlist.songs.length) return this.stop();
-    if (this.queue.length === 0) {
-      // Played them all: start over (in a fresh shuffle).
-      this.queue = jukeboxSettings().shuffle ? shuffled(playlist.songs) : playlist.songs.slice();
-    }
-    const song = this.queue.shift();
+    const song = this.queueFor(playlist).shift();
     if (!song) return this.stop();
     const id = ++this.playId;
     this.set({ status: "loading", song, playlist });
