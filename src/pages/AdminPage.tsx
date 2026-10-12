@@ -131,9 +131,17 @@ function AnnouncerVoice() {
   const murf = info?.engine === "murf";
   const voices = info?.voices ?? [];
   // Kokoro and Murf have many voices: male ones first, since they suit a stadium announcer; the rest on request.
+  // Murf styles differ per voice. The list offers every style; picking one the voice in use
+  // lacks narrows the voices below to those that have it.
+  const allStyles = [...new Set(voices.flatMap((v) => v.styles ?? []))].sort((a, b) => a.localeCompare(b));
+  const currentVoice = voices.find((v) => v.id === info?.voice);
+  const styleFilter = murf && style.murfStyle ? style.murfStyle : "";
+  const styleMissing = !!styleFilter && !(currentVoice?.styles ?? []).includes(styleFilter);
+  const withStyle = styleFilter ? voices.filter((v) => v.styles?.includes(styleFilter)) : voices;
   const shown =
-    chatterbox || showAll ? voices : voices.filter((v) => /(^|· )male( ·|$)/.test(v.detail) || v.id === info?.voice);
-  const voiceStyles = voices.find((v) => v.id === info?.voice)?.styles ?? [];
+    chatterbox || showAll || styleFilter
+      ? withStyle
+      : voices.filter((v) => /(^|· )male( ·|$)/.test(v.detail) || v.id === info?.voice);
   const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
 
   return (
@@ -194,9 +202,10 @@ function AnnouncerVoice() {
                   aria-label="Speaking style"
                 >
                   <option value="">Voice's default</option>
-                  {voiceStyles.map((st) => (
+                  {allStyles.map((st) => (
                     <option key={st} value={st}>
                       {st}
+                      {currentVoice?.styles?.includes(st) ? "" : ` (not ${currentVoice?.name ?? "this voice"})`}
                     </option>
                   ))}
                 </select>
@@ -290,8 +299,19 @@ function AnnouncerVoice() {
           )}
         </div>
       )}
+      {styleMissing && (
+        <p className="notice">
+          {currentVoice?.name ?? "The voice in use"} doesn't have the {styleFilter} style. The voices below do: Listen to
+          them, then tap Use.
+        </p>
+      )}
+      {styleFilter && !styleMissing && withStyle.length > 1 && (
+        <p className="muted small" style={{ margin: "0 4px 8px" }}>
+          Showing the voices that have the {styleFilter} style.
+        </p>
+      )}
       <ul className="list">
-        {shown.map(({ id, name, detail }) => (
+        {shown.map(({ id, name, detail, styles }) => (
           <li key={id || "default"} className="list-item">
             <div className="player-row">
               <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
@@ -299,6 +319,9 @@ function AnnouncerVoice() {
                   {name} {id === info?.voice && <span className="tag on-deck-tag">In use</span>}
                 </span>
                 <span className="muted small">{detail}</span>
+                {murf && !styleFilter && styles && styles.length > 0 && (
+                  <span className="faint small truncate">{styles.join(", ")}</span>
+                )}
               </span>
               <button className="small-button" onClick={() => listen(id)} disabled={playing === id}>
                 {playing === id ? "…" : "Listen"}
@@ -312,7 +335,7 @@ function AnnouncerVoice() {
           </li>
         ))}
       </ul>
-      {!chatterbox && voices.length > shown.length && (
+      {!chatterbox && !styleFilter && voices.length > shown.length && (
         <button className="link-button" style={{ marginTop: 6 }} onClick={() => setShowAll(true)}>
           Show all {voices.length} English voices
         </button>
