@@ -217,6 +217,10 @@ const SPEECH_CACHE_FILES = 500;
  * every announcement, costs no ElevenLabs credits. (The same settings also
  * give the same take, which makes comparing echo settings fair.)
  */
+// Recordings on their way: a second request for the same one (Listen pressed again
+// before the first finished) waits for it instead of paying for it twice.
+const inFlight = new Map<string, Promise<string>>();
+
 async function rawSpeech(engine: Engine, text: string, voice: string, style: AnnouncerStyle): Promise<string> {
   // Everything except what's done afterwards in ffmpeg.
   const { reverb: _reverb, reverbSize: _reverbSize, ...speech } = style;
@@ -230,11 +234,21 @@ async function rawSpeech(engine: Engine, text: string, voice: string, style: Ann
     await fs.promises.utimes(file, now, now).catch(() => {}); // recently used: keep it
     return file;
   }
-  const tmp = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
-  await fs.promises.writeFile(tmp, await engine.speak(text, voice, style));
-  await fs.promises.rename(tmp, file);
-  void pruneSpeechCache();
-  return file;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const job = (async () => {
+    const tmp = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
+    await fs.promises.writeFile(tmp, await engine.speak(text, voice, style));
+    await fs.promises.rename(tmp, file);
+    void pruneSpeechCache();
+    return file;
+  })();
+  inFlight.set(key, job);
+  try {
+    return await job;
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 async function pruneSpeechCache() {

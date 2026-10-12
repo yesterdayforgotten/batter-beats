@@ -32,10 +32,15 @@ export function AnnouncerSettings(props: {
   /** The team's voice and delivery as saved. */
   voice: string;
   style: AnnouncerStyle;
-  /** The team's wording, so Listen says it the way the team's announcements will. */
+  /**
+   * The team's wording as it is in the box (maybe not saved yet), so Listen says
+   * exactly what's typed, and as saved. It's saved with the delivery.
+   */
   template: string;
+  savedTemplate: string;
   onVoice(voice: string): Promise<void>;
-  onStyle(style: AnnouncerStyle): Promise<AnnouncerStyle>;
+  /** Saves the wording and delivery together (one remake); returns the delivery as saved. */
+  onSave(changes: { style?: AnnouncerStyle; template?: string }): Promise<AnnouncerStyle>;
 }) {
   const { voice: current } = props;
   const [info, setInfo] = useState<AnnouncerEngineInfo | null>(null);
@@ -58,14 +63,22 @@ export function AnnouncerSettings(props: {
   useEffect(() => setStyle(props.style), [JSON.stringify(props.style)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const styleChanged = JSON.stringify(style) !== JSON.stringify(props.style);
+  const templateChanged = props.template.trim() !== props.savedTemplate;
+  const changed = styleChanged || templateChanged;
   const change = (c: Partial<AnnouncerStyle>) => {
     setStyle((s) => ({ ...s, ...c }));
     setSavedNote(false);
   };
 
-  async function saveStyle() {
+  async function save() {
+    setError(null);
     try {
-      setStyle(await props.onStyle(style));
+      setStyle(
+        await props.onSave({
+          ...(styleChanged ? { style } : {}),
+          ...(templateChanged ? { template: props.template } : {}),
+        }),
+      );
       setSavedNote(true);
     } catch (err) {
       setError((err as Error).message);
@@ -210,12 +223,12 @@ export function AnnouncerSettings(props: {
               />
             )}
           </div>
-          {styleChanged && (
-            <button className="primary" onClick={saveStyle}>
+          {changed && (
+            <button className="primary" onClick={save}>
               Use these settings
             </button>
           )}
-          {savedNote && !styleChanged && (
+          {savedNote && !changed && (
             <p className="muted small" style={{ margin: 0 }}>
               <CheckIcon /> Saved. Every announcement is being remade.
             </p>

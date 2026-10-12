@@ -59,8 +59,16 @@ select {
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--card);
+  /* Typed text in bright white, like dropdowns, so it reads as editable (browsers default it to grey). */
+  color: var(--text);
   font-size: 17px;
   font-weight: 700;
+}
+
+input::placeholder {
+  color: var(--faint);
+  font-weight: 600;
+  opacity: 1;
 }
 
 input:focus,

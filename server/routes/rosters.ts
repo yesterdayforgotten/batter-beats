@@ -117,7 +117,16 @@ rostersRouter.put("/rosters/:id/announcer", editor, (req, res) => {
   if (!getRoster(id)) return res.status(404).json({ error: "Team not found." });
   const voice = typeof req.body?.voice === "string" ? req.body.voice.trim().slice(0, 100) : undefined;
   const style = req.body?.style;
-  if (voice === undefined && style === undefined) return res.status(400).json({ error: "Nothing to change." });
+  const template =
+    typeof req.body?.announceTemplate === "string" ? text(req.body.announceTemplate, 200) || ANNOUNCER.defaultTemplate : undefined;
+  if (voice === undefined && style === undefined && template === undefined) {
+    return res.status(400).json({ error: "Nothing to change." });
+  }
+  if (template !== undefined && !template.includes("{name}")) {
+    return res.status(400).json({ error: "The wording needs {name} where the name goes." });
+  }
+  // Wording, voice and delivery are saved together, so the announcements are remade once.
+  if (template !== undefined) db.prepare("UPDATE rosters SET announce_template = ? WHERE id = ?").run(template, id);
   setTeamAnnouncer(id, { voice, style });
   touchRoster(id);
   void refreshRosterAnnouncements(id);

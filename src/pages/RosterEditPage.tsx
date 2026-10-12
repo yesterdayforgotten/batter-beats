@@ -67,7 +67,11 @@ export function RosterEditPage() {
   }
 
   /** Saves the team's announcer voice or delivery; its announcements are remade. */
-  async function saveTeamAnnouncer(changes: { voice?: string; style?: AnnouncerStyle }): Promise<Roster | null> {
+  async function saveTeamAnnouncer(changes: {
+    voice?: string;
+    style?: AnnouncerStyle;
+    announceTemplate?: string;
+  }): Promise<Roster | null> {
     if (!roster) return null;
     const r = await api<{ roster: Roster }>(`/rosters/${roster.id}/announcer`, { method: "PUT", body: changes });
     setRoster(r.roster);
@@ -120,11 +124,15 @@ export function RosterEditPage() {
                   <input
                     value={template}
                     onChange={(e) => setTemplate(e.target.value)}
-                    onBlur={() => template.trim() !== roster.announceTemplate && void saveAnnouncer({ announceTemplate: template })}
                     onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
                     maxLength={200}
                   />
                 </label>
+                {template.trim() !== roster.announceTemplate && (
+                  <p className="small" style={{ margin: 0, color: "var(--accent)" }}>
+                    Not saved yet: Listen below says it as typed; tap Use these settings to keep it.
+                  </p>
+                )}
                 <p className="muted small" style={{ margin: 0 }}>
                   {"{number}"} and {"{name}"} are filled in for each player. Players with no number skip the number.
                   With ElevenLabs you can direct parts of the line with cues in square brackets, e.g.{" "}
@@ -133,11 +141,16 @@ export function RosterEditPage() {
                 <AnnouncerSettings
                   voice={roster.announcerVoice}
                   style={roster.announcerStyle}
-                  template={roster.announceTemplate}
+                  template={template}
+                  savedTemplate={roster.announceTemplate}
                   onVoice={async (voice) => {
                     await saveTeamAnnouncer({ voice });
                   }}
-                  onStyle={async (style) => (await saveTeamAnnouncer({ style }))?.announcerStyle ?? style}
+                  onSave={async ({ style, template: wording }) => {
+                    const r = await saveTeamAnnouncer({ style, announceTemplate: wording });
+                    if (r) setTemplate(r.announceTemplate);
+                    return r?.announcerStyle ?? style ?? roster.announcerStyle;
+                  }}
                 />
               </>
             )}
