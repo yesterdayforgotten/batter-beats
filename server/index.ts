@@ -12,6 +12,7 @@ import { usersRouter } from "./routes/users.ts";
 import { rostersRouter } from "./routes/rosters.ts";
 import { songsRouter } from "./routes/songs.ts";
 import { announcerRouter } from "./routes/announcer.ts";
+import { playlistRouter } from "./routes/playlist.ts";
 import { refreshAllAnnouncements } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
 
@@ -51,6 +52,7 @@ app.get("/api/version", (_req, res) => {
 app.use("/api", rostersRouter);
 app.use("/api", songsRouter);
 app.use("/api", announcerRouter);
+app.use("/api", playlistRouter);
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found." }));
 app.use("/api", (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

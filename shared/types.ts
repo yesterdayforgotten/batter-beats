@@ -62,6 +62,13 @@ export interface Clip {
   version: number;
 }
 
+/** A song in someone's between-innings playlist. */
+export interface PlaylistSong extends Song {
+  /** The whole original MP3. */
+  url: string;
+  sizeBytes: number;
+}
+
 export interface Announcement {
   url: string;
   durationMs: number;

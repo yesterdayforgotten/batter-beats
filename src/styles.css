@@ -880,3 +880,49 @@ label {
   font-size: 14px;
   color: var(--muted);
 }
+
+/* Between-innings button, kept at the bottom of game mode */
+.innings-bar {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom) + 10px);
+  margin-top: 18px;
+  z-index: 3;
+}
+.innings-button {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px;
+  border-radius: 18px;
+  border: 2px solid var(--line);
+  background: var(--raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.innings-button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.innings-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 20px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.innings-song {
+  font-size: 13px;
+  color: var(--muted);
+}
+.innings-setup {
+  display: block;
+  text-align: center;
+  padding: 14px;
+  border-radius: 16px;
+  border: 2px dashed var(--line);
+  color: var(--muted);
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--bg);
+}

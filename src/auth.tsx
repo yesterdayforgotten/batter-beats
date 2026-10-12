@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "./api.ts";
 import { clearAll, refreshKept } from "./offline.ts";
+import { clearPlaylistData } from "./playlist.ts";
 import type { Role, User } from "../shared/types.ts";
 
 interface AuthState {
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api("/auth/logout", { body: {} });
     remember(null);
     await clearAll();
+    await clearPlaylistData();
     setUser(null);
   }, []);
 

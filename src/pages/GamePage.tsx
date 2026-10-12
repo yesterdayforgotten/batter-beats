@@ -9,7 +9,8 @@ import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
 import { changeLineup, onOfflineChange, pendingChanges, savedRoster, saveIfKept, withPendingChanges } from "../offline.ts";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
-import type { Player, Roster } from "../../shared/types.ts";
+import { innings, loadPlaylist, onPlaylistChange } from "../playlist.ts";
+import type { Player, PlaylistSong, Roster } from "../../shared/types.ts";
 
 /** How quickly a playing song gets out of the way when a different batter is tapped. */
 const SWITCH_FADE_SEC = 0.5;
@@ -56,6 +57,8 @@ export function GamePage() {
   const [fromPhone, setFromPhone] = useState(false);
   const [waiting, setWaiting] = useState(() => pendingChanges());
   const [reloads, setReloads] = useState(0);
+  const [playlist, setPlaylist] = useState<PlaylistSong[] | null>(null);
+  const [inningsState, setInningsState] = useState(innings.state);
   const [editing, setEditing] = useState(false);
   const [atBatId, setAtBatId] = useState<number | null>(() => readAtBat(id));
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
@@ -99,14 +102,35 @@ export function GamePage() {
 
   useEffect(() => onOfflineChange(() => setWaiting(pendingChanges())), []);
 
+  // The user's between-innings playlist.
+  useEffect(() => {
+    loadPlaylist()
+      .then((r) => setPlaylist(r.songs))
+      .catch(() => setPlaylist([]));
+    return onPlaylistChange(() => setInningsState(innings.state));
+  }, []);
+
   // Leaving game mode: stop the music and let the screen sleep.
   useEffect(
     () => () => {
       playback.current?.stop();
+      innings.stop();
       allowSleep();
     },
     [],
   );
+
+  function toggleInnings() {
+    unlockAudio(); // must start inside the tap
+    keepAwake();
+    if (innings.state.status === "playing") return innings.fadeOut();
+    if (innings.state.status === "fading") return;
+    // A walkup still playing gets out of the way.
+    playback.current?.fadeOut(SWITCH_FADE_SEC);
+    playback.current = null;
+    setSound(null);
+    if (playlist?.length) innings.start(playlist);
+  }
 
   const order = roster?.players ?? [];
   const lineup = order.filter((p) => p.available);
@@ -121,6 +145,7 @@ export function GamePage() {
   async function tap(player: Player) {
     unlockAudio(); // both of these must start inside the tap
     keepAwake();
+    innings.fadeOut(); // between-innings music fades out for the batter
     const current = playback.current;
 
     // Tapping the batter whose song is playing fades it out.
@@ -303,6 +328,27 @@ export function GamePage() {
             ))}
           </ul>
         </>
+      )}
+      {!editing && playlist && (
+        <div className="innings-bar">
+          {playlist.length > 0 ? (
+            <button className={`innings-button${inningsState.status !== "stopped" ? " on" : ""}`} onClick={toggleInnings}>
+              {inningsState.status === "stopped" ? <PlayIcon /> : <StopIcon />}
+              <span className="stack" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
+                <span className="innings-title">Between innings</span>
+                <span className="innings-song truncate">
+                  {inningsState.status === "stopped"
+                    ? `${playlist.length} songs, shuffled`
+                    : `${inningsState.status === "fading" ? "Fading out · " : ""}${inningsState.song.title}`}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <Link to="/playlist" className="innings-setup">
+              Set up your between-innings playlist
+            </Link>
+          )}
+        </div>
       )}
       <footer style={{ marginTop: 28 }}>
         <AppVersion />

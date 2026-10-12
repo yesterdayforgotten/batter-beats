@@ -7,6 +7,7 @@ import { GamePage } from "./pages/GamePage.tsx";
 import { RosterEditPage } from "./pages/RosterEditPage.tsx";
 import { PlayerEditPage } from "./pages/PlayerEditPage.tsx";
 import { UsersPage } from "./pages/UsersPage.tsx";
+import { PlaylistPage } from "./pages/PlaylistPage.tsx";
 
 export function App() {
   const { user, loading, error } = useAuth();
@@ -24,6 +25,7 @@ export function App() {
       </Route>
       <Route element={<Plain />}>
         <Route path="rosters/:id" element={<GamePage />} />
+        <Route path="playlist" element={<PlaylistPage />} />
         {editor && <Route path="rosters/:id/edit" element={<RosterEditPage />} />}
         {editor && <Route path="players/:id" element={<PlayerEditPage />} />}
       </Route>

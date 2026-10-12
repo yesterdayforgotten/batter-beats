@@ -31,12 +31,12 @@ const MIN_STOP_FADE_SEC = 0.3;
  * curve, so a straight-line fade sounds loud for most of its length and then
  * drops away. Squaring the line (about −12 dB halfway) sounds like an even fade.
  */
-const FADE_CURVE = Float32Array.from({ length: 128 }, (_, i) => (1 - i / 127) ** 2);
+export const FADE_CURVE = Float32Array.from({ length: 128 }, (_, i) => (1 - i / 127) ** 2);
 
 let ctx: AudioContext | null = null;
 let iosKeepAlive: HTMLAudioElement | null = null;
 
-function context(): AudioContext {
+export function context(): AudioContext {
   if (!ctx) ctx = new AudioContext();
   return ctx;
 }

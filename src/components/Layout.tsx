@@ -18,6 +18,7 @@ export function Layout() {
           Batter Beats
         </Link>
         <nav className="topnav">
+          <NavLink to="/playlist">Playlist</NavLink>
           {hasRole(user, "admin") && <NavLink to="/admin/users">Users</NavLink>}
           <button className="link-button" onClick={handleSignOut}>
             Sign out

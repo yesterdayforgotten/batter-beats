@@ -102,6 +102,15 @@ const migrations: string[] = [
     value TEXT NOT NULL
   );
   `,
+  `
+  -- Each user's own between-innings playlist, from the shared library.
+  CREATE TABLE playlist_songs (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    song_id  INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (user_id, song_id)
+  );
+  `,
 ];
 
 const current = db.pragma("user_version", { simple: true }) as number;

@@ -168,12 +168,13 @@ These were not verified during planning. Test each one and tell the owner what y
 
 ## Open questions for the owner
 
-- Should the between-innings playlist work offline? That would mean storing whole songs on the phone, several MB each, on top of the clips. Ask before phase 6.
+- Should the between-innings playlist work offline? Built 2026-10-12 without waiting for an answer (the owner asked to carry on): it streams by default, and each phone has a "Keep on this phone" switch on the Playlist screen. Confirm with the owner that this is what they want.
 - ~~What name goes on the MIT licence?~~ Answered: `yesterdayforgotten` (owner's GitHub username). Also used as the git author name.
 
 ## Status
 
 **Phase 1 (server foundation): built.**
+**Phase 6 (between-innings playlist): built 2026-10-12, waiting for the owner to test on phones.**
 **Phase 5 (announcer): built 2026-10-12, waiting for the owner to add the voice engine container and listen.**
 **Phase 4 (offline): built 2026-10-12, waiting for the owner to test on phones** (a full mock game in airplane mode on every phone, per the build order).
 **Phase 3 (game mode): built 2026-10-12.** Owner has not yet reported phone results.
@@ -247,4 +248,11 @@ These were not verified during planning. Test each one and tell the owner what y
 - Playback (`Playback` in `src/audio/engine.ts`): the voice starts at once; the song starts `songDelayMs` later (per player, 0–10 s, the "Song in" slider), plays at 25% under the voice and rises to full over 0.7 s when the voice ends. Tap fades both. Announcements are kept offline with the clips. A player with an announcement but no song still gets announced.
 - Tested against a stand-in for Kokoro (same API, returns a tone): generation, regeneration on changes, wording with and without numbers, team/player off, offline storage, game mode, Listen and Preview.
 
-Next: owner adds the Kokoro container (dev and production stacks) and listens to the voices; phone tests for phases 3–5. Then phase 6 (between-innings playlist).
+### Phase 6 notes
+- Each user has their own playlist (`playlist_songs`), built on the Playlist screen (link in the top menu) from the shared library; editors can upload there too. `GET/PUT /api/playlist`; whole songs at `/api/media/songs/<id>.mp3` (originals, immutable, range requests).
+- Game mode has a "Between innings" button at the bottom (sticky): starts a fresh shuffle, shows the song, reshuffles after the last song; tap again to fade out. Tapping a batter fades it out over 1.5 s (same curve as walkups); starting it fades out a walkup that's still playing.
+- Whole songs stream through one `<audio>` element routed through Web Audio for the fades (iPhones ignore `<audio>` volume), not decoded into memory like clips. `src/playlist.ts`.
+- Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
+- Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
+
+Next: owner adds the Kokoro container and listens to the voices; phone tests for phases 3–6. Then phase 7 (admin extras).

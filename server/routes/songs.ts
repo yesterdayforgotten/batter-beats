@@ -3,7 +3,7 @@ import { Router } from "express";
 import multer from "multer";
 import { requireRole } from "../auth.ts";
 import { addSong, getSong, listSongs } from "../library.ts";
-import { announcementPath, clipPath, dirs, peaksPath } from "../storage.ts";
+import { announcementPath, clipPath, dirs, peaksPath, songPath } from "../storage.ts";
 
 export const songsRouter = Router();
 songsRouter.use(requireRole("user"));
@@ -39,6 +39,18 @@ songsRouter.get("/songs/:id/peaks", (req, res) => {
 
 // Clip files never change once written (each re-cut gets a new name), so
 // phones may keep them forever.
+// Whole songs, for between-innings playlists. Originals are never modified,
+// so phones may keep them. Range requests let phones start playing at once.
+songsRouter.get("/media/songs/:file", (req, res) => {
+  const m = /^(\d+)\.mp3$/.exec(String(req.params.file));
+  if (!m) return res.status(404).end();
+  res.sendFile(songPath(Number(m[1])), {
+    headers: { "Content-Type": "audio/mpeg", "Cache-Control": "private, max-age=31536000, immutable" },
+  }, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
+
 // Announcement files are named after what they say, so they never change either.
 songsRouter.get("/media/announcements/:file", (req, res) => {
   const file = String(req.params.file);
