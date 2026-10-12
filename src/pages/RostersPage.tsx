@@ -64,7 +64,7 @@ export function RostersPage() {
             {!offline && <OfflineSwitch id={r.id} name={r.name} />}
             {editor && !offline && (
               <Link to={`/rosters/${r.id}/edit`} onClick={cameFromTeams} aria-label={`Edit ${r.name}`} className="kebab">
-                <EditIcon />
+                <EditIcon size={24} />
               </Link>
             )}
           </li>

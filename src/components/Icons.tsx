@@ -26,8 +26,8 @@ export const KebabIcon = () => (
 );
 
 /** A pencil writing over a box, for "edit". */
-export const EditIcon = () => (
-  <svg {...common} width={20} height={20}>
+export const EditIcon = ({ size = 20 }: { size?: number }) => (
+  <svg {...common} width={size} height={size}>
     <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
     <path d="M18.4 2.6a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.4-9.4Z" />
   </svg>
