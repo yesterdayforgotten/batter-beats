@@ -61,7 +61,8 @@ select {
   background: var(--card);
   /* Typed text in bright white, like dropdowns, so it reads as editable (browsers default it to grey). */
   color: var(--text);
-  font-size: 17px;
+  /* 16px is the smallest that stops iPhones zooming in when a box is tapped. */
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -988,7 +989,7 @@ label {
 .voice-filters select {
   width: auto;
   min-height: 38px;
-  font-size: 14px;
+  font-size: 16px; /* not smaller: iPhones zoom in on controls under 16px */
   padding: 0 8px;
 }
 
@@ -1007,7 +1008,7 @@ label {
 }
 .cue-field input {
   min-height: 42px;
-  font-size: 15px;
+  font-size: 16px; /* not smaller: iPhones zoom in on boxes under 16px */
 }
 /* Floats over the settings below while the Cue box is selected (selecting elsewhere closes it). */
 .cue-suggestions {
