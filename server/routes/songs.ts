@@ -2,7 +2,8 @@ import fs from "node:fs";
 import { Router } from "express";
 import multer from "multer";
 import { requireRole } from "../auth.ts";
-import { addSong, getSong, listSongs } from "../library.ts";
+import { addSong, deleteSong, getSong, listLibrary, listSongs, renameSong, setSongTags, tagSuggestions, UserError } from "../library.ts";
+import { cleanTags } from "../../shared/types.ts";
 import { announcementPath, clipPath, dirs, peaksPath, songPath } from "../storage.ts";
 
 export const songsRouter = Router();
@@ -15,6 +16,42 @@ const upload = multer({
 
 songsRouter.get("/songs", (_req, res) => {
   res.json({ songs: listSongs() });
+});
+
+// The Songs screen: every song with where it's used; rename; delete.
+songsRouter.get("/songs/library", requireRole("editor"), (_req, res) => {
+  res.json({ songs: listLibrary(), suggestions: tagSuggestions() });
+});
+
+songsRouter.put("/songs/:id/tags", requireRole("editor"), (req, res) => {
+  const song = getSong(Number(req.params.id));
+  if (!song) return res.status(404).json({ error: "Song not found." });
+  res.json({ song: setSongTags(song.id, cleanTags(req.body?.tags)) });
+});
+
+songsRouter.patch("/songs/:id", requireRole("editor"), (req, res) => {
+  const song = getSong(Number(req.params.id));
+  if (!song) return res.status(404).json({ error: "Song not found." });
+  const title = req.body?.title === undefined ? song.title : String(req.body.title).trim().slice(0, 200);
+  const artist = req.body?.artist === undefined ? song.artist : String(req.body.artist).trim().slice(0, 200);
+  try {
+    res.json({ song: renameSong(song.id, title, artist) });
+  } catch (err) {
+    if (err instanceof UserError) return res.status(400).json({ error: err.message });
+    throw err;
+  }
+});
+
+songsRouter.delete("/songs/:id", requireRole("editor"), (req, res) => {
+  const song = getSong(Number(req.params.id));
+  if (!song) return res.status(404).json({ error: "Song not found." });
+  try {
+    deleteSong(song.id);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof UserError) return res.status(409).json({ error: err.message });
+    throw err;
+  }
 });
 
 songsRouter.post("/songs", requireRole("editor"), upload.single("file"), async (req, res) => {

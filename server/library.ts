@@ -5,7 +5,7 @@ import { scanMp3, cutClip } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
 import { teamAnnouncer, wanted, type AnnouncerPlayerRow } from "./announcer.ts";
-import { CLIP_LIMITS, type Clip, type Player, type Roster, type RosterSummary, type Song } from "../shared/types.ts";
+import { CLIP_LIMITS, type Clip, type Player, type Roster, type LibrarySong, type RosterSummary, type Song, type TagSuggestions } from "../shared/types.ts";
 
 // ── Songs ────────────────────────────────────────────────────────────────
 
@@ -17,16 +17,110 @@ interface SongRow {
   duration_ms: number;
 }
 
-const toSong = (r: SongRow): Song => ({ id: r.id, title: r.title, artist: r.artist, durationMs: r.duration_ms });
+const toSong = (r: SongRow, tags: string[] = []): Song => ({
+  id: r.id,
+  title: r.title,
+  artist: r.artist,
+  durationMs: r.duration_ms,
+  tags,
+});
+
+/** Every song's tags, by song id. */
+function allTags(): Map<number, string[]> {
+  const byId = new Map<number, string[]>();
+  const rows = db.prepare("SELECT song_id, tag FROM song_tags ORDER BY tag COLLATE NOCASE").all() as { song_id: number; tag: string }[];
+  for (const r of rows) byId.set(r.song_id, [...(byId.get(r.song_id) ?? []), r.tag]);
+  return byId;
+}
+
+const tagsOf = (songId: number) =>
+  (db.prepare("SELECT tag FROM song_tags WHERE song_id = ? ORDER BY tag COLLATE NOCASE").all(songId) as { tag: string }[]).map((r) => r.tag);
 
 export function listSongs(): Song[] {
   const rows = db.prepare("SELECT * FROM songs ORDER BY title COLLATE NOCASE, artist COLLATE NOCASE").all() as SongRow[];
-  return rows.map(toSong);
+  const tags = allTags();
+  return rows.map((r) => toSong(r, tags.get(r.id)));
 }
 
 export function getSong(id: number): Song | undefined {
   const row = db.prepare("SELECT * FROM songs WHERE id = ?").get(id) as SongRow | undefined;
-  return row && toSong(row);
+  return row && toSong(row, tagsOf(id));
+}
+
+/** Replaces a song's tags. */
+export function setSongTags(id: number, tags: string[]): Song | undefined {
+  db.transaction(() => {
+    db.prepare("DELETE FROM song_tags WHERE song_id = ?").run(id);
+    const add = db.prepare("INSERT OR IGNORE INTO song_tags (song_id, tag) VALUES (?, ?)");
+    for (const t of tags) add.run(id, t);
+  })();
+  return getSong(id);
+}
+
+/** Tag ideas: every team and player name, and the tags already in use. */
+export function tagSuggestions(): TagSuggestions {
+  const names = (sql: string) => (db.prepare(sql).all() as { name: string }[]).map((r) => r.name);
+  return {
+    teams: names("SELECT name FROM rosters ORDER BY name COLLATE NOCASE"),
+    players: names("SELECT DISTINCT name FROM players ORDER BY name COLLATE NOCASE"),
+    used: names("SELECT DISTINCT tag AS name FROM song_tags ORDER BY tag COLLATE NOCASE"),
+  };
+}
+
+/** Every song with who uploaded it and where it's used, for the Songs screen. */
+export function listLibrary(): LibrarySong[] {
+  const rows = db
+    .prepare(
+      `SELECT s.*, u.username AS uploaded_by_name,
+              (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.song_id = s.id) AS playlists
+       FROM songs s LEFT JOIN users u ON u.id = s.uploaded_by
+       ORDER BY s.title COLLATE NOCASE, s.artist COLLATE NOCASE`,
+    )
+    .all() as (SongRow & { uploaded_by_name: string | null; created_at: string; playlists: number })[];
+  const uses = db
+    .prepare(
+      `SELECT DISTINCT ps.song_id, p.id, p.name, p.number, r.id AS roster_id, r.name AS roster_name
+       FROM player_songs ps JOIN players p ON p.id = ps.player_id JOIN rosters r ON r.id = p.roster_id
+       ORDER BY r.name COLLATE NOCASE, p.lineup_position`,
+    )
+    .all() as { song_id: number; id: number; name: string; number: string; roster_id: number; roster_name: string }[];
+  const tags = allTags();
+  return rows.map((r) => ({
+    ...toSong(r, tags.get(r.id)),
+    url: `/api/media/songs/${r.id}.mp3`,
+    uploadedBy: r.uploaded_by_name,
+    createdAt: r.created_at,
+    players: uses
+      .filter((u) => u.song_id === r.id)
+      .map((u) => ({ id: u.id, name: u.name, number: u.number, rosterId: u.roster_id, rosterName: u.roster_name })),
+    playlists: r.playlists,
+  }));
+}
+
+/** Changes a song's title and artist (as shown everywhere; the file isn't touched). */
+export function renameSong(id: number, title: string, artist: string): Song | undefined {
+  if (!title) throw new UserError("Give the song a title.");
+  db.prepare("UPDATE songs SET title = ?, artist = ? WHERE id = ?").run(title, artist, id);
+  return getSong(id);
+}
+
+/**
+ * Deletes a song and its files. Refused while any player uses it, so a game-day
+ * song can't vanish by accident; it simply leaves any playlists that have it.
+ */
+export function deleteSong(id: number) {
+  const users = db
+    .prepare(
+      `SELECT DISTINCT p.name FROM player_songs ps JOIN players p ON p.id = ps.player_id
+       WHERE ps.song_id = ? ORDER BY p.name COLLATE NOCASE`,
+    )
+    .all(id) as { name: string }[];
+  if (users.length > 0) {
+    throw new UserError(`${users.map((u) => u.name).join(", ")} still ${users.length === 1 ? "uses" : "use"} this song. Pick another song for them first.`);
+  }
+  db.prepare("DELETE FROM songs WHERE id = ?").run(id); // playlist entries go with it
+  removeQuietly(songPath(id));
+  removeQuietly(peaksPath(id));
 }
 
 /** Checks an uploaded file, stores it in the library and builds its waveform. */

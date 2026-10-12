@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
-import { KebabIcon, PlayIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
+import { PlayIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
+import { MoreMenu } from "../components/MoreMenu.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
@@ -367,52 +368,6 @@ export function GamePage() {
       <footer style={{ marginTop: 28 }}>
         <AppVersion />
       </footer>
-    </div>
-  );
-}
-
-type MenuItem = { label: string; onSelect: () => void } | { label: string; to: string; onSelect?: () => void };
-
-/** The ⋮ button and its small menu. Tapping outside closes it. */
-function MoreMenu({ items }: { items: MenuItem[] }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [open]);
-  return (
-    <div className="more-menu" ref={ref}>
-      <button className="kebab" aria-label="More" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <KebabIcon />
-      </button>
-      {open && (
-        <div className="menu" role="menu">
-          {items.map((item) =>
-            "to" in item ? (
-              <Link key={item.label} to={item.to} role="menuitem" className="menu-item" onClick={item.onSelect}>
-                {item.label}
-              </Link>
-            ) : (
-              <button
-                key={item.label}
-                role="menuitem"
-                className="menu-item"
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect();
-                }}
-              >
-                {item.label}
-              </button>
-            ),
-          )}
-        </div>
-      )}
     </div>
   );
 }

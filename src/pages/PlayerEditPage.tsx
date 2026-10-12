@@ -446,7 +446,14 @@ export function PlayerEditPage() {
           Remove player
         </button>
       </div>
-      {picking && <SongPicker selectedId={clip?.song.id} onPick={pickSong} onClose={() => setPicking(false)} />}
+      {picking && (
+        <SongPicker
+          selectedId={clip?.song.id}
+          player={{ name: player.name, rosterId: player.rosterId }}
+          onPick={pickSong}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </>
   );
 }

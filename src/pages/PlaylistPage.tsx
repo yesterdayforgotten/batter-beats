@@ -12,7 +12,7 @@ import {
   songDownloadProgress,
   storedSongIds,
 } from "../playlist.ts";
-import type { PlaylistSong, Song } from "../../shared/types.ts";
+import { songMatches, type PlaylistSong, type Song } from "../../shared/types.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 const formatSize = (bytes: number) => `${Math.max(1, Math.round(bytes / 1_000_000))} MB`;
@@ -44,7 +44,7 @@ export function PlaylistPage() {
   const inList = useMemo(() => new Set(songs?.map((s) => s.id)), [songs]);
   const available = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (library ?? []).filter((s) => !inList.has(s.id) && (!q || `${s.title} ${s.artist}`.toLowerCase().includes(q)));
+    return (library ?? []).filter((s) => !inList.has(s.id) && songMatches(s, q));
   }, [library, inList, query]);
 
   async function save(ids: number[]) {
@@ -143,7 +143,7 @@ export function PlaylistPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search the library"
+              placeholder="Search title, artist or tag"
               aria-label="Search the library"
               style={{ marginBottom: 8 }}
             />

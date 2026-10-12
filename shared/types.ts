@@ -19,7 +19,37 @@ export interface Song {
   title: string;
   artist: string;
   durationMs: number;
+  /** Free-form labels (a team, a player, "warm-up"…) for finding songs. */
+  tags: string[];
 }
+
+/** Limits on song tags, shared by the screens and the server. */
+export const TAG_LIMITS = { maxTags: 12, maxLength: 40 };
+
+/** Tidies a list of tags: trimmed, single spaces, no blanks or repeats (ignoring case), within the limits. */
+export function cleanTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+  const out: string[] = [];
+  for (const t of tags) {
+    const tag = String(t ?? "").replace(/\s+/g, " ").trim().slice(0, TAG_LIMITS.maxLength);
+    if (tag && !out.some((o) => o.toLowerCase() === tag.toLowerCase())) out.push(tag);
+  }
+  return out.slice(0, TAG_LIMITS.maxTags);
+}
+
+/** True when a song matches a search: words in its title, artist or tags. */
+export function songMatches(song: Song, query: string): boolean {
+  const hay = `${song.title} ${song.artist} ${song.tags.join(" ")}`.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => hay.includes(w));
+}
+
+/** True when a song has every one of the chosen tags. */
+export const hasTags = (song: Song, tags: string[]) =>
+  tags.every((t) => song.tags.some((st) => st.toLowerCase() === t.toLowerCase()));
 
 /** Limits shared by the player editor and the server. */
 export const CLIP_LIMITS = {
@@ -67,6 +97,25 @@ export interface PlaylistSong extends Song {
   /** The whole original MP3. */
   url: string;
   sizeBytes: number;
+}
+
+/** A song as the Songs screen shows it: who uploaded it and where it's used. */
+export interface LibrarySong extends Song {
+  /** The whole original MP3. */
+  url: string;
+  uploadedBy: string | null;
+  createdAt: string;
+  /** Players who walk up to it. */
+  players: { id: number; name: string; number: string; rosterId: number; rosterName: string }[];
+  /** How many people's between-innings playlists have it. */
+  playlists: number;
+}
+
+/** Tag ideas for the Songs screen: team and player names, then tags already in use. */
+export interface TagSuggestions {
+  teams: string[];
+  players: string[];
+  used: string[];
 }
 
 export interface Announcement {

@@ -119,6 +119,14 @@ const migrations: string[] = [
   -- Each team's colour, one of TEAM_COLORS' ids.
   ALTER TABLE rosters ADD COLUMN color TEXT NOT NULL DEFAULT 'blue';
   `,
+  `
+  -- Free-form tags on songs (a team, a player, "warm-up"…), for finding and filtering them.
+  CREATE TABLE song_tags (
+    song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    tag     TEXT NOT NULL COLLATE NOCASE,
+    PRIMARY KEY (song_id, tag)
+  );
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */

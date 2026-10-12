@@ -180,20 +180,9 @@ label,
   margin: -2px 0;
 }
 
-.topnav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.topnav a {
-  color: var(--muted);
-  font-weight: 700;
-  text-decoration: none;
-  padding: 8px 2px;
-}
-
-.topnav a.active {
+/* The ☰ menu at the right of the top bar */
+.topbar .more-menu > .kebab {
+  width: 44px;
   color: var(--text);
 }
 
@@ -1336,4 +1325,152 @@ label,
 }
 .list.compact .grip {
   width: 44px;
+}
+
+/* Music screen: compact two-line rows */
+.song-list {
+  gap: 4px;
+}
+.song-item {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  border-radius: 12px;
+}
+.song-item .player-row {
+  gap: 10px;
+  padding: 6px 8px;
+  min-height: 0;
+}
+.song-play {
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--raised);
+  color: var(--text);
+}
+.song-play svg {
+  width: 14px;
+  height: 14px;
+}
+.song-play.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.song-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.song-summary > span {
+  max-width: 100%;
+}
+.song-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+.song-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.song-usage {
+  color: var(--accent-soft);
+}
+.song-tags {
+  color: var(--faint);
+}
+.song-details {
+  gap: 12px;
+  padding: 6px 12px 14px;
+  border-top: 1px solid var(--line);
+  margin: 4px 4px 0;
+  padding-top: 14px;
+}
+.song-player-link {
+  color: var(--accent-soft);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* Tag chips: filters, a song's tags, tag ideas */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.chip.removable {
+  padding-right: 2px;
+}
+.chip.removable button {
+  min-height: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+}
+/* A song's tags in a list row: small and quiet */
+.small-chips {
+  margin-top: 4px;
+}
+.small-chips .chip {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 11px;
+  color: var(--muted);
+}
+.tag-offers {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tag-offers .chip {
+  background: var(--card);
+}
+.sheet-group {
+  display: block;
+  padding: 10px 4px 4px;
 }
