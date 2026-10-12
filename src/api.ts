@@ -7,13 +7,33 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method: options.method ?? (options.body === undefined ? "GET" : "POST"),
-    headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    credentials: "same-origin",
-  });
+/** The request never reached the server (no signal, or it took too long). */
+export class NetworkError extends Error {}
+
+/** True when an error from api() means "no connection" rather than the server saying no. */
+export const isNetworkError = (err: unknown) => err instanceof NetworkError;
+
+export async function api<T>(
+  path: string,
+  options: { method?: string; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
+  // A weak signal at the field can leave a request hanging; a timeout lets the app fall back to what's on the phone.
+  const abort = new AbortController();
+  const timer = options.timeoutMs ? setTimeout(() => abort.abort(), options.timeoutMs) : undefined;
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: options.method ?? (options.body === undefined ? "GET" : "POST"),
+      headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      credentials: "same-origin",
+      signal: abort.signal,
+    });
+  } catch {
+    throw new NetworkError("No connection to the server.");
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(data.error ?? `Something went wrong (${res.status}).`, res.status);
   return data as T;

@@ -174,7 +174,8 @@ These were not verified during planning. Test each one and tell the owner what y
 ## Status
 
 **Phase 1 (server foundation): built.**
-**Phase 3 (game mode): built 2026-10-12, waiting for the owner to test on phones.**
+**Phase 4 (offline): built 2026-10-12, waiting for the owner to test on phones** (a full mock game in airplane mode on every phone, per the build order).
+**Phase 3 (game mode): built 2026-10-12.** Owner has not yet reported phone results.
 **Phase 2 (rosters and players): built.** Owner tested on the Pixel 9 (2026-10-12): preview plays, curved fade sounds better, drag-to-reorder works. iPhone checks (silent switch, 6s on iOS 15) postponed by the owner; do them before trusting game mode at a field.
 
 ### Phase 1 notes
@@ -227,4 +228,14 @@ These were not verified during planning. Test each one and tell the owner what y
 - Version number and update button are left for phase 4, with the offline work.
 - Tested in headless Chromium at phone size: tap/fade/switch/end states, on-deck skipping a benched player, wrap-around, reload.
 
-Next: owner tests phase 3 on phones, then phase 4 (offline; needs the https address first).
+### Phase 4 notes
+- Each team on the Teams screen has an "Offline" switch (per phone). Turning it on saves the roster (localStorage) and downloads its clips into Cache Storage `bb-clips`; the switch shows "3/12" while downloading and a tick when every clip is on the phone. Turning it off removes the roster and any clips no other kept team uses. Signing out clears everything kept.
+- `src/offline.ts` holds all of this, plus the lineup queue. Kept rosters are refreshed whenever the app opens or the connection returns; only clips the phone lacks are downloaded (clip names change on every re-cut).
+- Service worker `public/sw.js`: serves kept clips from the phone; stores the app's own files as they load (built `/assets/` are served stored-first; everything else network-first); the page itself is network-first with a 4 s fallback to the stored copy. Turning Offline on also re-fetches every file the page has loaded, so the app opens offline even if it was first loaded before the service worker took over. Lookups use `ignoreVary`: the dev server marks responses `Vary: Origin`, which otherwise hid stored copies.
+- Without a connection: the Teams screen lists the kept teams with a notice; game mode plays from the phone ("No connection. Playing from this phone."); editing screens need a connection. The signed-in user is remembered on the phone (`bb.user`), so the app opens signed in offline.
+- Lineup changes in game mode apply on the phone at once and go through a queue: sent straight away, or kept until the connection returns (the screen says how many are waiting). Each change carries the time it was made; the server ignores a change older than the one it already has (`rosters.order_changed_at`, `players.available_changed_at`), so the most recent change wins. An order sent for a roster that has since gained or lost players is merged, not refused.
+- Version: `v<package version> · <build>`, where the build is the short commit id set by GitHub Actions (`APP_VERSION`), or "dev". Shown under the Teams screen and at the bottom of game mode. `GET /api/version` reports the server's build; when it differs, an Update button reloads the app.
+- Tested in headless Chromium, in dev mode and with a production build: keep a team, reopen with no connection, play, sit a player out offline, reload offline, reconnect and confirm the server got the change; older changes ignored; Update button appears.
+- **Not yet verified on real phones**, in particular: iPhone storage limits for home-screen apps, and that iOS keeps the service worker and Cache Storage across days (being a home-screen app should exempt it from Safari's 7-day clearing).
+
+Next: owner tests phase 4 on phones (full mock game in airplane mode), then phase 5 (announcer).

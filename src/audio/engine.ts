@@ -1,6 +1,8 @@
 // Plays walkup clips with the Web Audio API. The player editor's preview and
 // game mode both use this, so they sound the same.
 
+import { CLIP_CACHE } from "../offline.ts";
+
 export interface PlaybackSettings {
   /** Where the requested start is inside the clip file (after lead-in frames). */
   offsetMs: number;
@@ -97,10 +99,13 @@ const decoded = new Map<string, Promise<AudioBuffer>>(); // oldest first
 export function fetchClip(url: string): Promise<ArrayBuffer> {
   let p = files.get(url);
   if (!p) {
-    p = fetch(url, { credentials: "same-origin" }).then((r) => {
+    p = (async () => {
+      // Clips kept for offline use are read straight from the phone's storage.
+      const kept = typeof caches === "undefined" ? undefined : await caches.match(url, { cacheName: CLIP_CACHE, ignoreVary: true });
+      const r = kept ?? (await fetch(url, { credentials: "same-origin" }));
       if (!r.ok) throw new Error(`Couldn't load the clip (${r.status}).`);
       return r.arrayBuffer();
-    });
+    })();
     p.catch(() => files.delete(url));
     files.set(url, p);
   }

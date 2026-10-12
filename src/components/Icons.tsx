@@ -57,3 +57,9 @@ export const StopIcon = () => (
     <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />
   </svg>
 );
+
+export const CheckIcon = () => (
+  <svg {...common} width={16} height={16} strokeWidth={3}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);

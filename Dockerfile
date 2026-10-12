@@ -7,15 +7,20 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Which build this is (the git commit); shown on phones and used to offer updates.
+ARG APP_VERSION=unknown
+ENV APP_VERSION=$APP_VERSION
 RUN npm run build && npm prune --omit=dev
 
 # ── Run
 FROM node:22-bookworm-slim
+ARG APP_VERSION=unknown
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg mp3gain tini \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \
+    APP_VERSION=$APP_VERSION \
     PORT=8090 \
     DATA_DIR=/data
 COPY --from=build /app/package.json ./

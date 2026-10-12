@@ -12,6 +12,8 @@ export const config = {
   adminPassword: env.ADMIN_PASSWORD || "",
   /** Extra host names the dev server answers to (for example the https dev address), comma-separated. */
   devHosts: (env.DEV_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
+  /** Build identifier, set in the Docker image. "dev" when running from source. */
+  appVersion: env.APP_VERSION || "dev",
   trustProxy: env.TRUST_PROXY || "loopback, linklocal, uniquelocal",
   isProduction: env.NODE_ENV === "production",
 };

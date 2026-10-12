@@ -82,20 +82,42 @@ rostersRouter.delete("/rosters/:id", editor, (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * When a lineup change was made, from the request (phones send it, since a
+ * change made offline arrives later). Defaults to now; never later than now.
+ */
+function changedAt(value: unknown): string {
+  const now = new Date();
+  const t = typeof value === "string" ? new Date(value) : now;
+  return (isNaN(t.getTime()) || t > now ? now : t).toISOString();
+}
+
 // Batting order. Everyone can reorder the lineup (it's part of running a game), not just editors.
+// If a newer order is already saved, this one is ignored: the most recent change wins.
 rostersRouter.put("/rosters/:id/order", (req, res) => {
   const rosterId = Number(req.params.id);
   const roster = getRoster(rosterId);
   if (!roster) return res.status(404).json({ error: "Team not found." });
-  const ids = Array.isArray(req.body?.playerIds) ? req.body.playerIds.map(Number) : [];
-  const current = new Set(roster.players.map((p) => p.id));
-  if (ids.length !== current.size || new Set(ids).size !== ids.length || !ids.every((id: number) => current.has(id))) {
-    return res.status(409).json({ error: "The roster changed on another phone. Reload and try again." });
-  }
+  const at = changedAt(req.body?.changedAt);
+  const saved = db.prepare("SELECT order_changed_at FROM rosters WHERE id = ?").get(rosterId) as {
+    order_changed_at: string | null;
+  };
+  if (saved.order_changed_at && saved.order_changed_at > at) return res.json({ roster, applied: false });
+
+  // Players added or removed since the phone last saw the roster: keep the
+  // order it sent for the ones it knew, and the others where they already were.
+  const sent: number[] = Array.isArray(req.body?.playerIds) ? req.body.playerIds.map(Number) : [];
+  const known = new Set(roster.players.map((p) => p.id));
+  const ids = [...new Set(sent.filter((id) => known.has(id)))];
+  for (const p of roster.players) if (!ids.includes(p.id)) ids.push(p.id);
+
   const set = db.prepare("UPDATE players SET lineup_position = ? WHERE id = ?");
-  db.transaction(() => ids.forEach((id: number, i: number) => set.run(i, id)))();
+  db.transaction(() => {
+    ids.forEach((id, i) => set.run(i, id));
+    db.prepare("UPDATE rosters SET order_changed_at = ? WHERE id = ?").run(at, rosterId);
+  })();
   touchRoster(rosterId);
-  res.json({ roster: getRoster(rosterId) });
+  res.json({ roster: getRoster(rosterId), applied: true });
 });
 
 // ── Players ──────────────────────────────────────────────────────────────
@@ -138,12 +160,22 @@ rostersRouter.patch("/players/:id", editor, (req, res) => {
 });
 
 // Sitting a player out for today's game is part of running a game, so any signed-in user can do it.
+// As with the order, an older change never overwrites a newer one.
 rostersRouter.put("/players/:id/available", (req, res) => {
   const player = getPlayer(Number(req.params.id));
   if (!player) return res.status(404).json({ error: "Player not found." });
-  db.prepare("UPDATE players SET available = ? WHERE id = ?").run(req.body?.available ? 1 : 0, player.id);
+  const at = changedAt(req.body?.changedAt);
+  const saved = db.prepare("SELECT available_changed_at FROM players WHERE id = ?").get(player.id) as {
+    available_changed_at: string | null;
+  };
+  if (saved.available_changed_at && saved.available_changed_at > at) return res.json({ player, applied: false });
+  db.prepare("UPDATE players SET available = ?, available_changed_at = ? WHERE id = ?").run(
+    req.body?.available ? 1 : 0,
+    at,
+    player.id,
+  );
   touchRoster(player.rosterId);
-  res.json({ player: getPlayer(player.id) });
+  res.json({ player: getPlayer(player.id), applied: true });
 });
 
 rostersRouter.delete("/players/:id", editor, (req, res) => {

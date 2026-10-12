@@ -1,13 +1,14 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { hasRole, useAuth } from "../auth.tsx";
 import { ROLE_LABELS } from "../../shared/types.ts";
+import { AppVersion } from "./AppVersion.tsx";
 
 /** Frame for the top-level screens (rosters, users). */
 export function Layout() {
   const { user, signOut } = useAuth();
 
   function handleSignOut() {
-    if (confirm("Sign out of Batter Beats on this phone?")) signOut();
+    if (confirm("Sign out of Batter Beats on this phone? Teams saved for offline use are removed from it too.")) signOut();
   }
 
   return (
@@ -26,6 +27,7 @@ export function Layout() {
       <Outlet />
       <footer className="faint small" style={{ marginTop: 28, textAlign: "center" }}>
         {user!.username} · {ROLE_LABELS[user!.role]}
+        <AppVersion />
       </footer>
     </div>
   );

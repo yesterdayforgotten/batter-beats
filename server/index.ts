@@ -42,6 +42,10 @@ app.get("/api/health", (_req, res) => {
   db.prepare("SELECT 1").get();
   res.json({ ok: true });
 });
+// Which build the server is running, so phones can offer an update when theirs is older.
+app.get("/api/version", (_req, res) => {
+  res.set("Cache-Control", "no-store").json({ version: config.appVersion });
+});
 app.use("/api", rostersRouter);
 app.use("/api", songsRouter);
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found." }));

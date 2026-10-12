@@ -848,3 +848,35 @@ label {
   background: var(--accent-ink);
   color: var(--accent);
 }
+
+/* Version label (and Update button) */
+.app-version {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.offline-switch {
+  flex-direction: column-reverse;
+  gap: 4px;
+  font-size: 11px;
+  min-width: 64px;
+}
+.offline-switch .switch-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.notice {
+  background: var(--raised);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+}

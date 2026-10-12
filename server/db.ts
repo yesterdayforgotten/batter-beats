@@ -78,6 +78,12 @@ const migrations: string[] = [
     UNIQUE (player_id, position)
   );
   `,
+  `
+  -- When the lineup was last changed, as reported by the phone that changed it.
+  -- Changes made offline arrive later; an older change never overwrites a newer one.
+  ALTER TABLE rosters ADD COLUMN order_changed_at TEXT;
+  ALTER TABLE players ADD COLUMN available_changed_at TEXT;
+  `,
 ];
 
 const current = db.pragma("user_version", { simple: true }) as number;

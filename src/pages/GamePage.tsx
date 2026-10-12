@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api.ts";
+import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
 import { KebabIcon, PlayIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
+import { AppVersion } from "../components/AppVersion.tsx";
+import { changeLineup, onOfflineChange, pendingChanges, savedRoster, saveIfKept, withPendingChanges } from "../offline.ts";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
 import type { Player, Roster } from "../../shared/types.ts";
 
@@ -50,6 +52,10 @@ export function GamePage() {
   const { user } = useAuth();
   const [roster, setRoster] = useState<Roster | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** True when the roster came from this phone's saved copy because the server couldn't be reached. */
+  const [fromPhone, setFromPhone] = useState(false);
+  const [waiting, setWaiting] = useState(() => pendingChanges());
+  const [reloads, setReloads] = useState(0);
   const [editing, setEditing] = useState(false);
   const [atBatId, setAtBatId] = useState<number | null>(() => readAtBat(id));
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
@@ -57,14 +63,39 @@ export function GamePage() {
   const tapCount = useRef(0);
 
   useEffect(() => {
-    api<{ roster: Roster }>(`/rosters/${id}`)
+    const show = (r: Roster) => {
+      setRoster(r);
+      // Fetch every clip now (from the phone if saved there) so taps don't wait.
+      for (const p of r.players) if (p.clip?.url) void fetchClip(p.clip.url).catch(() => {});
+    };
+    api<{ roster: Roster }>(`/rosters/${id}`, { timeoutMs: 5000 })
       .then((r) => {
-        setRoster(r.roster);
-        // Download every clip now so taps don't wait on the network.
-        for (const p of r.roster.players) if (p.clip?.url) void fetchClip(p.clip.url).catch(() => {});
+        const roster = withPendingChanges(r.roster);
+        saveIfKept(roster);
+        setFromPhone(false);
+        show(roster);
       })
-      .catch((err) => setError(err.message));
-  }, [id]);
+      .catch((err) => {
+        const saved = isNetworkError(err) ? savedRoster(Number(id)) : null;
+        if (saved) {
+          setFromPhone(true);
+          show(saved);
+        } else if (isNetworkError(err)) {
+          setError("No connection, and this team isn't saved on this phone. Turn on Offline for it on the Teams screen before the game.");
+        } else {
+          setError(err.message);
+        }
+      });
+  }, [id, reloads]);
+
+  // Connection back: fetch the current lineup again (queued changes are sent first, by offline.ts).
+  useEffect(() => {
+    const back = () => setTimeout(() => setReloads((n) => n + 1), 1500);
+    window.addEventListener("online", back);
+    return () => window.removeEventListener("online", back);
+  }, []);
+
+  useEffect(() => onOfflineChange(() => setWaiting(pendingChanges())), []);
 
   // Leaving game mode: stop the music and let the screen sleep.
   useEffect(
@@ -129,33 +160,16 @@ export function GamePage() {
     }
   }
 
-  async function saveOrder(newLineup: Player[]) {
+  // Lineup changes apply on this phone at once and are sent to the server, or
+  // queued until there's a connection (see offline.ts).
+  function saveOrder(newLineup: Player[]) {
     if (!roster) return;
-    const players = [...newLineup, ...bench];
-    const before = roster;
-    setRoster({ ...roster, players });
-    try {
-      const r = await api<{ roster: Roster }>(`/rosters/${roster.id}/order`, {
-        method: "PUT",
-        body: { playerIds: players.map((p) => p.id) },
-      });
-      setRoster(r.roster);
-    } catch (err) {
-      setRoster(before);
-      setError((err as Error).message);
-    }
+    setRoster(changeLineup(roster, { kind: "order", playerIds: [...newLineup, ...bench].map((p) => p.id) }));
   }
 
-  async function setAvailable(player: Player, available: boolean) {
+  function setAvailable(player: Player, available: boolean) {
     if (!roster) return;
-    const before = roster;
-    setRoster({ ...roster, players: roster.players.map((p) => (p.id === player.id ? { ...p, available } : p)) });
-    try {
-      await api(`/players/${player.id}/available`, { method: "PUT", body: { available } });
-    } catch (err) {
-      setRoster(before);
-      setError((err as Error).message);
-    }
+    setRoster(changeLineup(roster, { kind: "available", playerId: player.id, available }));
   }
 
   function status(p: Player) {
@@ -192,7 +206,7 @@ export function GamePage() {
                 <span className="switch-knob" />
               </span>
             </button>
-            {hasRole(user, "editor") && roster && (
+            {hasRole(user, "editor") && roster && !fromPhone && (
               <Link to={`/rosters/${roster.id}/edit`} aria-label="Edit team" className="kebab">
                 <KebabIcon />
               </Link>
@@ -203,6 +217,14 @@ export function GamePage() {
       {error && (
         <p className="error" onClick={() => setError(null)}>
           {error}
+        </p>
+      )}
+      {(fromPhone || waiting > 0) && (
+        <p className="notice">
+          {fromPhone ? "No connection. Playing from this phone. " : ""}
+          {waiting > 0
+            ? `${waiting} lineup ${waiting === 1 ? "change" : "changes"} will be sent when there's a connection.`
+            : ""}
         </p>
       )}
       {roster && order.length === 0 && <p className="empty">No players on this roster yet.</p>}
@@ -274,6 +296,9 @@ export function GamePage() {
           </ul>
         </>
       )}
+      <footer style={{ marginTop: 28 }}>
+        <AppVersion />
+      </footer>
     </>
   );
 }

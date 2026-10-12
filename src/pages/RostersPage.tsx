@@ -1,8 +1,18 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api.ts";
+import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { KebabIcon } from "../components/Icons.tsx";
+import { CheckIcon, KebabIcon } from "../components/Icons.tsx";
+import {
+  clipProgress,
+  downloadProgress,
+  forgetOffline,
+  isKept,
+  keepOffline,
+  onOfflineChange,
+  savedRoster,
+  savedRosters,
+} from "../offline.ts";
 import type { Roster, RosterSummary } from "../../shared/types.ts";
 
 export function RostersPage() {
@@ -10,18 +20,31 @@ export function RostersPage() {
   const editor = hasRole(user, "editor");
   const [rosters, setRosters] = useState<RosterSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
-    api<{ rosters: RosterSummary[] }>("/rosters")
+    api<{ rosters: RosterSummary[] }>("/rosters", { timeoutMs: 6000 })
       .then((r) => setRosters(r.rosters))
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        if (!isNetworkError(err)) return setError(err.message);
+        // No connection: show the teams saved on this phone.
+        setOffline(true);
+        setRosters(
+          savedRosters().map((r) => ({ id: r.id, name: r.name, playerCount: r.players.length, updatedAt: r.updatedAt })),
+        );
+      });
   }, []);
 
   return (
     <section>
       <h1 className="big-title">Teams</h1>
       {error && <p className="error">{error}</p>}
-      {rosters && rosters.length === 0 && (
+      {offline && (
+        <p className="notice">
+          No connection. {rosters?.length ? "Showing the teams saved on this phone." : "No teams are saved on this phone yet."}
+        </p>
+      )}
+      {!offline && rosters && rosters.length === 0 && (
         <p className="empty">{editor ? "No teams yet. Add your first team below." : "No teams yet."}</p>
       )}
       <ul className="list">
@@ -35,7 +58,8 @@ export function RostersPage() {
                 </span>
               </span>
             </Link>
-            {editor && (
+            {!offline && <OfflineSwitch id={r.id} name={r.name} />}
+            {editor && !offline && (
               <Link to={`/rosters/${r.id}/edit`} aria-label={`Edit ${r.name}`} className="kebab">
                 <KebabIcon />
               </Link>
@@ -43,8 +67,84 @@ export function RostersPage() {
           </li>
         ))}
       </ul>
-      {editor && <NewRoster />}
+      {editor && !offline && <NewRoster />}
     </section>
+  );
+}
+
+/** "Keep on this phone" switch, with progress while downloading and a tick when everything is there. */
+function OfflineSwitch({ id, name }: { id: number; name: string }) {
+  const [kept, setKept] = useState(() => isKept(id));
+  const [label, setLabel] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    const update = async () => {
+      const k = isKept(id);
+      const roster = savedRoster(id);
+      const downloading = downloadProgress(id);
+      if (!live) return;
+      setKept(k);
+      if (!k || !roster) {
+        setReady(false);
+        setLabel(null);
+      } else if (downloading) {
+        setReady(false);
+        setLabel(`${downloading.done}/${downloading.total}`);
+      } else {
+        const p = await clipProgress(roster);
+        if (!live) return;
+        setReady(p.done === p.total);
+        setLabel(p.done === p.total ? null : `${p.done}/${p.total}`);
+      }
+    };
+    void update();
+    const stop = onOfflineChange(() => void update());
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [id]);
+
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (kept) {
+        if (confirm(`Remove ${name} from this phone? It can still be used with a connection.`)) await forgetOffline(id);
+      } else {
+        await keepOffline(id);
+      }
+    } catch (err) {
+      alert(`Couldn't save ${name} on this phone. ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      role="switch"
+      aria-checked={kept}
+      aria-label={`Keep ${name} on this phone for offline use`}
+      className={`switch offline-switch${kept ? " on" : ""}`}
+      onClick={toggle}
+    >
+      <span className="switch-label">
+        {ready ? (
+          <>
+            <CheckIcon /> Offline
+          </>
+        ) : (
+          (label ?? "Offline")
+        )}
+      </span>
+      <span className="switch-track">
+        <span className="switch-knob" />
+      </span>
+    </button>
   );
 }
 

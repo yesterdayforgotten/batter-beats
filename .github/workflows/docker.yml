@@ -27,6 +27,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build identifier shown on phones: the short commit id.
+      - id: build
+        run: echo "id=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -42,5 +46,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ steps.build.outputs.id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
