@@ -207,7 +207,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ### Dev environment notes
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.
 - No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
-- Background processes in this environment stop after 2 hours, so the dev server must be restarted for longer phone testing. A permanent fix is to have the Portainer stack run `npm run dev`.
+- The dev server runs from `scripts/dev-server.sh`, which restarts it if it stops and logs to `dev-server.log` (git-ignored). Start it detached so it outlives Claude's own background tasks: `setsid scripts/dev-server.sh > /dev/null 2>&1 < /dev/null &`. To start it on every container restart, the owner was asked (2026-10-12) to add that same line to the Portainer stack's command, right after `cd /workspace`.
 
 ### Phase 3 notes
 - Wording agreed 2026-10-12: the main list is "Teams" (new/edit/delete team); "roster" means a team's list of players.

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
-import { KebabIcon, SoundBars } from "../components/Icons.tsx";
+import { KebabIcon, PlayIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
@@ -240,6 +240,11 @@ export function GamePage() {
                     {status(p)}
                   </span>
                   {p.id === onDeck?.id && !atBat && <span className="tag on-deck-tag">On deck</span>}
+                  {p.clip && (
+                    <span className="bat-action" aria-hidden>
+                      {sound?.playerId === p.id && sound.state !== "loading" ? <StopIcon /> : <PlayIcon />}
+                    </span>
+                  )}
                 </button>
               </li>
             );

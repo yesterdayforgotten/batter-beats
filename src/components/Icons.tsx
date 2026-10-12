@@ -51,3 +51,9 @@ export const GripIcon = () => (
     <path d="M5 8h14M5 12h14M5 16h14" />
   </svg>
 );
+
+export const StopIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
+    <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />
+  </svg>
+);
