@@ -33,14 +33,17 @@ export function SongFilterBar({
   placeholder?: string;
 }) {
   const { query, setQuery, tags, setTags, allTags } = filter;
+  // Tags being filtered by stay as chips even if no song has them any more (say, just
+  // removed from every song), so they can still be tapped off.
+  const chips = [...allTags, ...tags.filter((t) => !allTags.some((a) => a.toLowerCase() === t.toLowerCase()))];
   const toggle = (t: string) =>
     setTags(tags.some((x) => x.toLowerCase() === t.toLowerCase()) ? tags.filter((x) => x.toLowerCase() !== t.toLowerCase()) : [...tags, t]);
   return (
     <div className="stack" style={{ gap: 8 }}>
       <input value={query} enterKeyHint="search" onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} aria-label="Search songs" />
-      {allTags.length > 0 && (
+      {chips.length > 0 && (
         <div className="tag-chips" role="group" aria-label="Filter by tag">
-          {allTags.map((t) => {
+          {chips.map((t) => {
             const on = tags.some((x) => x.toLowerCase() === t.toLowerCase());
             return (
               <button key={t} className={`chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => toggle(t)}>
@@ -48,6 +51,17 @@ export function SongFilterBar({
               </button>
             );
           })}
+          {filter.filtering && (
+            <button
+              className="link-button clear-filters"
+              onClick={() => {
+                setQuery("");
+                setTags([]);
+              }}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -105,6 +105,8 @@ export function MusicPage() {
     const byId = new Map(r.songs.map((x) => [x.id, x]));
     setSongs((list) => list?.map((x) => (byId.has(x.id) ? { ...x, tags: byId.get(x.id)!.tags } : x)) ?? null);
     setSuggestions((sg) => ({ ...sg, used: [...new Set([...sg.used, ...add])] }));
+    // A tag just removed shouldn't keep filtering the list (it would now show nothing).
+    filter.setTags((tags) => tags.filter((t) => !remove.some((r) => r.toLowerCase() === t.toLowerCase())));
     stopSelecting();
   }
 

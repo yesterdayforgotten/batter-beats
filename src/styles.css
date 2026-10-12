@@ -1582,3 +1582,8 @@ label,
 .chip.removing .chip-count {
   text-decoration: none;
 }
+.clear-filters {
+  min-height: 32px;
+  padding: 0 6px;
+  font-size: 13px;
+}
