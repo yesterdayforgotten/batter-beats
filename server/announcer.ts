@@ -25,8 +25,8 @@ import {
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
 const PROCESSING = "convolution-4";
-/** Bumped when the reverb itself changes; only announcements with reverb are remade. */
-const REVERB_VERSION = "reverb-3";
+/** Bumped when the echo effect changes; only announcements that use it are remade. */
+const REVERB_VERSION = "stadium-echo-4";
 
 export interface AnnouncerPlayerRow {
   id: number;

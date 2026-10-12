@@ -102,7 +102,7 @@ export interface AnnouncerStyle {
   energy: Energy;
   /** Raise the voice by this many semitones; a little higher sounds more excited. */
   pitch: number;
-  /** Stadium reverb: how much (0 = none, 1 = lots) and how big a space (0 = small room, 1 = ballpark). */
+  /** Stadium echo (Admin: Echo and Distance): how loud (0 = none … 1 = strong) and how far (0 = small field … 1 = big stadium). */
   reverb: number;
   reverbSize: number;
   /** ElevenLabs: emotional range, 0.25 (steady) to 2 (wild); shown as Range. */

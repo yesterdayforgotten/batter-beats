@@ -241,8 +241,8 @@ function AnnouncerVoice() {
               />
             )}
             <Slider
-              label="Reverb"
-              aria="Reverb amount"
+              label="Echo"
+              aria="Stadium echo amount"
               min={0}
               max={1}
               step={0.05}
@@ -252,13 +252,13 @@ function AnnouncerVoice() {
             />
             {style.reverb > 0 && (
               <Slider
-                label="Space"
-                aria="Reverb size"
+                label="Distance"
+                aria="Stadium echo distance"
                 min={0}
                 max={1}
                 step={0.05}
                 value={style.reverbSize}
-                show={style.reverbSize < 0.34 ? "Room" : style.reverbSize < 0.67 ? "Gym" : "Ballpark"}
+                show={style.reverbSize < 0.34 ? "Small field" : style.reverbSize < 0.67 ? "Ballpark" : "Stadium"}
                 onChange={(v) => change({ reverbSize: v })}
               />
             )}
@@ -267,8 +267,9 @@ function AnnouncerVoice() {
             {eleven
               ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, each cue in [square brackets] (or separated by commas), or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
               : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
-            Reverb adds the echo of a big space; Space sets how big. A real ballpark's speakers add their own echo, so
-            go easy. Listen to try a mix; the Listen buttons below use it too.
+            Echo adds the delayed echoes you hear off the stands at a ballpark; Distance sets how far away they come
+            back from. A real field's speakers add their own echo, so a little goes a long way. Listen to try a mix;
+            the Listen buttons below use it too.
           </p>
           {styleChanged && (
             <button className="primary" onClick={saveStyle}>
