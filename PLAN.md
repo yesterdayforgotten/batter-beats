@@ -199,6 +199,9 @@ These were not verified during planning. Test each one and tell the owner what y
 - Announcer fields (pronunciation, timing, on/off) are not built yet: phase 5.
 - Roster screen (`/rosters/:id`) is a read-only lineup until game mode in phase 3.
 
+### App icon
+- Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png` (ready for the Android app manifest in phase 4).
+
 ### Dev environment notes
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.
 - No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).
