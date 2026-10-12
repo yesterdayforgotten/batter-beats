@@ -54,16 +54,24 @@ input[type="password"],
 input:not([type]),
 select {
   width: 100%;
-  min-height: 48px;
   padding: 0 12px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--card);
   /* Typed text in bright white, like dropdowns, so it reads as editable (browsers default it to grey). */
   color: var(--text);
-  /* 16px is the smallest that stops iPhones zooming in when a box is tapped. */
-  font-size: 16px;
+  /* Small enough to fit settings neatly; iPhones would zoom in on tapping a box this small,
+     which index.html switches off. */
+  font-size: 14px;
   font-weight: 500;
+  min-height: 44px;
+}
+
+/* A box that should stand out, like the team name: larger, in the accent blue. */
+input.input-large {
+  font-size: 17px;
+  min-height: 48px;
+  color: var(--accent);
 }
 
 input::placeholder {
@@ -989,7 +997,7 @@ label {
 .voice-filters select {
   width: auto;
   min-height: 38px;
-  font-size: 16px; /* not smaller: iPhones zoom in on controls under 16px */
+  font-size: 14px;
   padding: 0 8px;
 }
 
@@ -1008,7 +1016,7 @@ label {
 }
 .cue-field input {
   min-height: 42px;
-  font-size: 16px; /* not smaller: iPhones zoom in on boxes under 16px */
+  font-size: 14px;
 }
 /* Floats over the settings below while the Cue box is selected (selecting elsewhere closes it). */
 .cue-suggestions {

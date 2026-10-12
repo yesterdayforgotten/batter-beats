@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <script>
+      // iPhones zoom the page in when a text box under 16px is tapped. maximum-scale=1 stops that,
+      // and on iPhone pinch-to-zoom still works (Safari ignores it for pinching). It's iPhone/iPad only,
+      // because on Android it would block pinch-to-zoom, and Android doesn't zoom on tap anyway.
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+        document.querySelector('meta[name="viewport"]').content += ", maximum-scale=1";
+      }
+    </script>
     <meta name="theme-color" content="#08090b" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

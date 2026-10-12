@@ -175,7 +175,7 @@ function NewRoster() {
     <form className="card stack" style={{ marginTop: 10 }} onSubmit={handleSubmit}>
       <label>
         Team name
-        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus required maxLength={80} />
+        <input className="input-large" value={name} onChange={(e) => setName(e.target.value)} autoFocus required maxLength={80} />
       </label>
       {error && <p className="error">{error}</p>}
       <div className="row">
