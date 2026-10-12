@@ -237,10 +237,10 @@ label,
 .big-title {
   font-family: var(--display);
   font-weight: 900;
-  font-size: 56px;
+  font-size: 40px;
   line-height: 0.9;
   text-transform: uppercase;
-  margin: 8px 0 18px;
+  margin: 8px 0 16px;
 }
 
 .section-title {
@@ -318,6 +318,7 @@ label,
 }
 
 .signin .big-title {
+  font-size: 56px;
   text-align: center;
   margin-bottom: 8px;
 }
