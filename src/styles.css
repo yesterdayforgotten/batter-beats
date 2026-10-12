@@ -357,7 +357,7 @@ label,
 .team-list .list-item {
   padding-right: 10px;
 }
-.team-list .list-item > a {
+.team-list .list-item > a:first-child {
   padding-left: 20px;
 }
 
