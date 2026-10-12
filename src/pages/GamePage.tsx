@@ -306,7 +306,7 @@ export function GamePage() {
       {bench.length > 0 && (
         <>
           <div className="section-title" style={{ margin: "22px 4px 8px" }}>
-            Bench today
+            Unavailable
           </div>
           <ul className="list bench">
             {bench.map((p) => (
