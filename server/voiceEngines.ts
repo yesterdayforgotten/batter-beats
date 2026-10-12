@@ -93,6 +93,18 @@ function describeKokoro(id: string): AnnouncerVoice | null {
   return { id, name, detail: `${ACCENTS[m[1]]} · ${gender.toLowerCase()}`, gender, accent: ACCENTS[m[1]] };
 }
 
+/**
+ * Kokoro has no delivery cues and would read "[excited]" aloud, so cues in the
+ * team's wording are taken out. Its pronunciation syntax, "[Name](/IPA/)", is kept.
+ */
+const withoutCues = (text: string) =>
+  text
+    .replace(/\[[^\]]*\](?!\()/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .replace(/^[\s,]+/, "")
+    .trim();
+
 const kokoro: Engine = {
   id: "kokoro",
   label: "Kokoro",
@@ -105,7 +117,7 @@ const kokoro: Engine = {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "mp3", speed: style.speed }),
+        body: JSON.stringify({ model: "kokoro", input: withoutCues(text), voice, response_format: "mp3", speed: style.speed }),
       },
       60_000,
     );

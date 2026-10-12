@@ -118,6 +118,8 @@ export function RosterEditPage() {
                 </label>
                 <p className="muted small" style={{ margin: 0 }}>
                   {"{number}"} and {"{name}"} are filled in for each player. Players with no number skip the number.
+                  With ElevenLabs you can direct parts of the line with cues in square brackets, e.g.{" "}
+                  {"[drawn out] Now batting, [excited] number {number}, {name}!"}
                 </p>
               </>
             )}
