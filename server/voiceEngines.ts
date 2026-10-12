@@ -1,18 +1,19 @@
 // The voice engines the announcer can use. Everything engine-specific lives
 // here, so adding or swapping engines doesn't touch the rest of the app.
 //
-// - ElevenLabs (ELEVENLABS_API_KEY, cloud): very natural voices, a large shared
-//   voice library, and delivery cues like [excited] written into the text
-//   (Eleven v3). Announcements are made once and stored, so the cost is tiny.
+// - ElevenLabs (ELEVENLABS_API_KEY, cloud): very natural voices and delivery
+//   cues like [shouting] written into the text (Eleven v4). Announcements are
+//   made once and stored, so the cost is tiny.
 // - Kokoro (Kokoro-FastAPI, self-hosted at TTS_URL): light, free, runs on any
 //   CPU; plainer voices with no emotion control. A fallback that needs no key.
 //
 // (Chatterbox and Murf were tried in October 2026 and removed: Chatterbox was
-// very slow on the server's CPU; the owner preferred ElevenLabs to Murf.)
+// very slow on the server's CPU; the owner preferred ElevenLabs to Murf. The
+// ElevenLabs shared voice library was removed too: free plans can't use it.)
 
 import fs from "node:fs";
 import { config } from "./config.ts";
-import { splitCues, type AnnouncerStyle, type AnnouncerVoice, type LibraryFilters, type LibraryVoice, type VoiceEngine } from "../shared/types.ts";
+import { splitCues, type AnnouncerStyle, type AnnouncerVoice, type VoiceEngine } from "../shared/types.ts";
 
 export interface Engine {
   id: VoiceEngine;
@@ -28,9 +29,6 @@ export interface Engine {
   /** Speaks text; returns audio data in whatever format the engine produces (ffmpeg reads it). */
   speak(text: string, voice: string, style: AnnouncerStyle): Promise<Buffer>;
   voices(): Promise<AnnouncerVoice[]>;
-  /** Searching and adding voices from the engine's shared library (ElevenLabs). */
-  searchLibrary?(query: string, filters: LibraryFilters): Promise<LibraryVoice[]>;
-  addFromLibrary?(ownerId: string, voiceId: string, name: string): Promise<void>;
 }
 
 const UNREACHABLE = "The announcer voice engine isn't reachable.";
@@ -188,7 +186,8 @@ const elevenlabs: Engine = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: cue ? `${cue} ${text}` : text,
-          model_id: style.elevenModel,
+          // v4: same price as v3, and in tests it responded to cues far more (v3 was dropped as an option).
+          model_id: "eleven_v4",
           voice_settings: { stability: elevenStability(style.excitement) },
         }),
       },
@@ -199,6 +198,9 @@ const elevenlabs: Engine = {
   async voices() {
     const data = (await (await elevenCall("/v2/voices?page_size=100", {}, 15_000)).json()) as { voices?: ElevenVoice[] };
     return (data.voices ?? [])
+      // Voices from ElevenLabs' shared library ("professional") need a paid plan to use from apps,
+      // so they're left out; ElevenLabs' own voices work on the free plan.
+      .filter((v) => v.category !== "professional")
       .map((v) => ({
         id: v.voice_id,
         name: v.name.split(" - ")[0],
@@ -209,35 +211,6 @@ const elevenlabs: Engine = {
         age: normAge(v.labels?.age),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  },
-  async searchLibrary(query, filters) {
-    const params = new URLSearchParams({ page_size: "30", language: "en", sort: "cloned_by_count" });
-    if (query.trim()) params.set("search", query.trim());
-    // ElevenLabs' own label values: "male", "american", "middle_aged".
-    if (filters.gender) params.set("gender", filters.gender.toLowerCase());
-    if (filters.accent) params.set("accent", filters.accent.toLowerCase());
-    if (filters.age) params.set("age", { Young: "young", "Middle-aged": "middle_aged", Older: "old" }[filters.age] ?? filters.age);
-    const data = (await (await elevenCall(`/v1/shared-voices?${params}`, {}, 15_000)).json()) as {
-      voices?: (ElevenVoice & { public_owner_id: string; gender?: string; age?: string; accent?: string; descriptive?: string; use_case?: string; cloned_by_count?: number })[];
-    };
-    return (data.voices ?? []).map((v) => ({
-      id: v.voice_id,
-      ownerId: v.public_owner_id,
-      name: v.name.split(" - ")[0],
-      detail: elevenDetail({ gender: v.gender, accent: v.accent, age: v.age, descriptive: v.descriptive, use_case: v.use_case }),
-      previewUrl: v.preview_url,
-      uses: v.cloned_by_count ?? 0,
-      gender: normGender(v.gender),
-      accent: normAccent(v.accent),
-      age: normAge(v.age),
-    }));
-  },
-  async addFromLibrary(ownerId, voiceId, name) {
-    await elevenCall(
-      `/v1/voices/add/${encodeURIComponent(ownerId)}/${encodeURIComponent(voiceId)}`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_name: name }) },
-      30_000,
-    );
   },
 };
 

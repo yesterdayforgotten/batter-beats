@@ -87,35 +87,3 @@ announcerRouter.put("/announcer/voice", requireRole("admin"), (req, res) => {
   void refreshAllAnnouncements();
   res.json({ voice });
 });
-
-// Search an engine's shared voice library (ElevenLabs).
-announcerRouter.get("/announcer/library", requireRole("admin"), async (req, res) => {
-  const engine = activeEngine();
-  if (!engine?.searchLibrary) return res.status(400).json({ error: "This voice engine has no voice library." });
-  try {
-    const pick = (k: string) => (typeof req.query[k] === "string" ? (req.query[k] as string).slice(0, 40) : undefined);
-    res.json({
-      voices: await engine.searchLibrary(String(req.query.q ?? "").slice(0, 100), {
-        gender: pick("gender"),
-        accent: pick("accent"),
-        age: pick("age"),
-      }),
-    });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
-});
-
-// Add a library voice to the account, so it can be used.
-announcerRouter.post("/announcer/library", requireRole("admin"), async (req, res) => {
-  const engine = activeEngine();
-  if (!engine?.addFromLibrary) return res.status(400).json({ error: "This voice engine has no voice library." });
-  const { ownerId, voiceId, name } = req.body ?? {};
-  if (typeof ownerId !== "string" || typeof voiceId !== "string") return res.status(400).json({ error: "Choose a voice." });
-  try {
-    await engine.addFromLibrary(ownerId, voiceId, String(name ?? "Library voice").slice(0, 60));
-    res.json({ voices: await listVoices() });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
-});

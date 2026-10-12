@@ -6,13 +6,11 @@ import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
 import {
   DEFAULT_STYLE,
   STYLE_LIMITS,
-  ELEVEN_MODELS,
   formatCues,
   splitCues,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
-  type LibraryFilters,
-  type LibraryVoice,
+  type VoiceFilters as Filters,
   type Energy,
   type VoiceEngine,
 } from "../../shared/types.ts";
@@ -59,7 +57,7 @@ function AnnouncerVoice() {
   const [style, setStyle] = useState<AnnouncerStyle>(DEFAULT_STYLE);
   const [savedNote, setSavedNote] = useState(false);
   // Male voices first, since they suit a stadium announcer; change the filters to see others.
-  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male" });
+  const [filters, setFilters] = useState<Filters>({ gender: "Male" });
   const current = useRef<Playback | null>(null);
 
   const load = () =>
@@ -145,7 +143,7 @@ function AnnouncerVoice() {
       (!filters.accent || v.accent === filters.accent) &&
       (!filters.age || v.age === filters.age));
   const shown = voices.filter(matches);
-  const optionsFor = (key: keyof LibraryFilters) =>
+  const optionsFor = (key: keyof Filters) =>
     [...new Set(voices.map((v) => v[key]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
 
   return (
@@ -199,23 +197,7 @@ function AnnouncerVoice() {
             {eleven && (
               <>
                 <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
-                <div className="editor-row">
-                  <span className="label">Model</span>
-                  <div className="segmented grow" role="radiogroup" aria-label="ElevenLabs model">
-                    {ELEVEN_MODELS.map((m) => (
-                      <button
-                        key={m}
-                        role="radio"
-                        aria-checked={style.elevenModel === m}
-                        className={style.elevenModel === m ? "on" : ""}
-                        onClick={() => change({ elevenModel: m })}
-                      >
-                        {m === "eleven_v4" ? "v4 (newest)" : "v3"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* ElevenLabs v3 has exactly three settings here (Robust, Natural, Creative), so three buttons, not a slider. */}
+                {/* ElevenLabs has exactly three settings here (Robust, Natural, Creative), so three buttons, not a slider. */}
                 <div className="editor-row">
                   <span className="label">Range</span>
                   <div className="segmented grow" role="radiogroup" aria-label="Emotional range">
@@ -331,14 +313,13 @@ function AnnouncerVoice() {
         ))}
       </ul>
       {filterable && shown.length === 0 && <p className="empty">No voices match. Try other filters.</p>}
-      {eleven && <VoiceLibrary onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
     </>
   );
 }
 
 /**
  * ElevenLabs' three emotional ranges, stored on the excitement scale the
- * server maps to v3 stability (see elevenStability in server/voiceEngines.ts).
+ * server maps to ElevenLabs stability (see elevenStability in server/voiceEngines.ts).
  */
 const RANGES = [
   { label: "Steady", value: 0.5 },
@@ -409,119 +390,17 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
   );
 }
 
-/** Search ElevenLabs' shared library and add voices to the account. Previews are free; adding costs nothing. */
-function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
-  const [query, setQuery] = useState("sports announcer");
-  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male", accent: "American" });
-  const [results, setResults] = useState<LibraryVoice[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [added, setAdded] = useState<string[]>([]);
-  const preview = useRef<HTMLAudioElement | null>(null);
-
-  async function search() {
-    setBusy(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ q: query });
-      for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
-      setResults((await api<{ voices: LibraryVoice[] }>(`/announcer/library?${params}`)).voices);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function play(url: string) {
-    preview.current?.pause();
-    preview.current = new Audio(url);
-    void preview.current.play().catch(() => setError("The preview didn't play."));
-  }
-
-  async function add(v: LibraryVoice) {
-    setError(null);
-    try {
-      const r = await api<{ voices: Voice[] }>("/announcer/library", {
-        method: "POST",
-        body: { ownerId: v.ownerId, voiceId: v.id, name: v.name },
-      });
-      setAdded((a) => [...a, v.id]);
-      onAdded(r.voices);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  return (
-    <div className="card stack" style={{ marginTop: 10 }}>
-      <span style={{ fontWeight: 800 }}>Find more voices</span>
-      <p className="muted small" style={{ margin: 0 }}>
-        Search ElevenLabs' library of voices people have shared. Preview is free; Add puts the voice in the list above.
-      </p>
-      <div className="row">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void search()}
-          placeholder="e.g. sports announcer, deep male"
-          aria-label="Search the voice library"
-        />
-        <button className="small-button" onClick={search} disabled={busy} style={{ minHeight: 48 }}>
-          {busy ? "…" : "Search"}
-        </button>
-      </div>
-      <VoiceFilters filters={filters} onChange={setFilters} options={LIBRARY_OPTIONS} />
-      {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
-      {results?.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing found. Try other words or filters.</p>}
-      <ul className="list">
-        {results?.map((v) => (
-          <li key={v.id} className="list-item">
-            <div className="player-row">
-              <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
-                <span className="player-name truncate">{v.name}</span>
-                <span className="muted small truncate">{v.detail}</span>
-              </span>
-              {v.previewUrl && (
-                <button className="small-button" onClick={() => play(v.previewUrl!)}>
-                  Preview
-                </button>
-              )}
-              {added.includes(v.id) ? (
-                <span className="muted small">
-                  <CheckIcon /> Added
-                </span>
-              ) : (
-                <button className="small-button primary" onClick={() => add(v)}>
-                  Add
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Filter choices for ElevenLabs' library (its own labels, shown in our words). */
-const LIBRARY_OPTIONS = {
-  gender: ["Male", "Female"],
-  accent: ["American", "Australian", "British", "Canadian", "Irish", "Scottish"],
-  age: ["Young", "Middle-aged", "Older"],
-};
-
 /** Gender / accent / age dropdowns ("Any" = no filter). */
 function VoiceFilters(props: {
-  filters: LibraryFilters;
-  onChange(f: LibraryFilters): void;
-  options: Record<keyof LibraryFilters, string[]>;
+  filters: Filters;
+  onChange(f: Filters): void;
+  options: Record<keyof Filters, string[]>;
   note?: string;
 }) {
-  const labels: Record<keyof LibraryFilters, string> = { gender: "Gender", accent: "Accent", age: "Age" };
+  const labels: Record<keyof Filters, string> = { gender: "Gender", accent: "Accent", age: "Age" };
   return (
     <div className="voice-filters">
-      {(Object.keys(labels) as (keyof LibraryFilters)[])
+      {(Object.keys(labels) as (keyof Filters)[])
         .filter((k) => props.options[k].length > 0)
         .map((k) => (
           <select

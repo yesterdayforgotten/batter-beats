@@ -112,12 +112,7 @@ export interface AnnouncerStyle {
    * e.g. "[shouting] [excited]" (before the announcement's text).
    */
   elevenTag: string;
-  /** ElevenLabs only: which model speaks. v4 responds to cues more than v3 (tested 2026-10-12); same price. */
-  elevenModel: ElevenModel;
 }
-
-export const ELEVEN_MODELS = ["eleven_v4", "eleven_v3"] as const;
-export type ElevenModel = (typeof ELEVEN_MODELS)[number];
 
 /** Cues written the way ElevenLabs gets them: "[shouting] [excited]". */
 export const formatCues = (cues: string[]) => cues.map((c) => `[${c}]`).join(" ");
@@ -143,7 +138,6 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   reverbSize: 0.6,
   excitement: 1,
   elevenTag: "[shouting] [excited]",
-  elevenModel: "eleven_v4",
 };
 export const STYLE_LIMITS = {
   minSpeed: 0.8,
@@ -160,7 +154,7 @@ export interface AnnouncerVoice {
   id: string;
   name: string;
   detail: string;
-  /** A short sample to hear the voice without spending credit (ElevenLabs library). */
+  /** A short sample to hear the voice without spending credit (ElevenLabs). */
   previewUrl?: string;
   /** For filtering, where the engine says: "Male" / "Female", "American", "Young" / "Middle-aged" / "Older". */
   gender?: string;
@@ -168,17 +162,11 @@ export interface AnnouncerVoice {
   age?: string;
 }
 
-/** Filters for an engine's shared voice library (ElevenLabs). Empty = any. */
-export interface LibraryFilters {
+/** Filters for the voice list on the Admin screen. Empty = any. */
+export interface VoiceFilters {
   gender?: string;
   accent?: string;
   age?: string;
-}
-
-/** A voice found in an engine's shared library, not yet added to the account (ElevenLabs). */
-export interface LibraryVoice extends AnnouncerVoice {
-  ownerId: string;
-  uses: number;
 }
 
 export const ANNOUNCER = {
