@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
@@ -7,7 +7,8 @@ import { KebabIcon, PlayIcon, SoundBars, StopIcon } from "../components/Icons.ts
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
-import { changeLineup, onOfflineChange, pendingChanges, savedRoster, saveIfKept, withPendingChanges } from "../offline.ts";
+import { changeLineup, onOfflineChange, savedRoster, saveIfKept, stuckChanges, withPendingChanges } from "../offline.ts";
+import { cameFromGame } from "../editReturn.ts";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
 import { innings, loadPlaylist, onPlaylistChange } from "../playlist.ts";
 import type { Player, PlaylistSong, Roster } from "../../shared/types.ts";
@@ -55,11 +56,21 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null);
   /** True when the roster came from this phone's saved copy because the server couldn't be reached. */
   const [fromPhone, setFromPhone] = useState(false);
-  const [waiting, setWaiting] = useState(() => pendingChanges());
+  /** Lineup changes still unsent after a few tries (one blip isn't worth a message). */
+  const [waiting, setWaiting] = useState(() => stuckChanges());
   const [reloads, setReloads] = useState(0);
   const [playlist, setPlaylist] = useState<PlaylistSong[] | null>(null);
   const [inningsState, setInningsState] = useState(innings.state);
-  const [editing, setEditing] = useState(false);
+  // Reorder is its own history entry, so Back (the arrow, or the phone's back gesture) returns to game mode.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const editing = (location.state as { reorder?: boolean } | null)?.reorder === true;
+  const setEditing = (on: boolean) => {
+    if (on) navigate(location.pathname, { state: { reorder: true } });
+    // Leaving steps back over that entry; after a reload with nowhere to step back to, just clear it.
+    else if (location.key !== "default") navigate(-1);
+    else navigate(location.pathname, { replace: true, state: null });
+  };
   const [atBatId, setAtBatId] = useState<number | null>(() => readAtBat(id));
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
   const playback = useRef<Playback | null>(null);
@@ -100,7 +111,7 @@ export function GamePage() {
     return () => window.removeEventListener("online", back);
   }, []);
 
-  useEffect(() => onOfflineChange(() => setWaiting(pendingChanges())), []);
+  useEffect(() => onOfflineChange(() => setWaiting(stuckChanges())), []);
 
   // The user's between-innings playlist.
   useEffect(() => {
@@ -224,6 +235,7 @@ export function GamePage() {
     <>
       <PageHead
         back="/"
+        onBack={editing ? () => setEditing(false) : undefined}
         eyebrow={editing ? "Reorder" : "Game mode"}
         title={<div className="display truncate" style={{ fontSize: 30 }}>{roster?.name ?? ""}</div>}
         right={
@@ -236,7 +248,7 @@ export function GamePage() {
               items={[
                 { label: "Reorder", onSelect: () => setEditing(true) },
                 ...(hasRole(user, "editor") && roster && !fromPhone
-                  ? [{ label: "Edit Team", to: `/rosters/${roster.id}/edit` }]
+                  ? [{ label: "Edit Team", to: `/rosters/${roster.id}/edit`, onSelect: () => cameFromGame(roster.id) }]
                   : []),
               ]}
             />
@@ -353,7 +365,7 @@ export function GamePage() {
   );
 }
 
-type MenuItem = { label: string; onSelect: () => void } | { label: string; to: string };
+type MenuItem = { label: string; onSelect: () => void } | { label: string; to: string; onSelect?: () => void };
 
 /** The ⋮ button and its small menu. Tapping outside closes it. */
 function MoreMenu({ items }: { items: MenuItem[] }) {
@@ -376,7 +388,7 @@ function MoreMenu({ items }: { items: MenuItem[] }) {
         <div className="menu" role="menu">
           {items.map((item) =>
             "to" in item ? (
-              <Link key={item.label} to={item.to} role="menuitem" className="menu-item">
+              <Link key={item.label} to={item.to} role="menuitem" className="menu-item" onClick={item.onSelect}>
                 {item.label}
               </Link>
             ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
+import { cameFromTeams } from "../editReturn.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { CheckIcon, KebabIcon } from "../components/Icons.tsx";
 import {
@@ -60,7 +61,7 @@ export function RostersPage() {
             </Link>
             {!offline && <OfflineSwitch id={r.id} name={r.name} />}
             {editor && !offline && (
-              <Link to={`/rosters/${r.id}/edit`} aria-label={`Edit ${r.name}`} className="kebab">
+              <Link to={`/rosters/${r.id}/edit`} onClick={cameFromTeams} aria-label={`Edit ${r.name}`} className="kebab">
                 <KebabIcon />
               </Link>
             )}
@@ -158,6 +159,7 @@ function NewRoster() {
     e.preventDefault();
     try {
       const r = await api<{ roster: Roster }>("/rosters", { body: { name } });
+      cameFromTeams();
       navigate(`/rosters/${r.roster.id}/edit`);
     } catch (err) {
       setError((err as Error).message);

@@ -4,6 +4,7 @@ import { api } from "../api.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import { ChevronIcon } from "../components/Icons.tsx";
 import { SortableList } from "../components/SortableList.tsx";
+import { editBack } from "../editReturn.ts";
 import { AnnouncerSettings } from "../components/AnnouncerSettings.tsx";
 import type { AnnouncerStyle, Player, Roster } from "../../shared/types.ts";
 
@@ -89,7 +90,7 @@ export function RosterEditPage() {
 
   return (
     <>
-      <PageHead back="/" eyebrow="Edit team" />
+      <PageHead back={editBack(id)} eyebrow="Edit team" />
       {error && <p className="error">{error}</p>}
       {roster && (
         <div className="stack" style={{ gap: 12 }}>

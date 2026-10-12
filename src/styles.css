@@ -866,6 +866,11 @@ label {
   background: var(--accent-ink);
   color: var(--accent);
 }
+/* The batter on deck: a blue circle with a dark icon, the opposite of the at-bat row's */
+.bat-row.on-deck .bat-action {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
 
 /* Version label (and Update button) */
 .app-version {

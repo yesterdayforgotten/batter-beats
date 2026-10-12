@@ -179,40 +179,55 @@ type LineupChange =
 const queue = (): LineupChange[] => read<LineupChange[]>(QUEUE_KEY, []);
 export const pendingChanges = () => queue().length;
 
+/** Failed attempts to send the queue in a row; reset when something gets through. */
+let failedSends = 0;
+/** Only worth telling the user about once sending has failed this many times in a row. */
+const SHOW_AFTER_FAILURES = 3;
+
+/** Waiting changes, but only once they've failed to send a few times (a single blip isn't news). */
+export const stuckChanges = () => (failedSends >= SHOW_AFTER_FAILURES ? queue().length : 0);
+
 let flushing: Promise<void> | null = null;
 
 /** Sends queued lineup changes in the order they were made. Stops at the first one that can't reach the server. */
 export function flushQueue(): Promise<void> {
-  flushing ??= (async () => {
-    try {
-      for (let q = queue(); q.length > 0; q = queue()) {
-        const change = q[0];
-        try {
-          if (change.kind === "order") {
-            const r = await api<{ roster: Roster }>(`/rosters/${change.rosterId}/order`, {
-              method: "PUT",
-              body: { playerIds: change.playerIds, changedAt: change.changedAt },
-              timeoutMs: 8000,
-            });
-            saveIfKept(r.roster);
-          } else {
-            await api(`/players/${change.playerId}/available`, {
-              method: "PUT",
-              body: { available: change.available, changedAt: change.changedAt },
-              timeoutMs: 8000,
-            });
-          }
-        } catch (err) {
-          if (isNetworkError(err)) return; // still offline; try again later
-          // The server refused it (for example, the player was deleted): drop it.
+  if (flushing) return flushing;
+  // Cleared in a separate step: with nothing to send, the work finishes at once,
+  // and clearing it from inside would happen before `flushing` was even set,
+  // leaving it stuck and every later change unsent.
+  flushing = (async () => {
+    for (let q = queue(); q.length > 0; q = queue()) {
+      const change = q[0];
+      try {
+        if (change.kind === "order") {
+          const r = await api<{ roster: Roster }>(`/rosters/${change.rosterId}/order`, {
+            method: "PUT",
+            body: { playerIds: change.playerIds, changedAt: change.changedAt },
+            timeoutMs: 8000,
+          });
+          saveIfKept(r.roster);
+        } else {
+          await api(`/players/${change.playerId}/available`, {
+            method: "PUT",
+            body: { available: change.available, changedAt: change.changedAt },
+            timeoutMs: 8000,
+          });
         }
-        write(QUEUE_KEY, queue().slice(1));
-        notify();
+      } catch (err) {
+        if (isNetworkError(err)) {
+          failedSends++; // still offline; try again later
+          notify();
+          return;
+        }
+        // The server refused it (for example, the player was deleted): drop it.
       }
-    } finally {
-      flushing = null;
+      failedSends = 0;
+      write(QUEUE_KEY, queue().slice(1));
+      notify();
     }
-  })();
+  })().finally(() => {
+    flushing = null;
+  });
   return flushing;
 }
 
