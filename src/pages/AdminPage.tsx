@@ -180,40 +180,38 @@ function AnnouncerVoice() {
               {playing === info.voice ? "…" : "Listen"}
             </button>
           </div>
-          <div className="segmented" role="radiogroup" aria-label="Energy">
-            {(["calm", "lively", "hyped"] as Energy[]).map((e) => (
-              <button
-                key={e}
-                role="radio"
-                aria-checked={style.energy === e}
-                className={style.energy === e ? "on" : ""}
-                onClick={() => change({ energy: e })}
-              >
-                {{ calm: "Calm", lively: "Lively", hyped: "Hyped" }[e]}
-              </button>
-            ))}
-          </div>
           <div className="editor-rows" style={{ padding: 0 }}>
+            {/* Energy changes the punctuation the voice reads (see withEnergy in server/announcer.ts). */}
+            <div className="editor-row">
+              <span className="label">Energy</span>
+              <div className="segmented grow" role="radiogroup" aria-label="Energy">
+                {(["calm", "lively", "hyped"] as Energy[]).map((e) => (
+                  <button
+                    key={e}
+                    role="radio"
+                    aria-checked={style.energy === e}
+                    className={style.energy === e ? "on" : ""}
+                    onClick={() => change({ energy: e })}
+                  >
+                    {{ calm: "Calm", lively: "Lively", hyped: "Hyped" }[e]}
+                  </button>
+                ))}
+              </div>
+            </div>
             {eleven && (
               <>
                 <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
-                {/* ElevenLabs has exactly three settings here (Robust, Natural, Creative), so three buttons, not a slider. */}
-                <div className="editor-row">
-                  <span className="label">Range</span>
-                  <div className="segmented grow" role="radiogroup" aria-label="Emotional range">
-                    {RANGES.map((r) => (
-                      <button
-                        key={r.label}
-                        role="radio"
-                        aria-checked={rangeOf(style.excitement) === r.label}
-                        className={rangeOf(style.excitement) === r.label ? "on" : ""}
-                        onClick={() => change({ excitement: r.value })}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {/* ElevenLabs has exactly three settings here (Robust, Natural, Creative), so the slider has three stops. */}
+                <Slider
+                  label="Range"
+                  aria="Emotional range"
+                  min={0}
+                  max={RANGES.length - 1}
+                  step={1}
+                  value={RANGES.findIndex((r) => r.label === rangeOf(style.excitement))}
+                  show={rangeOf(style.excitement)}
+                  onChange={(i) => change({ excitement: RANGES[i].value })}
+                />
               </>
             )}
             {info.controls.speed && (
@@ -255,17 +253,17 @@ function AnnouncerVoice() {
                 label="Distance"
                 aria="Stadium echo distance"
                 min={0}
-                max={1}
-                step={0.05}
-                value={style.reverbSize}
-                show={style.reverbSize < 0.34 ? "Small field" : style.reverbSize < 0.67 ? "Ballpark" : "Stadium"}
-                onChange={(v) => change({ reverbSize: v })}
+                max={DISTANCES.length - 1}
+                step={1}
+                value={distanceIndex(style.reverbSize)}
+                show={DISTANCES[distanceIndex(style.reverbSize)].label}
+                onChange={(i) => change({ reverbSize: DISTANCES[i].value })}
               />
             )}
           </div>
           <p className="muted small" style={{ margin: 0 }}>
             {eleven
-              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, each cue in [square brackets] (or separated by commas), or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
+              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, each cue in [square brackets] (or separated by commas), or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. Energy changes the punctuation it reads (Hyped: \"Now batting! Number 12! Ava!\"). "
               : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
             Echo adds the delayed echoes you hear off the stands at a ballpark; Distance sets how far away they come
             back from. A real field's speakers add their own echo, so a little goes a long way. Listen to try a mix;
@@ -327,6 +325,14 @@ const RANGES = [
   { label: "Natural", value: 1 },
   { label: "Wild", value: 1.5 },
 ] as const;
+/** The echo distances offered: three stops on the Distance slider. */
+const DISTANCES = [
+  { label: "Small field", value: 0 },
+  { label: "Ballpark", value: 0.5 },
+  { label: "Stadium", value: 1 },
+] as const;
+const distanceIndex = (size: number) => (size < 0.34 ? 0 : size < 0.67 ? 1 : 2);
+
 const rangeOf = (excitement: number) => (excitement >= 1.4 ? "Wild" : excitement >= 0.75 ? "Natural" : "Steady");
 
 /** Suggested ElevenLabs delivery cues (any words work; each is written as [cue] before the announcement). */
