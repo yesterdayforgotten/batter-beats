@@ -330,7 +330,19 @@ const rangeOf = (excitement: number) => (excitement >= 1.4 ? "Wild" : excitement
 /** Suggested ElevenLabs delivery cues (any words work; each is written as [cue] before the announcement). */
 // Emotion and delivery words: in tests (Adam, Brian; v3 and v4) these changed the delivery,
 // [shouting] most of all on v4, while descriptions like "stadium PA announcer" did little.
-const CUE_SUGGESTIONS = ["shouting", "excited", "enthusiastic", "energetic", "proud", "dramatic", "speaking quickly"];
+// Pace: on v4 [slowly] made speech ~20% longer and [speaking quickly] ~10% shorter (the API's
+// speed setting is ignored). [booming] and [with emphasis] were added at the owner's request, untested.
+const CUE_SUGGESTIONS = [
+  "shouting",
+  "excited",
+  "booming",
+  "with emphasis",
+  "enthusiastic",
+  "proud",
+  "dramatic",
+  "speaking quickly",
+  "slowly",
+];
 
 /**
  * The ElevenLabs cues: free text, each in [square brackets], with
