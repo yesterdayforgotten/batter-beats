@@ -161,7 +161,7 @@ label,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 60px;
+  min-height: 48px;
 }
 
 .brand {
@@ -1800,4 +1800,20 @@ label,
   display: block;
   color: var(--accent);
   text-decoration: none;
+}
+
+/* Read by screen readers, not shown */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.team-list {
+  margin-top: 8px;
 }

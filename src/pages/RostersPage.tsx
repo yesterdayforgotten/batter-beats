@@ -38,7 +38,8 @@ export function RostersPage() {
 
   return (
     <section>
-      <h1 className="big-title">Teams</h1>
+      {/* The list speaks for itself; the heading is only for screen readers. */}
+      <h1 className="visually-hidden">Teams</h1>
       {error && <p className="error" role="alert">{error}</p>}
       {offline && (
         <p className="notice">
