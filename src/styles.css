@@ -630,6 +630,10 @@ label,
   gap: 10px;
 }
 
+/* Rows in a sheet's list keep their height; the list scrolls instead of squashing them. */
+.sheet-list > * {
+  flex-shrink: 0;
+}
 .sheet-list {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;

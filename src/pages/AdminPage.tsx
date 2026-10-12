@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, upload } from "../api.ts";
 import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
+import { PageHead } from "../components/PageHead.tsx";
 import type { VoiceEngine } from "../../shared/types.ts";
 import type { AnnouncerEngineInfo } from "../components/AnnouncerSettings.tsx";
 
 export function AdminPage() {
   return (
     <section>
-      <h1 className="big-title">Admin</h1>
+      <PageHead back="/" title={<div className="display" style={{ fontSize: 30 }}>Admin</div>} />
       <ul className="list">
         <li className="list-item">
           <Link to="/admin/users">
@@ -56,14 +57,15 @@ function AnnouncerEngine() {
     }
   }
 
+  // Only worth a section when there's a choice to make (or a problem to show).
+  if (!(info && info.engines.length > 1) && !error && !info?.error) return null;
   return (
     <>
       <div className="section-title" style={{ margin: "26px 4px 8px" }}>
         Announcer
       </div>
       <p className="muted small" style={{ margin: "0 4px 10px" }}>
-        Each team chooses its announcer voice, delivery and wording in Edit team.
-        {info && info.engines.length > 1 && " Here you choose which voice service every team's announcements come from."}
+        Which voice service every team's announcements come from. Each team chooses its voice, delivery and wording in Edit team.
       </p>
       {info && info.engines.length > 1 && (
         <div className="segmented" role="radiogroup" aria-label="Voice engine" style={{ marginBottom: 10 }}>

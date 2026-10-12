@@ -68,3 +68,16 @@ usersRouter.patch("/:id", async (req, res) => {
 
   res.json({ users: listUsers() });
 });
+
+// Removing someone signs them out everywhere (their sessions go with them);
+// songs they uploaded stay. Admins can't remove themselves or the last admin.
+usersRouter.delete("/:id", (req, res) => {
+  const target = findUserById(Number(req.params.id));
+  if (!target) return res.status(404).json({ error: "User not found." });
+  if (target.id === req.user!.id) return res.status(400).json({ error: "You can't remove yourself." });
+  if (target.role === "admin" && countAdmins() <= 1) {
+    return res.status(400).json({ error: "There must always be at least one admin." });
+  }
+  db.prepare("DELETE FROM users WHERE id = ?").run(target.id);
+  res.json({ users: listUsers() });
+});

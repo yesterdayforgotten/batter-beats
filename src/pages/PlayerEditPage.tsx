@@ -6,7 +6,8 @@ import { PageHead } from "../components/PageHead.tsx";
 import { PlayIcon, SoundBars } from "../components/Icons.tsx";
 import { SongPicker } from "../components/SongPicker.tsx";
 import { Waveform } from "../components/Waveform.tsx";
-import { ANNOUNCER, CLIP_LIMITS, type Clip, type Player, type Song } from "../../shared/types.ts";
+import { ANNOUNCER, CLIP_LIMITS, type Clip, type Player, type RosterSummary, type Song } from "../../shared/types.ts";
+import { teamStyle } from "../teamColors.ts";
 
 type ClipChanges = Partial<Pick<Clip, "startMs" | "endMs" | "fadeMs" | "volume" | "gainDb" | "bassDb" | "trebleDb">>;
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -43,6 +44,15 @@ export function PlayerEditPage() {
   const timer = useRef<number | undefined>(undefined);
   const inFlight = useRef<Promise<void>>(Promise.resolve());
   const playback = useRef<Playback | null>(null);
+
+  /** The player's team colour, so this screen matches the team's other screens. */
+  const [teamColor, setTeamColor] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!player) return;
+    api<{ rosters: RosterSummary[] }>("/rosters")
+      .then((r) => setTeamColor(r.rosters.find((t) => t.id === player.rosterId)?.color))
+      .catch(() => {});
+  }, [player?.rosterId]);
 
   useEffect(() => {
     api<{ player: Player }>(`/players/${id}`)
@@ -186,7 +196,7 @@ export function PlayerEditPage() {
   }
 
   async function deletePlayer() {
-    if (!player || !confirm(`Remove ${player.name} from the roster?`)) return;
+    if (!player || !confirm(`Delete ${player.name} from the team? Their song stays in the library.`)) return;
     stopPreview();
     await api(`/players/${player.id}`, { method: "DELETE" });
     navigate(`/rosters/${player.rosterId}/edit`, { replace: true });
@@ -252,10 +262,16 @@ export function PlayerEditPage() {
   const maxGain = clip?.maxGainDb ?? 0;
 
   return (
-    <>
+    <div style={teamStyle(teamColor)}>
       <PageHead
         back={`/rosters/${player.rosterId}/edit`}
         eyebrow="Edit player"
+        title={
+          <div className="display truncate" style={{ fontSize: 30 }}>
+            {player.number ? `#${player.number} ` : ""}
+            {player.name}
+          </div>
+        }
         right={<span className="save-state" style={saveState === "error" ? { color: "var(--danger)" } : undefined}>{saveLabel}</span>}
       />
       <div className="stack">
@@ -285,18 +301,6 @@ export function PlayerEditPage() {
           </p>
         )}
 
-        <AnnouncerCard
-          player={player}
-          name={name}
-          pronunciation={pronunciation}
-          setPronunciation={setPronunciation}
-          songDelayMs={songDelayMs}
-          onDelay={changeDelay}
-          onSave={() => void savePlayer()}
-          onToggle={(announce) => void savePlayer({ announce })}
-          listening={listening}
-          onListen={listen}
-        />
 
         <div className="card stack">
           <div className="row">
@@ -442,8 +446,21 @@ export function PlayerEditPage() {
           </button>
         )}
 
+        <AnnouncerCard
+          player={player}
+          name={name}
+          pronunciation={pronunciation}
+          setPronunciation={setPronunciation}
+          songDelayMs={songDelayMs}
+          onDelay={changeDelay}
+          onSave={() => void savePlayer()}
+          onToggle={(announce) => void savePlayer({ announce })}
+          listening={listening}
+          onListen={listen}
+        />
+
         <button className="danger" style={{ marginTop: 20, alignSelf: "center" }} onClick={deletePlayer}>
-          Remove player
+          Delete player
         </button>
       </div>
       {picking && (
@@ -454,7 +471,7 @@ export function PlayerEditPage() {
           onClose={() => setPicking(false)}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -540,6 +557,7 @@ function AnnouncerCard(props: {
               onChange={(e) => props.onDelay(Number(e.target.value))}
               aria-label="When the song comes in"
             />
+            <span className="value">{(props.songDelayMs / 1000).toFixed(props.songDelayMs % 1000 === 0 ? 0 : 2).replace(/(\.\d)0$/, "$1")} s</span>
           </div>
           <p className="muted small" style={{ margin: 0 }}>
             Song comes in: <strong>{delayLabel(props.songDelayMs, voiceMs)}</strong>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api.ts";
 import { useAuth } from "../auth.tsx";
+import { PageHead } from "../components/PageHead.tsx";
 import { ROLE_LABELS, ROLES, type Role, type User } from "../../shared/types.ts";
 
 export function UsersPage() {
@@ -24,9 +25,20 @@ export function UsersPage() {
     }
   }
 
+  async function remove(user: User) {
+    if (!confirm(`Remove ${user.username}? They're signed out everywhere and can't sign in again. Songs they uploaded stay.`)) return;
+    setError(null);
+    try {
+      const r = await api<{ users: User[] }>(`/users/${user.id}`, { method: "DELETE" });
+      setUsers(r.users);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   return (
     <section>
-      <h1 className="big-title">Users</h1>
+      <PageHead back="/admin" title={<div className="display" style={{ fontSize: 30 }}>Users</div>} />
       <AddUserForm onAdded={(u) => setUsers((list) => [...list, u].sort(byName))} />
       {error && <p className="error">{error}</p>}
       <ul className="list" style={{ marginTop: 12 }}>
@@ -43,7 +55,14 @@ export function UsersPage() {
                 </option>
               ))}
             </select>
-            <ResetPassword user={u} />
+            <div className="row" style={{ gap: 10 }}>
+              <ResetPassword user={u} />
+              {u.id !== me?.id && (
+                <button className="danger" onClick={() => remove(u)}>
+                  Remove
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>

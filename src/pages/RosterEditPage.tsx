@@ -106,7 +106,11 @@ export function RosterEditPage() {
 
   return (
     <div style={teamStyle(roster?.color)}>
-      <PageHead back={editBack(id)} eyebrow="Edit team" />
+      <PageHead
+        back={editBack(id)}
+        eyebrow="Edit team"
+        title={roster ? <div className="display truncate" style={{ fontSize: 30, color: "var(--accent)" }}>{roster.name}</div> : undefined}
+      />
       {error && <p className="error">{error}</p>}
       {roster && (
         <div className="stack" style={{ gap: 12 }}>
@@ -233,7 +237,7 @@ export function RosterEditPage() {
                   <span className="jersey">{p.number}</span>
                   <span className="stack grow" style={{ gap: 2 }}>
                     <span className="player-name truncate">{p.name}</span>
-                    <span className="small truncate muted">{p.clip ? p.clip.song.title : "No song yet"}</span>
+                    <span className="small truncate muted">{p.clip ? p.clip.song.title : "No song"}</span>
                   </span>
                 </>
               );
