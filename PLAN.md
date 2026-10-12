@@ -206,6 +206,7 @@ These were not verified during planning. Test each one and tell the owner what y
 - Roster screen (`/rosters/:id`) is a read-only lineup until game mode in phase 3.
 
 ### App icon
+- 2026-10-12: at 16 px the five sound bars blurred together, so `favicon.svg` holds a second drawing made on the 16-pixel grid (1-pixel bars with 1-pixel gaps) and switches to it at 24 px and below (a media query inside the SVG); `favicon.ico`'s 16 px image is that drawing.
 - Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png`, and `icon-maskable-*.png` (plate shrunk to fit Android's circle crop). `public/manifest.webmanifest` (added 2026-10-12) gives the installed app its name, the near-black background and theme colour (Android's start-up screen) and these icons.
 
 ### GitHub and Docker (done early, 2026-10-12, at the owner's request)
@@ -282,7 +283,7 @@ These were not verified during planning. Test each one and tell the owner what y
 ### Jukebox and shared playlists (2026-10-12, owner's request)
 - Playlists are shared by everyone and there can be many (owner's choice); editors create, rename, reorder, add/remove songs and delete them; everyone can play them and keep any of them on their phone. Tables `playlists` and `playlist_items` (migration turned each user's old personal list into a shared playlist named "<username>'s playlist"). API: `GET/POST /api/playlists`, `PATCH/DELETE /api/playlists/:id`, `PUT /api/playlists/:id/songs`.
 - Screens: Playlists (☰ menu; `/playlists`, the old `/playlist` redirects) and one playlist (`/playlists/:id`): name, Keep on this phone, compact numbered song rows with × to remove, Reorder (drag), "+ Add songs" sheet with search and tag filters (tap to add or take out), Delete playlist.
-- Game mode has two tabs, Lineup | Jukebox (tab remembered per team for the session). Jukebox: the team's playlist (chosen per team per phone, `bb.jukebox.team.<id>`; first playlist otherwise), Shuffle / In order, every song listed (tap one to play it; the playlist carries on from there and starts over at the end), and this phone's jukebox volume (default 80%) and Stop fade length (default 3 s).
+- Game mode has two tabs, Lineup | Jukebox (tab remembered per team for the session). Jukebox: the team's playlist (chosen per team per phone, `bb.jukebox.team.<id>`; first playlist otherwise), Shuffle / In order, every song listed (tap one to play it; the playlist carries on from there and starts over at the end), and this phone's jukebox volume (default 80%) and Stop fade length (default 1.5 s).
 - A now-playing bar on both tabs: Stop (fades over the set length) and Skip; when quiet, one tap starts the team's playlist. Tapping a batter still fades the jukebox out (1.5 s).
 - `src/playlist.ts` holds playlists, offline copies (one song cache for every kept playlist) and the `jukebox` player.
 

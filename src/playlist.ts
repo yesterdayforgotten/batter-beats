@@ -121,7 +121,7 @@ export interface JukeboxSettings {
   fadeSec: number;
 }
 
-const DEFAULT_SETTINGS: JukeboxSettings = { shuffle: true, volume: 0.8, fadeSec: 3 };
+const DEFAULT_SETTINGS: JukeboxSettings = { shuffle: true, volume: 0.8, fadeSec: 1.5 };
 export const jukeboxSettings = (): JukeboxSettings => ({ ...DEFAULT_SETTINGS, ...read<Partial<JukeboxSettings>>(SETTINGS_KEY, {}) });
 
 export function setJukeboxSettings(changes: Partial<JukeboxSettings>) {
