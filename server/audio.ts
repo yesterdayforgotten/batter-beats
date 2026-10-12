@@ -124,10 +124,15 @@ const SAMPLE_RATE = 44100;
  * pre-delay (distance to the walls), then pink noise fading away
  * exponentially over the space's reverb time, darker the bigger the space
  * (air and far walls soak up the highs).
+ *
+ * It is calibrated so the reverb comes out exactly as loud as the
+ * voice before mixing, and the Reverb amount alone sets how much is heard.
+ * (Version 3: version 1 used afir's automatic gain and version 2 unit energy; both made the reverb
+ * 10-15 dB louder than the voice, so even 5% was too much.)
  */
 async function impulseResponse(size: number): Promise<string> {
   const s = Math.round(Math.max(0, Math.min(1, size)) * 20) / 20; // 21 sizes, each made once
-  const file = path.join(dirs.tmp, `reverb-ir-${s.toFixed(2)}.wav`);
+  const file = path.join(dirs.tmp, `reverb-ir3-${s.toFixed(2)}.wav`);
   if (fs.existsSync(file)) return file;
   const rt60 = 0.8 + 2.7 * s; // seconds to fade by 60 dB: 0.8 s room … 3.5 s ballpark
   const preDelayMs = Math.round(12 + 60 * s);
@@ -145,9 +150,29 @@ async function impulseResponse(size: number): Promise<string> {
       `adelay=${preDelayMs}`,
     ].join(","),
     "-ac", "1",
+    "-c:a", "pcm_f32le",
     tmp,
   ]);
-  await fs.promises.rename(tmp, file);
+  // Calibrate by loudness, as heard: put a speech-like test signal (pink noise, rolled off above
+  // 4 kHz like a voice) through the reverb and scale the response so what comes out is exactly
+  // as loud as what went in. Then the Reverb amount alone sets how far under the voice it sits.
+  const testSignal = `anoisesrc=d=4:c=pink:r=${SAMPLE_RATE}:a=0.3:seed=3,lowpass=f=4000`;
+  const measure = async (graph: string, extraInputs: string[]) => {
+    const { err } = await runFull("ffmpeg", [
+      "-hide_banner", "-nostats",
+      "-f", "lavfi", "-i", testSignal, ...extraInputs,
+      "-filter_complex", `${graph}ebur128[out]`,
+      "-map", "[out]", "-f", "null", "-",
+    ]);
+    const m = /Integrated loudness:\s*I:\s*(-?[\d.]+) LUFS/.exec(err.slice(err.lastIndexOf("Summary:")));
+    const value = m ? Number(m[1]) : NaN;
+    if (!Number.isFinite(value)) throw new Error("Couldn't calibrate the reverb.");
+    return value;
+  };
+  const dry = await measure("[0:a]", []);
+  const wet = await measure("[0:a][1:a]afir=gtype=none,", ["-i", tmp]);
+  await run("ffmpeg", ["-v", "error", "-y", "-i", tmp, "-af", `volume=${(dry - wet).toFixed(3)}dB`, "-c:a", "pcm_f32le", file]);
+  await fs.promises.rm(tmp, { force: true });
   return file;
 }
 
@@ -163,13 +188,14 @@ async function effectsGraph(o: VoiceEffects): Promise<{ inputs: string[]; graph:
   if (o.reverb <= 0) return { inputs: [], graph: `[0:a]${steps.join(",")}[fx]` };
   const ir = await impulseResponse(o.reverbSize);
   const tail = 0.8 + 2.7 * o.reverbSize + 0.3;
-  const wet = (0.6 * o.reverb).toFixed(3);
+  // How loud the reverb is under the voice: 5% ≈ -32 dB (a faint touch), 35% ≈ -15 dB, 100% ≈ -6 dB.
+  const wet = (0.5 * o.reverb).toFixed(4);
   return {
     inputs: ["-i", ir],
     graph:
       `[0:a]${steps.join(",")},apad=pad_dur=${tail.toFixed(2)},asplit=2[dry][wetin];` +
-      // gn: the impulse response is scaled so the reverb comes out at a steady level whatever the size.
-      `[wetin][1:a]afir=gtype=gn[wet];` +
+      // gtype=none: the impulse response is already scaled to unit energy (see impulseResponse).
+      `[wetin][1:a]afir=gtype=none[wet];` +
       `[dry][wet]amix=inputs=2:weights=1 ${wet}:normalize=0,` +
       // End the file once the reverb has faded well below the voice (-42 dB), with a short fade so the cut
       // doesn't click: the song stays quiet until the announcement ends, so a long faint tail would hold it down.

@@ -25,6 +25,8 @@ import {
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
 const PROCESSING = "convolution-4";
+/** Bumped when the reverb itself changes; only announcements with reverb are remade. */
+const REVERB_VERSION = "reverb-3";
 
 export interface AnnouncerPlayerRow {
   id: number;
@@ -157,7 +159,8 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
   const style = currentStyle();
   const key = crypto
     .createHash("sha1")
-    .update(`${PROCESSING}\n${engine.id}\n${voice}\n${JSON.stringify(style)}\n${text}`)
+    // Reverb changes how it sounds, so a new reverb version remakes only announcements that use reverb.
+    .update(`${PROCESSING}\n${engine.id}\n${voice}\n${JSON.stringify(style)}\n${text}` + (style.reverb > 0 ? `\n${REVERB_VERSION}` : ""))
     .digest("hex")
     .slice(0, 12);
   return { text, key, voice, style };
