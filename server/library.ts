@@ -147,7 +147,7 @@ export function listRosters(): RosterSummary[] {
   return (
     db
       .prepare(
-        `SELECT r.id, r.name, r.updated_at AS updatedAt, COUNT(p.id) AS playerCount
+        `SELECT r.id, r.name, r.color, r.updated_at AS updatedAt, COUNT(p.id) AS playerCount
          FROM rosters r LEFT JOIN players p ON p.roster_id = r.id
          GROUP BY r.id ORDER BY r.name COLLATE NOCASE`,
       )
@@ -156,8 +156,8 @@ export function listRosters(): RosterSummary[] {
 }
 
 export function getRoster(id: number): Roster | undefined {
-  const r = db.prepare("SELECT id, name, updated_at, announce_enabled, announce_template FROM rosters WHERE id = ?").get(id) as
-    | { id: number; name: string; updated_at: string; announce_enabled: number; announce_template: string }
+  const r = db.prepare("SELECT id, name, color, updated_at, announce_enabled, announce_template FROM rosters WHERE id = ?").get(id) as
+    | { id: number; name: string; color: string; updated_at: string; announce_enabled: number; announce_template: string }
     | undefined;
   if (!r) return undefined;
   const players = (
@@ -166,6 +166,7 @@ export function getRoster(id: number): Roster | undefined {
   return {
     id: r.id,
     name: r.name,
+    color: r.color,
     updatedAt: r.updated_at,
     announce: !!r.announce_enabled,
     announceTemplate: r.announce_template,

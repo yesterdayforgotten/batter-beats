@@ -140,7 +140,8 @@ button.icon {
   font-weight: 700;
 }
 
-label {
+label,
+.field-label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -354,6 +355,32 @@ label {
   min-height: 64px;
 }
 
+/* Team colour: a dot on the Teams list, swatches in Edit team */
+.team-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 44px));
+  justify-content: space-between;
+  gap: 8px;
+}
+.swatch {
+  aspect-ratio: 1;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+}
 .roster-name {
   font-family: var(--display);
   font-weight: 800;

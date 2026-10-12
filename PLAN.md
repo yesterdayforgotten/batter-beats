@@ -231,6 +231,8 @@ These were not verified during planning. Test each one and tell the owner what y
 - Version number and update button are left for phase 4, with the offline work.
 - Tested in headless Chromium at phone size: tap/fade/switch/end states, on-deck skipping a benched player, wrap-around, reload.
 
+- Team colours (2026-10-12, owner's request): 15 presets in Edit team under the name (`TEAM_COLORS` in `shared/types.ts`; `rosters.color`, default "blue", set with `PATCH /api/rosters/:id {color}`). The colour replaces the app's blue on that team's game mode and Edit team screens (`src/teamColors.ts` sets `--accent`, `--accent-ink`, `--accent-soft` on a wrapper), and shows as a dot on the Teams list. Dark team colours (navy, maroon, forest, black) are brightened versions so they stand out on the near-black background; "Black & white" uses white.
+
 ### Phase 4 notes
 - Each team on the Teams screen has an "Offline" switch (per phone). Turning it on saves the roster (localStorage) and downloads its clips into Cache Storage `bb-clips`; the switch shows "3/12" while downloading and a tick when every clip is on the phone. Turning it off removes the roster and any clips no other kept team uses. Signing out clears everything kept.
 - `src/offline.ts` holds all of this, plus the lineup queue. Kept rosters are refreshed whenever the app opens or the connection returns; only clips the phone lacks are downloaded (clip names change on every re-cut).

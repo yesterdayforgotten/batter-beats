@@ -14,7 +14,7 @@ import {
   savedRoster,
   savedRosters,
 } from "../offline.ts";
-import type { Roster, RosterSummary } from "../../shared/types.ts";
+import { teamColor, type Roster, type RosterSummary } from "../../shared/types.ts";
 
 export function RostersPage() {
   const { user } = useAuth();
@@ -31,7 +31,7 @@ export function RostersPage() {
         // No connection: show the teams saved on this phone.
         setOffline(true);
         setRosters(
-          savedRosters().map((r) => ({ id: r.id, name: r.name, playerCount: r.players.length, updatedAt: r.updatedAt })),
+          savedRosters().map((r) => ({ id: r.id, name: r.name, color: r.color, playerCount: r.players.length, updatedAt: r.updatedAt })),
         );
       });
   }, []);
@@ -52,6 +52,7 @@ export function RostersPage() {
         {rosters?.map((r) => (
           <li key={r.id} className="list-item">
             <Link to={`/rosters/${r.id}`}>
+              <span className="team-dot" style={{ background: teamColor(r.color).accent }} aria-hidden />
               <span className="stack grow" style={{ gap: 4 }}>
                 <span className="roster-name truncate">{r.name}</span>
                 <span className="muted small">

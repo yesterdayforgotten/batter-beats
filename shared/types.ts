@@ -181,6 +181,8 @@ export const ANNOUNCER = {
 export interface RosterSummary {
   id: number;
   name: string;
+  /** One of TEAM_COLORS' ids. */
+  color: string;
   playerCount: number;
   updatedAt: string;
 }
@@ -188,6 +190,8 @@ export interface RosterSummary {
 export interface Roster {
   id: number;
   name: string;
+  /** One of TEAM_COLORS' ids. */
+  color: string;
   updatedAt: string;
   /** Announcer on for this team. */
   announce: boolean;
@@ -198,3 +202,32 @@ export interface Roster {
   announcerStyle: AnnouncerStyle;
   players: Player[];
 }
+
+/**
+ * Team colours, used in place of the app's blue on a team's screens. Each is
+ * tuned to stand out on the near-black background, so dark team colours
+ * (navy, maroon, forest, black) are brighter here than on a jersey. `ink` is
+ * the text on top of the colour.
+ */
+export const TEAM_COLORS = [
+  { id: "red", name: "Red", accent: "#ff4d4d", ink: "#2b0000" },
+  { id: "maroon", name: "Maroon", accent: "#d4506a", ink: "#2a0610" },
+  { id: "orange", name: "Orange", accent: "#ff8a2b", ink: "#2b1100" },
+  { id: "gold", name: "Gold", accent: "#f2b630", ink: "#2b1d00" },
+  { id: "yellow", name: "Yellow", accent: "#ffe04a", ink: "#2b2400" },
+  { id: "green", name: "Green", accent: "#36d46c", ink: "#00230c" },
+  { id: "forest", name: "Forest", accent: "#4caf74", ink: "#00200d" },
+  { id: "teal", name: "Teal", accent: "#22c7b8", ink: "#002622" },
+  { id: "sky", name: "Sky blue", accent: "#5cc8ff", ink: "#001f2e" },
+  { id: "blue", name: "Blue", accent: "#3d9bff", ink: "#00142b" },
+  { id: "navy", name: "Navy", accent: "#6b82ff", ink: "#000a2b" },
+  { id: "purple", name: "Purple", accent: "#a66bff", ink: "#170030" },
+  { id: "pink", name: "Pink", accent: "#ff6fae", ink: "#2b0014" },
+  { id: "silver", name: "Silver", accent: "#b9c2cf", ink: "#11161d" },
+  { id: "white", name: "Black & white", accent: "#f2f3f5", ink: "#111214" },
+] as const;
+
+export const DEFAULT_TEAM_COLOR = "blue";
+
+export const teamColor = (id: string | undefined) =>
+  TEAM_COLORS.find((c) => c.id === id) ?? TEAM_COLORS.find((c) => c.id === DEFAULT_TEAM_COLOR)!;

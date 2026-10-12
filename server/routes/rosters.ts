@@ -4,7 +4,7 @@ import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
 import { announcementPath, clipPath } from "../storage.ts";
 import { refreshAnnouncements, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
-import { ANNOUNCER } from "../../shared/types.ts";
+import { ANNOUNCER, TEAM_COLORS } from "../../shared/types.ts";
 import {
   getPlayer,
   getRoster,
@@ -83,8 +83,11 @@ rostersRouter.patch("/rosters/:id", editor, (req, res) => {
       ? roster.announceTemplate
       : text(req.body.announceTemplate, 200) || ANNOUNCER.defaultTemplate;
   if (!template.includes("{name}")) return res.status(400).json({ error: "The wording needs {name} where the name goes." });
-  db.prepare("UPDATE rosters SET name = ?, announce_enabled = ?, announce_template = ? WHERE id = ?").run(
+  const color = req.body?.color === undefined ? roster.color : String(req.body.color);
+  if (!TEAM_COLORS.some((c) => c.id === color)) return res.status(400).json({ error: "That isn't one of the team colours." });
+  db.prepare("UPDATE rosters SET name = ?, color = ?, announce_enabled = ?, announce_template = ? WHERE id = ?").run(
     name,
+    color,
     announce ? 1 : 0,
     template,
     id,

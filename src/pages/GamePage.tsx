@@ -9,6 +9,7 @@ import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
 import { changeLineup, onOfflineChange, savedRoster, saveIfKept, stuckChanges, withPendingChanges } from "../offline.ts";
 import { cameFromGame } from "../editReturn.ts";
+import { teamStyle } from "../teamColors.ts";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
 import { innings, loadPlaylist, onPlaylistChange } from "../playlist.ts";
 import type { Player, PlaylistSong, Roster } from "../../shared/types.ts";
@@ -236,7 +237,7 @@ export function GamePage() {
   }
 
   return (
-    <>
+    <div style={teamStyle(roster?.color)}>
       <PageHead
         back="/"
         onBack={editing ? () => setEditing(false) : undefined}
@@ -366,7 +367,7 @@ export function GamePage() {
       <footer style={{ marginTop: 28 }}>
         <AppVersion />
       </footer>
-    </>
+    </div>
   );
 }
 

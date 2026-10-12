@@ -115,6 +115,10 @@ const migrations: string[] = [
   ALTER TABLE rosters ADD COLUMN announcer_voices TEXT;
   ALTER TABLE rosters ADD COLUMN announcer_style TEXT;
   `,
+  `
+  -- Each team's colour, one of TEAM_COLORS' ids.
+  ALTER TABLE rosters ADD COLUMN color TEXT NOT NULL DEFAULT 'blue';
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */

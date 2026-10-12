@@ -6,7 +6,9 @@ import { ChevronIcon } from "../components/Icons.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { editBack } from "../editReturn.ts";
 import { AnnouncerSettings } from "../components/AnnouncerSettings.tsx";
-import type { AnnouncerStyle, Player, Roster } from "../../shared/types.ts";
+import { TEAM_COLORS, teamColor, type AnnouncerStyle, type Player, type Roster } from "../../shared/types.ts";
+import { teamStyle } from "../teamColors.ts";
+import { CheckIcon } from "../components/Icons.tsx";
 
 export function RosterEditPage() {
   const { id } = useParams();
@@ -38,6 +40,20 @@ export function RosterEditPage() {
     } catch (err) {
       setError((err as Error).message);
       setName(roster.name);
+    }
+  }
+
+  /** Changes the team colour at once (put back if the server refuses). */
+  async function saveColor(color: string) {
+    if (!roster || color === roster.color) return;
+    const before = roster;
+    setRoster({ ...roster, color });
+    try {
+      const r = await api<{ roster: Roster }>(`/rosters/${roster.id}`, { method: "PATCH", body: { color } });
+      setRoster(r.roster);
+    } catch (err) {
+      setRoster(before);
+      setError((err as Error).message);
     }
   }
 
@@ -89,7 +105,7 @@ export function RosterEditPage() {
   }
 
   return (
-    <>
+    <div style={teamStyle(roster?.color)}>
       <PageHead back={editBack(id)} eyebrow="Edit team" />
       {error && <p className="error">{error}</p>}
       {roster && (
@@ -105,6 +121,29 @@ export function RosterEditPage() {
               maxLength={80}
             />
           </label>
+
+          <div className="stack" style={{ gap: 8 }}>
+            <div className="row">
+              <span className="field-label grow">Team color</span>
+              <span className="small muted">{teamColor(roster.color).name}</span>
+            </div>
+            <div className="swatches" role="radiogroup" aria-label="Team color">
+              {TEAM_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  role="radio"
+                  aria-checked={roster.color === c.id}
+                  aria-label={c.name}
+                  title={c.name}
+                  className="swatch"
+                  style={{ background: c.accent, color: c.ink }}
+                  onClick={() => void saveColor(c.id)}
+                >
+                  {roster.color === c.id && <CheckIcon />}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="card stack">
             <div className="row">
@@ -218,7 +257,7 @@ export function RosterEditPage() {
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
