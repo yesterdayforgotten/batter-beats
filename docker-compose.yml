@@ -18,6 +18,9 @@ services:
       # Optional: Murf's paid cloud voices as a second engine, switchable under Admin.
       # Paste your Murf API key here (never commit it anywhere).
       # MURF_API_KEY: ""
+      # Optional: ElevenLabs' paid cloud voices as another engine (key needs the
+      # Text to Speech and Voices permissions).
+      # ELEVENLABS_API_KEY: ""
     volumes:
       # Everything the app stores: database, songs, clips. Updating the image never touches it.
       - batter-beats-data:/data

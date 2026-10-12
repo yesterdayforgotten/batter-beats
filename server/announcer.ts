@@ -91,6 +91,8 @@ export function cleanStyle(input: unknown): AnnouncerStyle {
     ),
     pace: round(clamp(num(s.pace, DEFAULT_STYLE.pace), 0, 1), 0.05),
     murfStyle: typeof s.murfStyle === "string" ? s.murfStyle.trim().slice(0, 40) : DEFAULT_STYLE.murfStyle,
+    elevenTag:
+      typeof s.elevenTag === "string" ? s.elevenTag.replace(/[[\]]/g, "").trim().slice(0, 40) : DEFAULT_STYLE.elevenTag,
   };
 }
 

@@ -33,8 +33,9 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
     try {
       voices = await listVoices();
     } catch (err) {
+      // Cloud engines explain themselves (wrong key, missing permission, no credit).
       error =
-        engine.id === "murf"
+        engine.id === "murf" || engine.id === "elevenlabs"
           ? (err as Error).message
           : "The announcer voice engine isn't reachable. If it was just started, it may still be loading.";
     }
@@ -105,5 +106,30 @@ announcerRouter.post("/announcer/voices", requireRole("admin"), upload.single("f
     res.status(502).json({ error: (err as Error).message });
   } finally {
     removeQuietly(req.file.path);
+  }
+});
+
+// Search an engine's shared voice library (ElevenLabs).
+announcerRouter.get("/announcer/library", requireRole("admin"), async (req, res) => {
+  const engine = activeEngine();
+  if (!engine?.searchLibrary) return res.status(400).json({ error: "This voice engine has no voice library." });
+  try {
+    res.json({ voices: await engine.searchLibrary(String(req.query.q ?? "").slice(0, 100)) });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+// Add a library voice to the account, so it can be used.
+announcerRouter.post("/announcer/library", requireRole("admin"), async (req, res) => {
+  const engine = activeEngine();
+  if (!engine?.addFromLibrary) return res.status(400).json({ error: "This voice engine has no voice library." });
+  const { ownerId, voiceId, name } = req.body ?? {};
+  if (typeof ownerId !== "string" || typeof voiceId !== "string") return res.status(400).json({ error: "Choose a voice." });
+  try {
+    await engine.addFromLibrary(ownerId, voiceId, String(name ?? "Library voice").slice(0, 60));
+    res.json({ voices: await listVoices() });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
   }
 });

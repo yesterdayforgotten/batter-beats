@@ -8,6 +8,7 @@ import {
   STYLE_LIMITS,
   type AnnouncerStyle,
   type AnnouncerVoice as Voice,
+  type LibraryVoice,
   type Energy,
   type VoiceEngine,
 } from "../../shared/types.ts";
@@ -129,6 +130,7 @@ function AnnouncerVoice() {
 
   const chatterbox = info?.engine === "chatterbox";
   const murf = info?.engine === "murf";
+  const eleven = info?.engine === "elevenlabs";
   const voices = info?.voices ?? [];
   // Kokoro and Murf have many voices: male ones first, since they suit a stadium announcer; the rest on request.
   // Murf styles differ per voice. The list offers every style; picking one the voice in use
@@ -139,7 +141,7 @@ function AnnouncerVoice() {
   const styleMissing = !!styleFilter && !(currentVoice?.styles ?? []).includes(styleFilter);
   const withStyle = styleFilter ? voices.filter((v) => v.styles?.includes(styleFilter)) : voices;
   const shown =
-    chatterbox || showAll || styleFilter
+    chatterbox || eleven || showAll || styleFilter
       ? withStyle
       : voices.filter((v) => /(^|· )male( ·|$)/.test(v.detail) || v.id === info?.voice);
   const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
@@ -210,6 +212,49 @@ function AnnouncerVoice() {
                   ))}
                 </select>
               </div>
+            )}
+            {eleven && (
+              <>
+                <div className="editor-row">
+                  <span className="label">Cue</span>
+                  <select
+                    className="grow"
+                    value={ELEVEN_CUES.includes(style.elevenTag) ? style.elevenTag : "custom"}
+                    onChange={(e) => change({ elevenTag: e.target.value === "custom" ? "" : e.target.value })}
+                    aria-label="Delivery cue"
+                  >
+                    {ELEVEN_CUES.map((c) => (
+                      <option key={c} value={c}>
+                        {c ? `[${c}]` : "None"}
+                      </option>
+                    ))}
+                    <option value="custom">Your own…</option>
+                  </select>
+                </div>
+                {!ELEVEN_CUES.includes(style.elevenTag) && (
+                  <div className="editor-row">
+                    <span className="label">Your cue</span>
+                    <input
+                      className="grow"
+                      value={style.elevenTag}
+                      onChange={(e) => change({ elevenTag: e.target.value })}
+                      placeholder="e.g. stadium announcer, booming"
+                      maxLength={40}
+                      aria-label="Your own delivery cue"
+                    />
+                  </div>
+                )}
+                <Slider
+                  label="Range"
+                  aria="Emotional range"
+                  min={STYLE_LIMITS.minExcitement}
+                  max={STYLE_LIMITS.maxExcitement}
+                  step={0.05}
+                  value={style.excitement}
+                  show={style.excitement >= 1.4 ? "Wild" : style.excitement >= 0.75 ? "Natural" : "Steady"}
+                  onChange={(v) => change({ excitement: v })}
+                />
+              </>
             )}
             {chatterbox && (
               <>
@@ -283,6 +328,8 @@ function AnnouncerVoice() {
               ? "Excite is the voice engine's emotion dial: higher sounds more dramatic. For a big stadium read, try Excite above 1 with a slow Pace. "
               : murf
                 ? "Style changes the voice's delivery; each Murf voice has its own styles (Promo is a good start for announcing). Energy changes the punctuation it reads. "
+                : eleven
+                  ? "Cue tells the voice how to deliver the line, like an actor's direction; you can write your own. Range sets how much emotion it allows: Wild is the most expressive. "
                 : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
             Reverb adds the echo of a big space; Space sets how big. Listen to try a mix; the Listen buttons below use it
             too.
@@ -341,7 +388,102 @@ function AnnouncerVoice() {
         </button>
       )}
       {info?.canAddVoices && <AddVoice onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
+      {eleven && <VoiceLibrary onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
     </>
+  );
+}
+
+/** Delivery cues offered for ElevenLabs (written as [cue] before the announcement). */
+const ELEVEN_CUES = ["", "excited", "enthusiastic", "shouting", "energetic", "sports announcer", "dramatic"];
+
+/** Search ElevenLabs' shared library and add voices to the account. Previews are free; adding costs nothing. */
+function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
+  const [query, setQuery] = useState("sports announcer");
+  const [results, setResults] = useState<LibraryVoice[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]);
+  const preview = useRef<HTMLAudioElement | null>(null);
+
+  async function search() {
+    setBusy(true);
+    setError(null);
+    try {
+      setResults((await api<{ voices: LibraryVoice[] }>(`/announcer/library?q=${encodeURIComponent(query)}`)).voices);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function play(url: string) {
+    preview.current?.pause();
+    preview.current = new Audio(url);
+    void preview.current.play().catch(() => setError("The preview didn't play."));
+  }
+
+  async function add(v: LibraryVoice) {
+    setError(null);
+    try {
+      const r = await api<{ voices: Voice[] }>("/announcer/library", {
+        method: "POST",
+        body: { ownerId: v.ownerId, voiceId: v.id, name: v.name },
+      });
+      setAdded((a) => [...a, v.id]);
+      onAdded(r.voices);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="card stack" style={{ marginTop: 10 }}>
+      <span style={{ fontWeight: 800 }}>Find more voices</span>
+      <p className="muted small" style={{ margin: 0 }}>
+        Search ElevenLabs' library of voices people have shared. Preview is free; Add puts the voice in the list above.
+      </p>
+      <div className="row">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void search()}
+          placeholder="e.g. sports announcer, deep male"
+          aria-label="Search the voice library"
+        />
+        <button className="small-button" onClick={search} disabled={busy} style={{ minHeight: 48 }}>
+          {busy ? "…" : "Search"}
+        </button>
+      </div>
+      {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+      {results?.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing found. Try other words.</p>}
+      <ul className="list">
+        {results?.map((v) => (
+          <li key={v.id} className="list-item">
+            <div className="player-row">
+              <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
+                <span className="player-name truncate">{v.name}</span>
+                <span className="muted small truncate">{v.detail}</span>
+              </span>
+              {v.previewUrl && (
+                <button className="small-button" onClick={() => play(v.previewUrl!)}>
+                  Preview
+                </button>
+              )}
+              {added.includes(v.id) ? (
+                <span className="muted small">
+                  <CheckIcon /> Added
+                </span>
+              ) : (
+                <button className="small-button primary" onClick={() => add(v)}>
+                  Add
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

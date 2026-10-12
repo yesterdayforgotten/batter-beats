@@ -5,13 +5,14 @@
 // - Kokoro (Kokoro-FastAPI): light, runs on any CPU, fixed voices, no emotion control.
 // - Chatterbox (chatterbox-tts-api): an emotion ("exaggeration") dial and voices
 //   cloned from a short recording; wants a graphics card, works slowly without one.
-// Cloud, when MURF_API_KEY is set:
-// - Murf: paid professional voices with speaking styles (Promo, Newscast, …).
-//   Announcements are made once and stored, so the cost is tiny.
+// Cloud, when their keys are set (announcements are made once and stored, so the cost is tiny):
+// - Murf (MURF_API_KEY): professional voices with speaking styles (Promo, Newscast, …).
+// - ElevenLabs (ELEVENLABS_API_KEY): very natural voices, a large shared voice
+//   library, and delivery cues like [excited] written into the text (Eleven v3).
 
 import fs from "node:fs";
 import { config } from "./config.ts";
-import type { AnnouncerStyle, AnnouncerVoice, VoiceEngine } from "../shared/types.ts";
+import type { AnnouncerStyle, AnnouncerVoice, LibraryVoice, VoiceEngine } from "../shared/types.ts";
 
 export interface Engine {
   id: VoiceEngine;
@@ -25,6 +26,9 @@ export interface Engine {
   speak(text: string, voice: string, style: AnnouncerStyle): Promise<Buffer>;
   voices(): Promise<AnnouncerVoice[]>;
   addVoice(name: string, file: string, fileName: string): Promise<void>;
+  /** Searching and adding voices from the engine's shared library (ElevenLabs). */
+  searchLibrary?(query: string): Promise<LibraryVoice[]>;
+  addFromLibrary?(ownerId: string, voiceId: string, name: string): Promise<void>;
 }
 
 const UNREACHABLE = "The announcer voice engine isn't reachable.";
@@ -205,8 +209,110 @@ const murf: Engine = {
   },
 };
 
-/** The engines this server can use: the self-hosted one (if TTS_URL is set) and Murf (if its key is set). */
+// ── ElevenLabs (cloud) ───────────────────────────────────────────────────
+
+const elevenCall = (path: string, init: RequestInit, timeoutMs: number) =>
+  call(
+    path,
+    { ...init, headers: { ...(init.headers ?? {}), "xi-api-key": config.elevenLabsApiKey } },
+    timeoutMs,
+    config.elevenLabsUrl,
+  ).catch((err: Error) => {
+    const missing = /missing the permission (\w+)/.exec(err.message)?.[1];
+    if (missing) {
+      const what = missing.startsWith("voices") ? "Voices (read and write)" : missing;
+      throw new Error(`The ElevenLabs key needs the "${what}" permission. Edit the key on elevenlabs.io and switch it on.`);
+    }
+    if (/\((401|403)\)/.test(err.message)) throw new Error("ElevenLabs refused the API key. Check ELEVENLABS_API_KEY.");
+    if (/quota|credits/i.test(err.message)) throw new Error("The ElevenLabs account is out of credits for this month.");
+    throw new Error(err.message.replace("The announcer voice engine", "ElevenLabs"));
+  });
+
+interface ElevenVoice {
+  voice_id: string;
+  name: string;
+  category?: string;
+  labels?: Record<string, string>;
+  preview_url?: string;
+}
+
+/** "male · american · middle aged · deep" from a voice's labels. */
+const elevenDetail = (labels: Record<string, string | undefined>) =>
+  [labels.gender, labels.accent, labels.age?.replace(/_/g, " "), labels.descriptive ?? labels.description, labels.use_case ?? labels["use case"]]
+    .filter(Boolean)
+    .join(" · ");
+
+/**
+ * Eleven v3's "stability" has three settings: 0 Creative (widest emotional
+ * range), 0.5 Natural, 1 Robust (steady). Our Excite slider picks one.
+ */
+const elevenStability = (excitement: number) => (excitement >= 1.4 ? 0 : excitement >= 0.75 ? 0.5 : 1);
+
+const elevenlabs: Engine = {
+  id: "elevenlabs",
+  label: "ElevenLabs",
+  // "Brian", one of ElevenLabs' own voices: deep, American, male.
+  defaultVoice: "nPczCjzI2devNBz1zQrb",
+  nativeSpeed: false,
+  canAddVoices: false,
+  async speak(text, voice, style) {
+    const cue = style.elevenTag.trim().replace(/^\[|\]$/g, "");
+    const res = await elevenCall(
+      `/v1/text-to-speech/${encodeURIComponent(voice || this.defaultVoice)}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: cue ? `[${cue}] ${text}` : text,
+          model_id: "eleven_v3",
+          voice_settings: { stability: elevenStability(style.excitement) },
+        }),
+      },
+      60_000,
+    );
+    return Buffer.from(await res.arrayBuffer());
+  },
+  async voices() {
+    const data = (await (await elevenCall("/v2/voices?page_size=100", {}, 15_000)).json()) as { voices?: ElevenVoice[] };
+    return (data.voices ?? [])
+      .map((v) => ({
+        id: v.voice_id,
+        name: v.name.split(" - ")[0],
+        detail: elevenDetail(v.labels ?? {}) || (v.category === "premade" ? "ElevenLabs voice" : "Added to your account"),
+        previewUrl: v.preview_url,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+  async addVoice() {
+    throw new Error("Add ElevenLabs voices from its library instead.");
+  },
+  async searchLibrary(query) {
+    const params = new URLSearchParams({ page_size: "30", language: "en", sort: "cloned_by_count" });
+    if (query.trim()) params.set("search", query.trim());
+    const data = (await (await elevenCall(`/v1/shared-voices?${params}`, {}, 15_000)).json()) as {
+      voices?: (ElevenVoice & { public_owner_id: string; gender?: string; age?: string; accent?: string; descriptive?: string; use_case?: string; cloned_by_count?: number })[];
+    };
+    return (data.voices ?? []).map((v) => ({
+      id: v.voice_id,
+      ownerId: v.public_owner_id,
+      name: v.name.split(" - ")[0],
+      detail: elevenDetail({ gender: v.gender, accent: v.accent, age: v.age, descriptive: v.descriptive, use_case: v.use_case }),
+      previewUrl: v.preview_url,
+      uses: v.cloned_by_count ?? 0,
+    }));
+  },
+  async addFromLibrary(ownerId, voiceId, name) {
+    await elevenCall(
+      `/v1/voices/add/${encodeURIComponent(ownerId)}/${encodeURIComponent(voiceId)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_name: name }) },
+      30_000,
+    );
+  },
+};
+
+/** The engines this server can use: the self-hosted one (if TTS_URL is set) and the cloud ones whose keys are set. */
 export const engines: Engine[] = [
   ...(config.ttsUrl ? [config.ttsEngine === "chatterbox" ? chatterbox : kokoro] : []),
   ...(config.murfApiKey ? [murf] : []),
+  ...(config.elevenLabsApiKey ? [elevenlabs] : []),
 ];

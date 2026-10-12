@@ -111,6 +111,8 @@ export interface AnnouncerStyle {
   pace: number;
   /** Murf only: the voice's speaking style, e.g. "Promo" ("" = the voice's default). */
   murfStyle: string;
+  /** ElevenLabs only: a delivery cue the voice acts out, e.g. "excited" (written as [excited] before the text). */
+  elevenTag: string;
 }
 export const DEFAULT_STYLE: AnnouncerStyle = {
   speed: 1,
@@ -121,6 +123,7 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   excitement: 1,
   pace: 0.3,
   murfStyle: "",
+  elevenTag: "excited",
 };
 export const STYLE_LIMITS = {
   minSpeed: 0.8,
@@ -131,7 +134,7 @@ export const STYLE_LIMITS = {
 } as const;
 
 /** The voice engines the announcer can use: a self-hosted one (TTS_ENGINE) and/or Murf (MURF_API_KEY). */
-export type VoiceEngine = "kokoro" | "chatterbox" | "murf";
+export type VoiceEngine = "kokoro" | "chatterbox" | "murf" | "elevenlabs";
 
 export interface AnnouncerVoice {
   id: string;
@@ -139,6 +142,14 @@ export interface AnnouncerVoice {
   detail: string;
   /** Speaking styles the voice offers (Murf). */
   styles?: string[];
+  /** A short sample to hear the voice without spending credit (ElevenLabs library). */
+  previewUrl?: string;
+}
+
+/** A voice found in an engine's shared library, not yet added to the account (ElevenLabs). */
+export interface LibraryVoice extends AnnouncerVoice {
+  ownerId: string;
+  uses: number;
 }
 
 export const ANNOUNCER = {

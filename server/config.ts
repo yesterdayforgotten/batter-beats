@@ -19,6 +19,9 @@ export const config = {
   /** Murf (paid cloud voices). Set the key to offer Murf as an announcer engine. */
   murfApiKey: env.MURF_API_KEY || "",
   murfUrl: (env.MURF_URL || "https://api.murf.ai").replace(/\/+$/, ""),
+  /** ElevenLabs (paid cloud voices). Set the key to offer ElevenLabs as an announcer engine. */
+  elevenLabsApiKey: env.ELEVENLABS_API_KEY || "",
+  elevenLabsUrl: (env.ELEVENLABS_URL || "https://api.elevenlabs.io").replace(/\/+$/, ""),
   /** Where the self-hosted voice engine is. Empty turns it off. */
   ttsUrl: (env.TTS_URL ?? (env.TTS_ENGINE === "chatterbox" ? "http://chatterbox:4123" : "http://kokoro:8880")).replace(/\/+$/, ""),
   trustProxy: env.TRUST_PROXY || "loopback, linklocal, uniquelocal",
