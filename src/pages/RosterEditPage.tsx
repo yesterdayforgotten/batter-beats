@@ -14,6 +14,8 @@ export function RosterEditPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState(false);
+  /** The Announcer section starts closed; its header opens it. */
+  const [announcerOpen, setAnnouncerOpen] = useState(false);
   const [template, setTemplate] = useState("");
 
   useEffect(() => {
@@ -105,7 +107,16 @@ export function RosterEditPage() {
 
           <div className="card stack">
             <div className="row">
-              <span className="section-title grow">Announcer</span>
+              <button
+                className="section-toggle grow"
+                aria-expanded={announcerOpen}
+                onClick={() => setAnnouncerOpen((o) => !o)}
+              >
+                <span className={`toggle-chevron${announcerOpen ? " open" : ""}`} aria-hidden>
+                  <ChevronIcon />
+                </span>
+                <span className="section-title">Announcer</span>
+              </button>
               <button
                 role="switch"
                 aria-checked={roster.announce}
@@ -118,7 +129,12 @@ export function RosterEditPage() {
                 </span>
               </button>
             </div>
-            {roster.announce && (
+            {!announcerOpen && roster.announce && (
+              <button className="section-summary truncate" onClick={() => setAnnouncerOpen(true)}>
+                {template || roster.announceTemplate}
+              </button>
+            )}
+            {announcerOpen && roster.announce && (
               <>
                 <label>
                   What it says

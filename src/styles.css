@@ -1213,3 +1213,43 @@ label {
   border-radius: 16px;
   font-size: 13px;
 }
+
+/* A section header that opens and closes its section */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.toggle-chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 150ms;
+}
+.toggle-chevron.open {
+  transform: rotate(90deg);
+}
+.section-summary {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0 0 2px 26px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 13px;
+  text-align: left;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toggle-chevron {
+    transition: none;
+  }
+}
