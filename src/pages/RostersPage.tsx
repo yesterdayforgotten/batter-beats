@@ -52,9 +52,10 @@ export function RostersPage() {
         {rosters?.map((r) => (
           <li key={r.id} className="list-item">
             <Link to={`/rosters/${r.id}`}>
-              <span className="team-dot" style={{ background: teamColor(r.color).accent }} aria-hidden />
               <span className="stack grow" style={{ gap: 4 }}>
-                <span className="roster-name truncate">{r.name}</span>
+                <span className="roster-name truncate" style={{ color: teamColor(r.color).accent }}>
+                  {r.name}
+                </span>
                 <span className="muted small">
                   {r.playerCount} {r.playerCount === 1 ? "player" : "players"}
                 </span>
