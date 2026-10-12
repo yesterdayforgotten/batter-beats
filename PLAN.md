@@ -282,7 +282,7 @@ These were not verified during planning. Test each one and tell the owner what y
 
 ### UI review (2026-10-12)
 Owner-approved conventions from a full review at iPhone 6s size:
-- Navigation: the app bar (icon + name → Teams, ☰ menu) is on every screen. Screens whose way back is just Teams have no back arrow (game mode, Playlists, Music, Admin). Edit screens (Edit team, Edit player, a playlist for editors) have **Done** at the top right instead of a back arrow, returning where you came from; edits save as you go. Screens you browse into keep a back arrow (Users → Admin, a playlist for regular users → Playlists). On Edit team, tapping the team name opens its game mode.
+- Navigation: the app bar (icon + name → Teams, ☰ menu) is on every screen. Screens whose way back is just Teams have no back arrow (game mode, Playlists, Music, Admin). Edit screens (Edit team, Edit player, a playlist for editors) have **Done** at the top right instead of a back arrow, returning where you came from (a playlist opened from game mode returns to game mode, on the Jukebox tab); edits save as you go. Screens you browse into keep a back arrow (Users → Admin, a playlist for regular users → Playlists). On Edit team, tapping the team name opens its game mode.
 - Headers show what you're on: "EDIT TEAM / WAVES", "EDIT PLAYER / #1 AVA", "PLAYLIST / WARM-UP", "GAME MODE / WAVES".
 - Player editor: song and clip first, then the announcer; "Delete player" (matching Delete team / Delete song); team colour.
 - Edit team shows only the current voice (Listen, Change voice); the voice list with filters opens in a sheet.

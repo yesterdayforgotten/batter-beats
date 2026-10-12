@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
@@ -115,6 +115,8 @@ export function PlaylistsPage() {
 /** One playlist: its songs in order (editors add, remove, reorder and rename), and keeping it on this phone. */
 export function PlaylistEditPage() {
   const { id } = useParams();
+  // Opened from somewhere else (game mode's ✎): Done and Back return there.
+  const from = (useLocation().state as { from?: string } | null)?.from ?? "/playlists";
   const { user } = useAuth();
   const editor = hasRole(user, "editor");
   const navigate = useNavigate();
@@ -171,8 +173,8 @@ export function PlaylistEditPage() {
   return (
     <>
       <PageHead
-        back={canEdit ? undefined : "/playlists"}
-        done={canEdit ? "/playlists" : undefined}
+        back={canEdit ? undefined : from}
+        done={canEdit ? from : undefined}
         eyebrow="Playlist" title={playlist ? <div className="display truncate" style={{ fontSize: 30 }}>{playlist.name}</div> : undefined} />
       {offline && <p className="notice">No connection. Showing the playlist as last saved on this phone.</p>}
       {error && (

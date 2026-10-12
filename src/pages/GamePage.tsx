@@ -307,7 +307,12 @@ export function GamePage() {
                   </Link>
                 )}
                 {tab === "jukebox" && hasRole(user, "editor") && playlist && !fromPhone && (
-                  <Link to={`/playlists/${playlist.id}`} className="head-icon" aria-label="Edit playlist">
+                  <Link
+                    to={`/playlists/${playlist.id}`}
+                    state={{ from: location.pathname }}
+                    className="head-icon"
+                    aria-label="Edit playlist"
+                  >
                     <EditIcon />
                   </Link>
                 )}
