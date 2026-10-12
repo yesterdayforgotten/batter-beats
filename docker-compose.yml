@@ -29,6 +29,9 @@ services:
     restart: unless-stopped
     environment:
       DEVICE: cpu
+      # The original English model. The default multilingual one failed to
+      # speak on a CPU ("TTS generation failed" for every request).
+      USE_MULTILINGUAL_MODEL: "false"
     volumes:
       - chatterbox-models:/cache
       - chatterbox-voices:/voices
