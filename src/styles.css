@@ -606,6 +606,12 @@ label,
 .eq span:nth-child(4) {
   animation-delay: -0.15s;
 }
+/* Moving with the real sound (set from code), so no canned bounce */
+.eq.live span {
+  animation: none;
+  transform: scaleY(0.12);
+  transition: transform 70ms linear;
+}
 
 /* Bottom sheet (song picker) */
 .sheet-backdrop {

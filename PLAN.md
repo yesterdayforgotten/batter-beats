@@ -280,6 +280,9 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
+### Sound bars (2026-10-12)
+The "playing now" bars (walkup status line, jukebox song list, previews) follow the real sound: every sound goes through one output (`output()` in `src/audio/engine.ts`) with an AnalyserNode tap, and `SoundBars` reads it each frame, bass on the left to treble on the right. A canned bounce is the fallback; reduced-motion keeps them still.
+
 ### UI review (2026-10-12)
 Owner-approved conventions from a full review at iPhone 6s size:
 - Navigation: the app bar (icon + name → Teams, ☰ menu) is on every screen. Screens whose way back is just Teams have no back arrow (game mode, Playlists, Music, Admin). Edit screens (Edit team, Edit player, a playlist for editors) have **Done** at the top right instead of a back arrow, returning where you came from (a playlist opened from game mode returns to game mode, on the Jukebox tab); edits save as you go. Screens you browse into keep a back arrow (Users → Admin, a playlist for regular users → Playlists). On Edit team, tapping the team name opens its game mode.

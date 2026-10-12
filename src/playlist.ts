@@ -10,7 +10,7 @@
 // A phone can keep any playlist's songs for offline use (cache "bb-songs").
 
 import { api, isNetworkError } from "./api.ts";
-import { context, FADE_CURVE } from "./audio/engine.ts";
+import { context, FADE_CURVE, output } from "./audio/engine.ts";
 import type { Playlist, PlaylistSong } from "../shared/types.ts";
 
 export const SONG_CACHE = "bb-songs";
@@ -237,7 +237,7 @@ class Jukebox {
     this.gain = c.createGain();
     const source = c.createMediaElementSource(this.audio);
     source.connect(this.gain);
-    this.gain.connect(c.destination);
+    this.gain.connect(output());
     this.audio.addEventListener("ended", () => void this.next());
     this.audio.addEventListener("error", () => {
       if (this.state.status === "playing" || this.state.status === "loading") void this.next(true);

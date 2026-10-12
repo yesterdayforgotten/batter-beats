@@ -41,6 +41,30 @@ export function context(): AudioContext {
   return ctx;
 }
 
+let out: { input: GainNode; analyser: AnalyserNode } | null = null;
+
+/**
+ * Where every sound (walkups, announcements, the jukebox) goes on its way to
+ * the speakers. A tap on it measures what's playing, for the sound bars.
+ */
+export function output(): AudioNode {
+  const c = context();
+  if (!out) {
+    const input = c.createGain();
+    const analyser = c.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.55;
+    // Connected one by one: chained connect() calls are not reliable on iOS 15.
+    input.connect(analyser);
+    analyser.connect(c.destination);
+    out = { input, analyser };
+  }
+  return out.input;
+}
+
+/** The measuring tap on the output, once any sound has been set up. */
+export const outputAnalyser = (): AnalyserNode | null => out?.analyser ?? null;
+
 const isIOS = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
@@ -167,7 +191,7 @@ export class Playback {
   ) {
     const c = context();
     this.stopFader = c.createGain();
-    this.stopFader.connect(c.destination);
+    this.stopFader.connect(output());
     const now = c.currentTime + 0.02;
     const voiceEnd = voice ? now + voice.buffer.duration : now;
 

@@ -1,4 +1,6 @@
 // Simple stroke icons, sized by the surrounding text.
+import { useEffect, useRef } from "react";
+import { outputAnalyser } from "../audio/engine.ts";
 const common = {
   width: 22,
   height: 22,
@@ -58,14 +60,51 @@ export const ChevronIcon = () => (
   </svg>
 );
 
-export const SoundBars = () => (
-  <span className="eq" aria-hidden>
-    <span />
-    <span />
-    <span />
-    <span />
-  </span>
-);
+/** Per-bar frequency ranges (FFT bins of ~180 Hz, low to high) and how much to lift each (treble is quieter). */
+const BANDS: [number, number, number][] = [
+  [0, 2, 0.85],
+  [2, 6, 0.95],
+  [6, 16, 1.25],
+  [16, 48, 1.6],
+];
+
+/**
+ * "Playing now" bars that move with the actual sound, like a visualizer: bass
+ * on the left, treble on the right. Falls back to a gentle canned bounce if
+ * the sound can't be measured, and stays still for people who reduce motion.
+ */
+export function SoundBars() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const analyser = outputAnalyser();
+    const el = ref.current;
+    if (!analyser || !el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.classList.add("live");
+    const bars = [...el.children] as HTMLElement[];
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let frame = 0;
+    const tick = () => {
+      analyser.getByteFrequencyData(data);
+      BANDS.forEach(([from, to, lift], i) => {
+        let peak = 0;
+        for (let k = from; k < to; k++) peak = Math.max(peak, data[k]);
+        const level = Math.min(1, ((peak / 255) * lift) ** 1.6);
+        bars[i].style.transform = `scaleY(${Math.max(0.12, level).toFixed(3)})`;
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <span className="eq" aria-hidden ref={ref}>
+      <span />
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
 
 export const GripIcon = () => (
   <svg {...common}>
