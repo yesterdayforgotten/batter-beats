@@ -1,10 +1,13 @@
-// The voice engines the announcer can use. Each runs in its own container and
-// is reached at TTS_URL; TTS_ENGINE says which kind it is. Everything engine-
-// specific lives here, so swapping engines is a configuration change.
+// The voice engines the announcer can use. Everything engine-specific lives
+// here, so adding or swapping engines doesn't touch the rest of the app.
 //
+// Self-hosted, in its own container at TTS_URL (TTS_ENGINE says which kind):
 // - Kokoro (Kokoro-FastAPI): light, runs on any CPU, fixed voices, no emotion control.
 // - Chatterbox (chatterbox-tts-api): an emotion ("exaggeration") dial and voices
 //   cloned from a short recording; wants a graphics card, works slowly without one.
+// Cloud, when MURF_API_KEY is set:
+// - Murf: paid professional voices with speaking styles (Promo, Newscast, …).
+//   Announcements are made once and stored, so the cost is tiny.
 
 import fs from "node:fs";
 import { config } from "./config.ts";
@@ -12,6 +15,7 @@ import type { AnnouncerStyle, AnnouncerVoice, VoiceEngine } from "../shared/type
 
 export interface Engine {
   id: VoiceEngine;
+  label: string;
   defaultVoice: string;
   /** True when the engine changes speed itself; otherwise it's done afterwards with ffmpeg. */
   nativeSpeed: boolean;
@@ -25,10 +29,10 @@ export interface Engine {
 
 const UNREACHABLE = "The announcer voice engine isn't reachable.";
 
-async function call(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function call(path: string, init: RequestInit, timeoutMs: number, base = config.ttsUrl): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`${config.ttsUrl}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    res = await fetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     if ((err as Error).name === "TimeoutError") throw new Error("The announcer voice engine took too long to answer.");
     throw new Error(UNREACHABLE);
@@ -52,6 +56,7 @@ function describeKokoro(id: string): AnnouncerVoice | null {
 
 const kokoro: Engine = {
   id: "kokoro",
+  label: "Kokoro",
   defaultVoice: "am_michael",
   nativeSpeed: true,
   canAddVoices: false,
@@ -86,6 +91,7 @@ const CHATTERBOX_DEFAULT = "";
 
 const chatterbox: Engine = {
   id: "chatterbox",
+  label: "Chatterbox",
   defaultVoice: CHATTERBOX_DEFAULT,
   nativeSpeed: false,
   canAddVoices: true,
@@ -123,4 +129,84 @@ const chatterbox: Engine = {
   },
 };
 
-export const engine: Engine = config.ttsEngine === "chatterbox" ? chatterbox : kokoro;
+// ── Murf (cloud) ─────────────────────────────────────────────────────────
+
+interface MurfVoice {
+  voiceId?: string;
+  displayName?: string;
+  gender?: string;
+  locale?: string;
+  description?: string;
+  supportedLocales?: Record<string, { availableStyles?: string[]; detail?: string }>;
+  availableStyles?: string[];
+}
+
+const murfCall = (path: string, init: RequestInit, timeoutMs: number) =>
+  call(path, { ...init, headers: { ...(init.headers ?? {}), "api-key": config.murfApiKey } }, timeoutMs, config.murfUrl).catch(
+    (err: Error) => {
+      if (/\((401|403)\)/.test(err.message)) throw new Error("Murf refused the API key. Check MURF_API_KEY.");
+      if (/\(402\)/.test(err.message)) throw new Error("The Murf account is out of credit.");
+      throw new Error(err.message.replace("The announcer voice engine", "Murf"));
+    },
+  );
+
+let murfVoiceCache: { at: number; voices: AnnouncerVoice[] } | null = null;
+
+const murf: Engine = {
+  id: "murf",
+  label: "Murf",
+  defaultVoice: "en-US-ken",
+  nativeSpeed: true,
+  canAddVoices: false,
+  async speak(text, voice, style) {
+    const body: Record<string, unknown> = {
+      text,
+      voiceId: voice || this.defaultVoice,
+      // Murf's rate is −50…50 around normal; our speed 1.2 means 20% faster.
+      rate: Math.max(-50, Math.min(50, Math.round((style.speed - 1) * 100))),
+      format: "MP3",
+      sampleRate: 44100,
+      channelType: "MONO",
+      // Return the audio itself, so Murf keeps no copy.
+      encodeAsBase64: true,
+      modelVersion: "GEN2",
+    };
+    // Styles differ per voice; only ask for one this voice has (after switching voices, the saved one may not exist).
+    const styles = (await this.voices().catch(() => [])).find((v) => v.id === body.voiceId)?.styles ?? [];
+    if (style.murfStyle && styles.includes(style.murfStyle)) body.style = style.murfStyle;
+    const res = await murfCall(
+      "/v1/speech/generate",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      60_000,
+    );
+    const data = (await res.json()) as { encodedAudio?: string; audioFile?: string };
+    if (data.encodedAudio) return Buffer.from(data.encodedAudio, "base64");
+    if (data.audioFile) return Buffer.from(await (await fetch(data.audioFile)).arrayBuffer());
+    throw new Error("Murf sent no audio.");
+  },
+  async voices() {
+    // The list rarely changes; ask at most once an hour.
+    if (murfVoiceCache && Date.now() - murfVoiceCache.at < 3_600_000) return murfVoiceCache.voices;
+    const list = (await (await murfCall("/v1/speech/voices", {}, 15_000)).json()) as MurfVoice[];
+    const voices = list
+      .filter((v) => v.voiceId && (v.locale ?? "").startsWith("en"))
+      .map((v) => ({
+        id: v.voiceId!,
+        name: (v.displayName ?? v.voiceId!).replace(/\s*\([MF]\)$/, ""),
+        detail: [v.locale, v.gender?.toLowerCase(), v.description].filter(Boolean).join(" · "),
+        styles: v.supportedLocales?.[v.locale ?? ""]?.availableStyles ?? v.availableStyles ?? [],
+      }))
+      .sort((a, b) => a.detail.localeCompare(b.detail) || a.name.localeCompare(b.name));
+    murfVoiceCache = { at: Date.now(), voices };
+    return voices;
+  },
+  async addVoice() {
+    throw new Error("Voices can't be added to Murf from here.");
+  },
+};
+
+/** The engines this server can use: the self-hosted one (if TTS_URL is set) and Murf (if its key is set). */
+export const engines: Engine[] = [
+  ...(config.ttsUrl ? [config.ttsEngine === "chatterbox" ? chatterbox : kokoro] : []),
+  ...(config.murfApiKey ? [murf] : []),
+];

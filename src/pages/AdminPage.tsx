@@ -13,7 +13,8 @@ import {
 } from "../../shared/types.ts";
 
 interface AnnouncerInfo {
-  engine: VoiceEngine;
+  engine: VoiceEngine | null;
+  engines: { id: VoiceEngine; label: string }[];
   canAddVoices: boolean;
   voice: string;
   style: AnnouncerStyle;
@@ -54,14 +55,29 @@ function AnnouncerVoice() {
   const [savedNote, setSavedNote] = useState(false);
   const current = useRef<Playback | null>(null);
 
-  useEffect(() => {
+  const load = () =>
     api<AnnouncerInfo>("/announcer")
       .then((r) => {
         setInfo(r);
         setStyle(r.style);
       })
       .catch((err) => setError(err.message));
+
+  useEffect(() => {
+    void load();
   }, []);
+
+  async function switchEngine(id: VoiceEngine) {
+    if (id === info?.engine) return;
+    setError(null);
+    setInfo((i) => i && { ...i, engine: id, voices: [], error: null });
+    try {
+      await api("/announcer/engine", { method: "PUT", body: { engine: id } });
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
 
   const styleChanged = !!info && JSON.stringify(style) !== JSON.stringify(info.style);
   const change = (c: Partial<AnnouncerStyle>) => {
@@ -112,10 +128,12 @@ function AnnouncerVoice() {
   }
 
   const chatterbox = info?.engine === "chatterbox";
+  const murf = info?.engine === "murf";
   const voices = info?.voices ?? [];
-  // Kokoro has many voices: male ones first, since they suit a stadium announcer; the rest on request.
+  // Kokoro and Murf have many voices: male ones first, since they suit a stadium announcer; the rest on request.
   const shown =
-    chatterbox || showAll ? voices : voices.filter((v) => v.detail.endsWith("· male") || v.id === info?.voice);
+    chatterbox || showAll ? voices : voices.filter((v) => /(^|· )male( ·|$)/.test(v.detail) || v.id === info?.voice);
+  const voiceStyles = voices.find((v) => v.id === info?.voice)?.styles ?? [];
   const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
 
   return (
@@ -127,6 +145,21 @@ function AnnouncerVoice() {
         Listen to "Now batting, number 12, Alex Rivera" in each voice. Choosing a voice or delivery remakes every
         announcement in the background.{slow}
       </p>
+      {info && info.engines.length > 1 && (
+        <div className="segmented" role="radiogroup" aria-label="Voice engine" style={{ marginBottom: 10 }}>
+          {info.engines.map((e) => (
+            <button
+              key={e.id}
+              role="radio"
+              aria-checked={info.engine === e.id}
+              className={info.engine === e.id ? "on" : ""}
+              onClick={() => switchEngine(e.id)}
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
+      )}
       {(error || info?.error) && <p className="error">{error ?? info?.error}</p>}
       {!info && !error && <p className="muted">Loading…</p>}
       {info && !info.error && (
@@ -151,6 +184,24 @@ function AnnouncerVoice() {
             ))}
           </div>
           <div className="editor-rows" style={{ padding: 0 }}>
+            {murf && (
+              <div className="editor-row">
+                <span className="label">Style</span>
+                <select
+                  className="grow"
+                  value={style.murfStyle}
+                  onChange={(e) => change({ murfStyle: e.target.value })}
+                  aria-label="Speaking style"
+                >
+                  <option value="">Voice's default</option>
+                  {voiceStyles.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {chatterbox && (
               <>
                 <Slider
@@ -221,7 +272,9 @@ function AnnouncerVoice() {
           <p className="muted small" style={{ margin: 0 }}>
             {chatterbox
               ? "Excite is the voice engine's emotion dial: higher sounds more dramatic. For a big stadium read, try Excite above 1 with a slow Pace. "
-              : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
+              : murf
+                ? "Style changes the voice's delivery; each Murf voice has its own styles (Promo is a good start for announcing). Energy changes the punctuation it reads. "
+                : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
             Reverb adds the echo of a big space; Space sets how big. Listen to try a mix; the Listen buttons below use it
             too.
           </p>

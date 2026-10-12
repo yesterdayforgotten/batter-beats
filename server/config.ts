@@ -16,7 +16,10 @@ export const config = {
   appVersion: env.APP_VERSION || "dev",
   /** Which voice engine the announcer uses: "kokoro" or "chatterbox". */
   ttsEngine: env.TTS_ENGINE === "chatterbox" ? ("chatterbox" as const) : ("kokoro" as const),
-  /** Where the voice engine is. Empty turns the announcer off. */
+  /** Murf (paid cloud voices). Set the key to offer Murf as an announcer engine. */
+  murfApiKey: env.MURF_API_KEY || "",
+  murfUrl: (env.MURF_URL || "https://api.murf.ai").replace(/\/+$/, ""),
+  /** Where the self-hosted voice engine is. Empty turns it off. */
   ttsUrl: (env.TTS_URL ?? (env.TTS_ENGINE === "chatterbox" ? "http://chatterbox:4123" : "http://kokoro:8880")).replace(/\/+$/, ""),
   trustProxy: env.TRUST_PROXY || "loopback, linklocal, uniquelocal",
   isProduction: env.NODE_ENV === "production",

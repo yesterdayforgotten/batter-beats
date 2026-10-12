@@ -109,6 +109,8 @@ export interface AnnouncerStyle {
   excitement: number;
   /** Chatterbox only: pacing, 0 (slow, deliberate) to 1 (quick). */
   pace: number;
+  /** Murf only: the voice's speaking style, e.g. "Promo" ("" = the voice's default). */
+  murfStyle: string;
 }
 export const DEFAULT_STYLE: AnnouncerStyle = {
   speed: 1,
@@ -118,6 +120,7 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   reverbSize: 0.6,
   excitement: 1,
   pace: 0.3,
+  murfStyle: "",
 };
 export const STYLE_LIMITS = {
   minSpeed: 0.8,
@@ -127,13 +130,15 @@ export const STYLE_LIMITS = {
   maxExcitement: 2,
 } as const;
 
-/** The voice engines the announcer can use (set with TTS_ENGINE on the server). */
-export type VoiceEngine = "kokoro" | "chatterbox";
+/** The voice engines the announcer can use: a self-hosted one (TTS_ENGINE) and/or Murf (MURF_API_KEY). */
+export type VoiceEngine = "kokoro" | "chatterbox" | "murf";
 
 export interface AnnouncerVoice {
   id: string;
   name: string;
   detail: string;
+  /** Speaking styles the voice offers (Murf). */
+  styles?: string[];
 }
 
 export const ANNOUNCER = {

@@ -114,6 +114,7 @@ restore. Copying the data volume is a full backup too.
 | `PORT` | `8090` | Port inside the container. |
 | `DATA_DIR` | `/data` | Where everything is stored. |
 | `TTS_ENGINE` | `kokoro` | The voice engine: `chatterbox` or `kokoro`. |
+| `MURF_API_KEY` | empty | Optional: offers Murf's paid cloud voices as a second engine, switchable under Admin. |
 | `TTS_URL` | the engine's service | Where the voice engine is (`http://chatterbox:4123` or `http://kokoro:8880`). Empty turns the announcer off. |
 | `TRUST_PROXY` | local network | Which proxies to trust for https detection. |
 

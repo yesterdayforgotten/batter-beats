@@ -10,10 +10,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db.ts";
-import { config } from "./config.ts";
 import { durationMs, normalizeVoice, removeQuietly, voiceEffects } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
-import { engine } from "./voiceEngines.ts";
+import { engines, type Engine } from "./voiceEngines.ts";
 import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../shared/types.ts";
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
@@ -48,10 +47,28 @@ export function setSetting(key: string, value: string) {
   );
 }
 
+/** The engine making announcements: the one an admin chose, else the first available. Null when none is set up. */
+export function activeEngine(): Engine | null {
+  const chosen = getSetting("announcer_engine");
+  return engines.find((e) => e.id === chosen) ?? engines[0] ?? null;
+}
+
+export function setEngine(id: string): boolean {
+  if (!engines.some((e) => e.id === id)) return false;
+  setSetting("announcer_engine", id);
+  return true;
+}
+
 // Each engine has its own voices, so the chosen voice is stored per engine.
-const voiceSetting = () => (engine.id === "kokoro" ? "announcer_voice" : `announcer_voice_${engine.id}`);
-export const currentVoice = () => getSetting(voiceSetting()) ?? engine.defaultVoice;
-export const setVoice = (voice: string) => setSetting(voiceSetting(), voice);
+const voiceSetting = (e: Engine) => (e.id === "kokoro" ? "announcer_voice" : `announcer_voice_${e.id}`);
+export const currentVoice = () => {
+  const e = activeEngine();
+  return e ? (getSetting(voiceSetting(e)) ?? e.defaultVoice) : "";
+};
+export const setVoice = (voice: string) => {
+  const e = activeEngine();
+  if (e) setSetting(voiceSetting(e), voice);
+};
 
 const ENERGIES: Energy[] = ["calm", "lively", "hyped"];
 const round = (v: number, step: number) => Number((Math.round(v / step) * step).toFixed(2));
@@ -73,6 +90,7 @@ export function cleanStyle(input: unknown): AnnouncerStyle {
       0.05,
     ),
     pace: round(clamp(num(s.pace, DEFAULT_STYLE.pace), 0, 1), 0.05),
+    murfStyle: typeof s.murfStyle === "string" ? s.murfStyle.trim().slice(0, 40) : DEFAULT_STYLE.murfStyle,
   };
 }
 
@@ -122,7 +140,8 @@ function rosterRow(rosterId: number): AnnouncerRosterRow {
 
 /** What an announcement for this player would say, and the key identifying it; null when announcing is off. */
 export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voice: string; style: AnnouncerStyle } | null {
-  if (!config.ttsUrl || !p.announce_enabled) return null;
+  const engine = activeEngine();
+  if (!engine || !p.announce_enabled) return null;
   const r = rosterRow(p.roster_id);
   if (!r?.announce_enabled) return null;
   const text = announcementText(r.announce_template, p.pronunciation.trim() || p.name, p.number);
@@ -138,6 +157,8 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
 
 /** Speaks text and returns a finished, loudness-matched announcement file in tmp (the caller moves or deletes it). */
 async function makeAnnouncementFile(text: string, voice: string, style: AnnouncerStyle): Promise<string> {
+  const engine = activeEngine();
+  if (!engine) throw new Error("No announcer voice engine is set up.");
   const raw = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
   const out = path.join(dirs.tmp, `${crypto.randomUUID()}.mp3`);
   try {
@@ -163,12 +184,18 @@ export async function sample(text: string, voice: string, style: AnnouncerStyle 
 const playerRow = (id: number) =>
   db.prepare("SELECT * FROM players WHERE id = ?").get(id) as AnnouncerPlayerRow | undefined;
 
-/** Makes or remakes one player's announcement if it's out of date. */
-async function update(playerId: number) {
+/**
+ * Makes or remakes one player's announcement if it's out of date. Returns
+ * "changed" if the player or settings changed while it was being made (the
+ * result was thrown away and it should be made again).
+ */
+async function update(playerId: number): Promise<"done" | "changed"> {
   const p = playerRow(playerId);
-  if (!p) return;
+  if (!p) return "done";
   const w = wanted(p);
-  if (!w || (p.announce_key === w.key && p.announce_file && fs.existsSync(announcementPath(p.announce_file)))) return;
+  if (!w || (p.announce_key === w.key && p.announce_file && fs.existsSync(announcementPath(p.announce_file)))) {
+    return "done";
+  }
   try {
     const tmp = await makeAnnouncementFile(w.text, w.voice, w.style);
     const file = `${p.id}-${w.key}.mp3`;
@@ -178,7 +205,7 @@ async function update(playerId: number) {
     const now = playerRow(playerId);
     if (!now || wanted(now)?.key !== w.key) {
       if (file !== now?.announce_file) removeQuietly(announcementPath(file));
-      return;
+      return now ? "changed" : "done";
     }
     db.prepare(
       "UPDATE players SET announce_file = ?, announce_key = ?, announce_ms = ?, announce_error = NULL WHERE id = ?",
@@ -188,6 +215,7 @@ async function update(playerId: number) {
   } catch (err) {
     db.prepare("UPDATE players SET announce_error = ? WHERE id = ?").run((err as Error).message.slice(0, 300), p.id);
   }
+  return "done";
 }
 
 // Announcements are made one at a time, in the background.
@@ -201,7 +229,9 @@ async function work() {
   try {
     for (const id of queued) {
       queued.delete(id);
-      await update(id);
+      // If something changed while it was being made, make it again (a few times at most), so
+      // anyone waiting (the Listen button) gets the up-to-date announcement.
+      for (let tries = 0; tries < 3 && (await update(id)) === "changed"; tries++);
       for (const done of waiters.get(id) ?? []) done();
       waiters.delete(id);
     }
@@ -237,7 +267,7 @@ export function refreshAllAnnouncements() {
 }
 
 /** The voices the engine offers. */
-export const listVoices = () => engine.voices();
+export const listVoices = () => activeEngine()?.voices() ?? Promise.resolve([]);
 
 /**
  * Tries again for players whose announcement failed, for example because the

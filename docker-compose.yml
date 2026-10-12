@@ -15,6 +15,9 @@ services:
       # The announcer's voice engine (the service below).
       TTS_ENGINE: chatterbox
       TTS_URL: http://chatterbox:4123
+      # Optional: Murf's paid cloud voices as a second engine, switchable under Admin.
+      # Paste your Murf API key here (never commit it anywhere).
+      # MURF_API_KEY: ""
     volumes:
       # Everything the app stores: database, songs, clips. Updating the image never touches it.
       - batter-beats-data:/data

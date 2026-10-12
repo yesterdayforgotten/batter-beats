@@ -1,11 +1,11 @@
 import { Router } from "express";
 import multer from "multer";
 import { requireRole } from "../auth.ts";
-import { config } from "../config.ts";
 import { removeQuietly } from "../audio.ts";
 import { dirs } from "../storage.ts";
-import { engine } from "../voiceEngines.ts";
+import { engines } from "../voiceEngines.ts";
 import {
+  activeEngine,
   announcementText,
   cleanStyle,
   currentStyle,
@@ -13,6 +13,7 @@ import {
   listVoices,
   refreshAllAnnouncements,
   sample,
+  setEngine,
   setStyle,
   setVoice,
 } from "../announcer.ts";
@@ -22,19 +23,38 @@ export const announcerRouter = Router();
 
 const upload = multer({ dest: dirs.tmp, limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
-// The engine in use, its voices, the chosen voice and the delivery settings.
+// The engines available, the one in use, its voices, the chosen voice and the delivery settings.
 announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
+  const engine = activeEngine();
   let voices: AnnouncerVoice[] = [];
   let error: string | null = null;
-  if (!config.ttsUrl) error = "The announcer is turned off on the server (TTS_URL is empty).";
+  if (!engine) error = "No announcer voice engine is set up on the server (TTS_URL or MURF_API_KEY).";
   else {
     try {
       voices = await listVoices();
-    } catch {
-      error = "The announcer voice engine isn't reachable. If it was just started, it may still be loading.";
+    } catch (err) {
+      error =
+        engine.id === "murf"
+          ? (err as Error).message
+          : "The announcer voice engine isn't reachable. If it was just started, it may still be loading.";
     }
   }
-  res.json({ engine: engine.id, canAddVoices: engine.canAddVoices, voice: currentVoice(), style: currentStyle(), voices, error });
+  res.json({
+    engine: engine?.id ?? null,
+    engines: engines.map((e) => ({ id: e.id, label: e.label })),
+    canAddVoices: engine?.canAddVoices ?? false,
+    voice: currentVoice(),
+    style: currentStyle(),
+    voices,
+    error,
+  });
+});
+
+// Switch engine (for example between Chatterbox and Murf); every announcement is remade.
+announcerRouter.put("/announcer/engine", requireRole("admin"), (req, res) => {
+  if (!setEngine(String(req.body?.engine ?? ""))) return res.status(400).json({ error: "That voice engine isn't set up." });
+  void refreshAllAnnouncements();
+  res.json({ engine: activeEngine()?.id });
 });
 
 // Hear something in a voice (or the current one). Returns the MP3 itself.
@@ -77,7 +97,8 @@ announcerRouter.post("/announcer/voices", requireRole("admin"), upload.single("f
   try {
     const name = String(req.body?.name ?? "").trim().replace(/[^\w -]/g, "").slice(0, 60);
     if (!name) return res.status(400).json({ error: "Give the voice a name." });
-    if (!engine.canAddVoices) return res.status(400).json({ error: "This voice engine can't learn new voices." });
+    const engine = activeEngine();
+    if (!engine?.canAddVoices) return res.status(400).json({ error: "This voice engine can't learn new voices." });
     await engine.addVoice(name, req.file.path, Buffer.from(req.file.originalname, "latin1").toString("utf8"));
     res.status(201).json({ voices: await listVoices() });
   } catch (err) {
