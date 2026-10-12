@@ -13,17 +13,27 @@ services:
       # Proxies on the local network (such as Apache) are trusted for https detection.
       TRUST_PROXY: loopback, linklocal, uniquelocal
       # The announcer's voice engine (the service below).
-      TTS_URL: http://kokoro:8880
+      TTS_ENGINE: chatterbox
+      TTS_URL: http://chatterbox:4123
     volumes:
       # Everything the app stores: database, songs, clips. Updating the image never touches it.
       - batter-beats-data:/data
 
-  # Announcer voice engine (Kokoro, open source, runs on an ordinary CPU).
-  # Batter Beats asks it to speak each announcement once and stores the result,
-  # so it is only busy when names or wording change.
-  kokoro:
-    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+  # Announcer voice engine: Chatterbox (github.com/travisvn/chatterbox-tts-api).
+  # It has an emotion dial and learns voices from a recording. It is meant for a
+  # graphics card; this CPU version works, slowly (announcements are made once
+  # and stored, so that's acceptable). It needs 4–8 GB of memory and downloads
+  # its voice model (a few GB) on first start.
+  chatterbox:
+    image: ghcr.io/yesterdayforgotten/chatterbox-tts-api:cpu
     restart: unless-stopped
+    environment:
+      DEVICE: cpu
+    volumes:
+      - chatterbox-models:/cache
+      - chatterbox-voices:/voices
 
 volumes:
   batter-beats-data:
+  chatterbox-models:
+  chatterbox-voices:

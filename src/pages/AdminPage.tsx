@@ -3,27 +3,24 @@ import { Link } from "react-router-dom";
 import { api, upload } from "../api.ts";
 import { context, Playback, unlockAudio } from "../audio/engine.ts";
 import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
-import { DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../../shared/types.ts";
+import {
+  DEFAULT_STYLE,
+  STYLE_LIMITS,
+  type AnnouncerStyle,
+  type AnnouncerVoice as Voice,
+  type Energy,
+  type VoiceEngine,
+} from "../../shared/types.ts";
 
 interface AnnouncerInfo {
+  engine: VoiceEngine;
+  canAddVoices: boolean;
   voice: string;
   style: AnnouncerStyle;
-  voices: string[];
+  voices: Voice[];
   error: string | null;
 }
 
-// Kokoro voice ids look like "am_michael": language/accent, then female/male, then a name.
-const ACCENTS: Record<string, string> = { a: "American", b: "British" };
-
-function describe(id: string): { name: string; detail: string } | null {
-  const m = /^([a-z])([fm])_(.+)$/.exec(id);
-  if (!m || !ACCENTS[m[1]]) return null; // only English voices: announcements are in English
-  if (m[3].startsWith("v0")) return null; // older copies of voices that are also listed under their plain name
-  const name = m[3].replace(/_inno$/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  return { name, detail: `${ACCENTS[m[1]]} · ${m[2] === "m" ? "male" : "female"}` };
-}
-
-/** Admin: users, the announcer's voice, and backups. */
 export function AdminPage() {
   return (
     <section>
@@ -114,12 +111,12 @@ function AnnouncerVoice() {
     }
   }
 
-  const voices = (info?.voices ?? [])
-    .map((id) => ({ id, d: describe(id) }))
-    .filter((v): v is { id: string; d: { name: string; detail: string } } => !!v.d)
-    .sort((a, b) => a.d.detail.localeCompare(b.d.detail) || a.d.name.localeCompare(b.d.name));
-  // Male voices first, since they suit a stadium announcer; the rest on request.
-  const shown = showAll ? voices : voices.filter((v) => v.id[1] === "m" || v.id === info?.voice);
+  const chatterbox = info?.engine === "chatterbox";
+  const voices = info?.voices ?? [];
+  // Kokoro has many voices: male ones first, since they suit a stadium announcer; the rest on request.
+  const shown =
+    chatterbox || showAll ? voices : voices.filter((v) => v.detail.endsWith("· male") || v.id === info?.voice);
+  const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
 
   return (
     <>
@@ -127,8 +124,8 @@ function AnnouncerVoice() {
         Announcer voice
       </div>
       <p className="muted small" style={{ margin: "0 4px 10px" }}>
-        Listen to "Now batting, number 12, Alex Rivera" in each voice. Choosing a voice remakes every announcement; that
-        takes a little while for a big roster.
+        Listen to "Now batting, number 12, Alex Rivera" in each voice. Choosing a voice or delivery remakes every
+        announcement in the background.{slow}
       </p>
       {(error || info?.error) && <p className="error">{error ?? info?.error}</p>}
       {!info && !error && <p className="muted">Loading…</p>}
@@ -142,61 +139,91 @@ function AnnouncerVoice() {
           </div>
           <div className="segmented" role="radiogroup" aria-label="Energy">
             {(["calm", "lively", "hyped"] as Energy[]).map((e) => (
-              <button key={e} role="radio" aria-checked={style.energy === e} className={style.energy === e ? "on" : ""} onClick={() => change({ energy: e })}>
+              <button
+                key={e}
+                role="radio"
+                aria-checked={style.energy === e}
+                className={style.energy === e ? "on" : ""}
+                onClick={() => change({ energy: e })}
+              >
                 {{ calm: "Calm", lively: "Lively", hyped: "Hyped" }[e]}
               </button>
             ))}
           </div>
           <div className="editor-rows" style={{ padding: 0 }}>
-            <div className="editor-row">
-              <span className="label">Speed</span>
-              <input
-                type="range"
-                className="grow"
-                min={STYLE_LIMITS.minSpeed}
-                max={STYLE_LIMITS.maxSpeed}
-                step={0.05}
-                value={style.speed}
-                onChange={(e) => change({ speed: Number(e.target.value) })}
-                aria-label="Speed"
-              />
-              <span className="value">{style.speed.toFixed(2)}×</span>
-            </div>
-            <div className="editor-row">
-              <span className="label">Pitch</span>
-              <input
-                type="range"
-                className="grow"
+            {chatterbox && (
+              <>
+                <Slider
+                  label="Excite"
+                  aria="Excitement"
+                  min={STYLE_LIMITS.minExcitement}
+                  max={STYLE_LIMITS.maxExcitement}
+                  step={0.05}
+                  value={style.excitement}
+                  show={style.excitement.toFixed(2)}
+                  onChange={(v) => change({ excitement: v })}
+                />
+                <Slider
+                  label="Pace"
+                  aria="Pace"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={style.pace}
+                  show={style.pace < 0.3 ? "Slow" : style.pace > 0.6 ? "Quick" : "Steady"}
+                  onChange={(v) => change({ pace: v })}
+                />
+              </>
+            )}
+            <Slider
+              label="Speed"
+              aria="Speed"
+              min={STYLE_LIMITS.minSpeed}
+              max={STYLE_LIMITS.maxSpeed}
+              step={0.05}
+              value={style.speed}
+              show={`${style.speed.toFixed(2)}×`}
+              onChange={(v) => change({ speed: v })}
+            />
+            <Slider
+              label="Pitch"
+              aria="Pitch lift"
+              min={0}
+              max={STYLE_LIMITS.maxPitch}
+              step={0.5}
+              value={style.pitch}
+              show={style.pitch === 0 ? "Normal" : `+${style.pitch}`}
+              onChange={(v) => change({ pitch: v })}
+            />
+            <Slider
+              label="Reverb"
+              aria="Reverb amount"
+              min={0}
+              max={1}
+              step={0.05}
+              value={style.reverb}
+              show={style.reverb === 0 ? "Off" : `${Math.round(style.reverb * 100)}%`}
+              onChange={(v) => change({ reverb: v })}
+            />
+            {style.reverb > 0 && (
+              <Slider
+                label="Space"
+                aria="Reverb size"
                 min={0}
-                max={STYLE_LIMITS.maxPitch}
-                step={0.5}
-                value={style.pitch}
-                onChange={(e) => change({ pitch: Number(e.target.value) })}
-                aria-label="Pitch lift"
+                max={1}
+                step={0.05}
+                value={style.reverbSize}
+                show={style.reverbSize < 0.34 ? "Room" : style.reverbSize < 0.67 ? "Gym" : "Ballpark"}
+                onChange={(v) => change({ reverbSize: v })}
               />
-              <span className="value">{style.pitch === 0 ? "Normal" : `+${style.pitch}`}</span>
-            </div>
-            <div className="editor-row">
-              <span className="label grow" style={{ width: "auto" }}>
-                Stadium echo
-              </span>
-              <button
-                role="switch"
-                aria-checked={style.echo}
-                aria-label="Stadium echo"
-                className={`switch${style.echo ? " on" : ""}`}
-                onClick={() => change({ echo: !style.echo })}
-              >
-                <span className="switch-track">
-                  <span className="switch-knob" />
-                </span>
-              </button>
-            </div>
+            )}
           </div>
           <p className="muted small" style={{ margin: 0 }}>
-            The voice engine has no emotion setting, so Energy changes how the announcement is punctuated, which changes
-            how it's read. A little pitch lift and speed also sound more excited. Listen to try a mix; the voice
-            Listen buttons below use it too.
+            {chatterbox
+              ? "Excite is the voice engine's emotion dial: higher sounds more dramatic. For a big stadium read, try Excite above 1 with a slow Pace. "
+              : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
+            Reverb adds the echo of a big space; Space sets how big. Listen to try a mix; the Listen buttons below use it
+            too.
           </p>
           {styleChanged && (
             <button className="primary" onClick={saveStyle}>
@@ -211,14 +238,14 @@ function AnnouncerVoice() {
         </div>
       )}
       <ul className="list">
-        {shown.map(({ id, d }) => (
-          <li key={id} className="list-item">
+        {shown.map(({ id, name, detail }) => (
+          <li key={id || "default"} className="list-item">
             <div className="player-row">
               <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
                 <span className="player-name truncate">
-                  {d.name} {id === info?.voice && <span className="tag on-deck-tag">In use</span>}
+                  {name} {id === info?.voice && <span className="tag on-deck-tag">In use</span>}
                 </span>
-                <span className="muted small">{d.detail}</span>
+                <span className="muted small">{detail}</span>
               </span>
               <button className="small-button" onClick={() => listen(id)} disabled={playing === id}>
                 {playing === id ? "…" : "Listen"}
@@ -232,12 +259,81 @@ function AnnouncerVoice() {
           </li>
         ))}
       </ul>
-      {voices.length > shown.length && (
+      {!chatterbox && voices.length > shown.length && (
         <button className="link-button" style={{ marginTop: 6 }} onClick={() => setShowAll(true)}>
           Show all {voices.length} English voices
         </button>
       )}
+      {info?.canAddVoices && <AddVoice onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
     </>
+  );
+}
+
+function Slider(props: {
+  label: string;
+  aria: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  show: string;
+  onChange(v: number): void;
+}) {
+  return (
+    <div className="editor-row">
+      <span className="label">{props.label}</span>
+      <input
+        type="range"
+        className="grow"
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        value={props.value}
+        onChange={(e) => props.onChange(Number(e.target.value))}
+        aria-label={props.aria}
+      />
+      <span className="value">{props.show}</span>
+    </div>
+  );
+}
+
+/** Teach the voice engine a new voice from 10–30 seconds of someone speaking. */
+function AddVoice({ onAdded }: { onAdded(voices: Voice[]): void }) {
+  const [name, setName] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function add(file: File | undefined) {
+    if (fileInput.current) fileInput.current.value = "";
+    if (!file) return;
+    setError(null);
+    setProgress(0);
+    try {
+      const r = await upload<{ voices: Voice[] }>("/announcer/voices", file, setProgress, { name });
+      onAdded(r.voices);
+      setName("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  return (
+    <div className="card stack" style={{ marginTop: 10 }}>
+      <span style={{ fontWeight: 800 }}>Add a voice from a recording</span>
+      <p className="muted small" style={{ margin: 0 }}>
+        10 to 30 seconds of one person speaking clearly, with no music behind them (MP3, WAV or M4A). A recording of a
+        stadium announcer, or someone doing the voice, gives the announcer that style.
+      </p>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Ballpark Bob" maxLength={60} aria-label="Voice name" />
+      <button disabled={!name.trim() || progress !== null} onClick={() => fileInput.current?.click()}>
+        {progress === null ? "Choose the recording…" : progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : "Learning the voice…"}
+      </button>
+      <input ref={fileInput} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => add(e.target.files?.[0])} />
+      {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+    </div>
   );
 }
 

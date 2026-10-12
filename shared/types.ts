@@ -102,11 +102,39 @@ export interface AnnouncerStyle {
   energy: Energy;
   /** Raise the voice by this many semitones; a little higher sounds more excited. */
   pitch: number;
-  /** A short stadium-style echo. */
-  echo: boolean;
+  /** Stadium reverb: how much (0 = none, 1 = lots) and how big a space (0 = small room, 1 = ballpark). */
+  reverb: number;
+  reverbSize: number;
+  /** Chatterbox only: emotion intensity, 0.25 (flat) to 2 (very dramatic). */
+  excitement: number;
+  /** Chatterbox only: pacing, 0 (slow, deliberate) to 1 (quick). */
+  pace: number;
 }
-export const DEFAULT_STYLE: AnnouncerStyle = { speed: 1, energy: "lively", pitch: 0, echo: false };
-export const STYLE_LIMITS = { minSpeed: 0.8, maxSpeed: 1.4, maxPitch: 4 } as const;
+export const DEFAULT_STYLE: AnnouncerStyle = {
+  speed: 1,
+  energy: "lively",
+  pitch: 0,
+  reverb: 0,
+  reverbSize: 0.6,
+  excitement: 1,
+  pace: 0.3,
+};
+export const STYLE_LIMITS = {
+  minSpeed: 0.8,
+  maxSpeed: 1.4,
+  maxPitch: 4,
+  minExcitement: 0.25,
+  maxExcitement: 2,
+} as const;
+
+/** The voice engines the announcer can use (set with TTS_ENGINE on the server). */
+export type VoiceEngine = "kokoro" | "chatterbox";
+
+export interface AnnouncerVoice {
+  id: string;
+  name: string;
+  detail: string;
+}
 
 export const ANNOUNCER = {
   defaultTemplate: "Now batting, number {number}, {name}",

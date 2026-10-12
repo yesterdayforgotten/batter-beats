@@ -1,10 +1,10 @@
 // The announcer: "Now batting, number 12, Ava", spoken by the voice engine
-// (Kokoro-FastAPI, in its own container) and stored as an MP3 per player, so
-// phones play it like any clip and it works offline.
+// (Kokoro or Chatterbox, in its own container; see voiceEngines.ts) and stored
+// as an MP3 per player, so phones play it like any clip and it works offline.
 //
 // An announcement is remade only when what it's made from changes: the
-// wording, name, number, spelling or voice. That's captured in a short key
-// stored with the file.
+// wording, name, number, spelling, voice, engine or delivery. That's captured
+// in a short key stored with the file.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -13,10 +13,8 @@ import { db } from "./db.ts";
 import { config } from "./config.ts";
 import { durationMs, normalizeVoice, removeQuietly, voiceEffects } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
+import { engine } from "./voiceEngines.ts";
 import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../shared/types.ts";
-
-/** A deep, clear American voice that suits a stadium announcer. Changeable by an admin. */
-export const DEFAULT_VOICE = "am_michael";
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
 const PROCESSING = "loudness-2";
@@ -50,20 +48,31 @@ export function setSetting(key: string, value: string) {
   );
 }
 
-export const currentVoice = () => getSetting("announcer_voice") || DEFAULT_VOICE;
+// Each engine has its own voices, so the chosen voice is stored per engine.
+const voiceSetting = () => (engine.id === "kokoro" ? "announcer_voice" : `announcer_voice_${engine.id}`);
+export const currentVoice = () => getSetting(voiceSetting()) ?? engine.defaultVoice;
+export const setVoice = (voice: string) => setSetting(voiceSetting(), voice);
 
 const ENERGIES: Energy[] = ["calm", "lively", "hyped"];
-const round = (v: number, step: number) => Math.round(v / step) * step;
+const round = (v: number, step: number) => Number((Math.round(v / step) * step).toFixed(2));
 
 /** A style with every value present and within range. */
 export function cleanStyle(input: unknown): AnnouncerStyle {
-  const s = (typeof input === "object" && input ? input : {}) as Partial<AnnouncerStyle>;
+  const s = (typeof input === "object" && input ? input : {}) as Partial<AnnouncerStyle> & { echo?: boolean };
   const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   return {
-    speed: round(Math.max(STYLE_LIMITS.minSpeed, Math.min(STYLE_LIMITS.maxSpeed, num(s.speed, DEFAULT_STYLE.speed))), 0.05),
+    speed: round(clamp(num(s.speed, DEFAULT_STYLE.speed), STYLE_LIMITS.minSpeed, STYLE_LIMITS.maxSpeed), 0.05),
     energy: ENERGIES.includes(s.energy as Energy) ? (s.energy as Energy) : DEFAULT_STYLE.energy,
-    pitch: round(Math.max(0, Math.min(STYLE_LIMITS.maxPitch, num(s.pitch, DEFAULT_STYLE.pitch))), 0.5),
-    echo: typeof s.echo === "boolean" ? s.echo : DEFAULT_STYLE.echo,
+    pitch: round(clamp(num(s.pitch, DEFAULT_STYLE.pitch), 0, STYLE_LIMITS.maxPitch), 0.5),
+    // Earlier versions had an on/off echo.
+    reverb: round(clamp(num(s.reverb, s.echo ? 0.4 : DEFAULT_STYLE.reverb), 0, 1), 0.05),
+    reverbSize: round(clamp(num(s.reverbSize, DEFAULT_STYLE.reverbSize), 0, 1), 0.05),
+    excitement: round(
+      clamp(num(s.excitement, DEFAULT_STYLE.excitement), STYLE_LIMITS.minExcitement, STYLE_LIMITS.maxExcitement),
+      0.05,
+    ),
+    pace: round(clamp(num(s.pace, DEFAULT_STYLE.pace), 0, 1), 0.05),
   };
 }
 
@@ -121,36 +130,20 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
   const style = currentStyle();
   const key = crypto
     .createHash("sha1")
-    .update(`${PROCESSING}\n${voice}\n${JSON.stringify(style)}\n${text}`)
+    .update(`${PROCESSING}\n${engine.id}\n${voice}\n${JSON.stringify(style)}\n${text}`)
     .digest("hex")
     .slice(0, 12);
   return { text, key, voice, style };
 }
 
-/** Asks the voice engine to speak some text; returns MP3 data. */
-export async function speak(text: string, voice: string, speed = 1): Promise<Buffer> {
-  let res: Response;
-  try {
-    res = await fetch(`${config.ttsUrl}/v1/audio/speech`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "mp3", speed }),
-      signal: AbortSignal.timeout(60_000),
-    });
-  } catch {
-    throw new Error("The announcer voice engine isn't reachable.");
-  }
-  if (!res.ok) throw new Error(`The announcer voice engine said no (${res.status}): ${(await res.text()).slice(0, 200)}`);
-  return Buffer.from(await res.arrayBuffer());
-}
-
 /** Speaks text and returns a finished, loudness-matched announcement file in tmp (the caller moves or deletes it). */
 async function makeAnnouncementFile(text: string, voice: string, style: AnnouncerStyle): Promise<string> {
-  const raw = path.join(dirs.tmp, `${crypto.randomUUID()}-raw.mp3`);
+  const raw = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
   const out = path.join(dirs.tmp, `${crypto.randomUUID()}.mp3`);
   try {
-    await fs.promises.writeFile(raw, await speak(withEnergy(text, style.energy), voice, style.speed));
-    await normalizeVoice(raw, out, voiceEffects(style.pitch, style.echo));
+    await fs.promises.writeFile(raw, await engine.speak(withEnergy(text, style.energy), voice, style));
+    const tempo = engine.nativeSpeed ? 1 : style.speed;
+    await normalizeVoice(raw, out, voiceEffects({ pitch: style.pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize }));
     return out;
   } finally {
     removeQuietly(raw);
@@ -244,12 +237,7 @@ export function refreshAllAnnouncements() {
 }
 
 /** The voices the engine offers. */
-export async function listVoices(): Promise<string[]> {
-  const res = await fetch(`${config.ttsUrl}/v1/audio/voices`, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`The announcer voice engine said no (${res.status}).`);
-  const data = (await res.json()) as { voices?: (string | { id: string })[] };
-  return (data.voices ?? []).map((v) => (typeof v === "string" ? v : v.id)).filter(Boolean);
-}
+export const listVoices = () => engine.voices();
 
 /**
  * Tries again for players whose announcement failed, for example because the

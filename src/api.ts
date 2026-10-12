@@ -40,7 +40,12 @@ export async function api<T>(
 }
 
 /** Uploads a file with progress reports (fetch can't report upload progress). */
-export function upload<T>(path: string, file: File, onProgress?: (fraction: number) => void): Promise<T> {
+export function upload<T>(
+  path: string,
+  file: File,
+  onProgress?: (fraction: number) => void,
+  fields: Record<string, string> = {},
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api${path}`);
@@ -60,6 +65,8 @@ export function upload<T>(path: string, file: File, onProgress?: (fraction: numb
     };
     xhr.onerror = () => reject(new ApiError("Upload failed. Check your connection.", 0));
     const form = new FormData();
+    // Other fields before the file, so the server has them when the file arrives.
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
     form.append("file", file);
     xhr.send(form);
   });

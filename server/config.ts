@@ -14,8 +14,10 @@ export const config = {
   devHosts: (env.DEV_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
   /** Build identifier, set in the Docker image. "dev" when running from source. */
   appVersion: env.APP_VERSION || "dev",
-  /** The voice engine (Kokoro-FastAPI). Empty turns the announcer off. */
-  ttsUrl: (env.TTS_URL ?? "http://kokoro:8880").replace(/\/+$/, ""),
+  /** Which voice engine the announcer uses: "kokoro" or "chatterbox". */
+  ttsEngine: env.TTS_ENGINE === "chatterbox" ? ("chatterbox" as const) : ("kokoro" as const),
+  /** Where the voice engine is. Empty turns the announcer off. */
+  ttsUrl: (env.TTS_URL ?? (env.TTS_ENGINE === "chatterbox" ? "http://chatterbox:4123" : "http://kokoro:8880")).replace(/\/+$/, ""),
   trustProxy: env.TRUST_PROXY || "loopback, linklocal, uniquelocal",
   isProduction: env.NODE_ENV === "production",
 };

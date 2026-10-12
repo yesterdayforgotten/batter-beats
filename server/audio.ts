@@ -112,12 +112,34 @@ async function loudness(file: string, effects: string): Promise<number> {
   return value;
 }
 
-/** ffmpeg filters for an announcer style: a pitch lift that keeps the voice natural, and a stadium echo. */
-export function voiceEffects(pitchSemitones: number, echo: boolean): string {
+/**
+ * ffmpeg filters for an announcer style.
+ * - pitch: semitones up, keeping the voice's character (formants) natural;
+ * - tempo: speed change for engines that can't do it themselves (1 = none);
+ * - reverb: 0–1, how loud the reflections are; reverbSize: 0–1, small room to ballpark
+ *   (how far apart the reflections are and how long they ring).
+ */
+export function voiceEffects(o: { pitch: number; tempo: number; reverb: number; reverbSize: number }): string {
   const filters: string[] = [];
-  if (pitchSemitones > 0) filters.push(`rubberband=pitch=${(2 ** (pitchSemitones / 12)).toFixed(4)}:formant=preserved`);
-  // Room for the echo to ring out, then two quick reflections like a ballpark PA.
-  if (echo) filters.push("apad=pad_dur=0.5", "aecho=0.8:0.55:110|230:0.35|0.18");
+  if (o.pitch > 0 || o.tempo !== 1) {
+    filters.push(`rubberband=pitch=${(2 ** (o.pitch / 12)).toFixed(4)}:tempo=${o.tempo.toFixed(3)}:formant=preserved`);
+  }
+  if (o.reverb > 0) {
+    // Several reflections, further apart and quieter as they go, like sound bouncing round a ballpark.
+    const spread = 0.5 + 1.5 * o.reverbSize;
+    const delays = [45, 95, 160, 250, 370].map((ms) => Math.round(ms * spread));
+    const decays = [0.55, 0.42, 0.32, 0.22, 0.14].map((d) => d * o.reverb * (0.7 + 0.3 * o.reverbSize));
+    const outGain = 1 / (1 + decays.reduce((a, b) => a + b, 0));
+    const tail = (delays[delays.length - 1] * 3) / 1000 + 0.2;
+    filters.push(
+      `apad=pad_dur=${tail.toFixed(2)}`,
+      `aecho=1:${outGain.toFixed(3)}:${delays.join("|")}:${decays.map((d) => d.toFixed(3)).join("|")}`,
+      // Trim the silence left at the end once the reflections die away (only at the end: reversed, trimmed, reversed back).
+      "areverse",
+      "silenceremove=start_periods=1:start_threshold=-60dB",
+      "areverse",
+    );
+  }
   return filters.join(",");
 }
 
@@ -131,7 +153,7 @@ export function voiceEffects(pitchSemitones: number, echo: boolean): string {
  * with a limiter catching the loudest syllables.
  */
 export async function normalizeVoice(input: string, output: string, effects = ""): Promise<void> {
-  // Effects (pitch, echo) come first, so the loudness is measured as heard.
+  // Effects (pitch, speed, reverb) come first, so the loudness is measured as heard.
   const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input, effects))));
   const filters = [effects, `volume=${gainDb.toFixed(2)}dB`, "alimiter=limit=0.84:attack=2:release=50:level=false"];
   await run("ffmpeg", [
