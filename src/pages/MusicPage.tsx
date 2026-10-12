@@ -149,7 +149,7 @@ export function MusicPage() {
 
   return (
     <>
-      <PageHead back="/" title={<div className="display" style={{ fontSize: 30 }}>Music</div>} />
+      <PageHead title={<div className="display" style={{ fontSize: 30 }}>Music</div>} />
       <p className="muted small" style={{ margin: "0 4px 14px" }}>
         Every uploaded song, shared by all teams and playlists. Tap a song to fix its title, tag it (a team, a player…) or delete it.
       </p>

@@ -12,6 +12,7 @@ import {
   type Energy,
   type VoiceEngine,
 } from "../../shared/types.ts";
+import { useLockPageScroll } from "../lockScroll.ts";
 
 /** What the server says about the announcer: the engines set up, the one in use, and its voices. */
 export interface AnnouncerEngineInfo {
@@ -51,6 +52,8 @@ export function AnnouncerSettings(props: {
   const [savedNote, setSavedNote] = useState(false);
   // Male voices first, since they suit a stadium announcer; change the filters to see others.
   const [filters, setFilters] = useState<Filters>({ gender: "Male" });
+  /** The full voice list opens in a sheet; the page shows only the voice in use. */
+  const [choosing, setChoosing] = useState(false);
   const playback = useRef<Playback | null>(null);
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export function AnnouncerSettings(props: {
   async function choose(voice: string) {
     try {
       await props.onVoice(voice);
+      setChoosing(false);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -236,41 +240,72 @@ export function AnnouncerSettings(props: {
         </div>
       )}
       {info && !info.error && (
-        <div className="row" style={{ margin: "10px 0 6px" }}>
-          <span className="section-title grow" style={{ fontSize: 17 }}>
-            Voice
-          </span>
+        <>
+          <div className="row" style={{ margin: "10px 0 6px" }}>
+            <span className="section-title grow" style={{ fontSize: 17 }}>
+              Voice
+            </span>
+          </div>
+          {/* The voice in use, with Listen; the full list opens in a sheet. */}
+          <div className="voice-row in-use current-voice">
+            <span className="voice-text">
+              <span className="voice-name">{voices.find((v) => v.id === current)?.name ?? "Default voice"}</span>
+              <span className="voice-detail">{voices.find((v) => v.id === current)?.detail ?? ""}</span>
+            </span>
+            <button className="compact-button" onClick={() => listen(current)} disabled={playing === current}>
+              {playing === current ? "…" : "Listen"}
+            </button>
+            <button className="compact-button primary" onClick={() => setChoosing(true)}>
+              Change voice
+            </button>
+          </div>
+        </>
+      )}
+      {choosing && (
+        <div className="sheet-backdrop" onClick={() => setChoosing(false)}>
+          <LockPageScroll />
+          <div className="sheet" role="dialog" aria-label="Choose a voice" onClick={(e) => e.stopPropagation()}>
+            <div className="row">
+              <span className="section-title grow">Choose a voice</span>
+              <button className="link-button" onClick={() => setChoosing(false)}>
+                Close
+              </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+            {filterable && (
+              <VoiceFilters
+                filters={filters}
+                onChange={setFilters}
+                options={{ gender: optionsFor("gender"), accent: optionsFor("accent"), age: optionsFor("age") }}
+                note={`${shown.length} of ${voices.length} voices`}
+              />
+            )}
+            <div className="sheet-list">
+              {/* Compact rows: name and details on one line, small buttons, dividers instead of cards. */}
+              <ul className="voice-list">
+                {shown.map(({ id, name, detail }) => (
+                  <li key={id} className={`voice-row${id === current ? " in-use" : ""}`}>
+                    <span className="voice-text">
+                      <span className="voice-name">{name}</span>
+                      <span className="voice-detail">{detail}</span>
+                    </span>
+                    {id === current && <span className="tag on-deck-tag">In use</span>}
+                    <button className="compact-button" onClick={() => listen(id)} disabled={playing === id}>
+                      {playing === id ? "…" : "Listen"}
+                    </button>
+                    {id !== current && (
+                      <button className="compact-button primary" onClick={() => choose(id)}>
+                        Use
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {filterable && shown.length === 0 && <p className="empty">No voices match. Try other filters.</p>}
+            </div>
+          </div>
         </div>
       )}
-      {filterable && (
-        <VoiceFilters
-          filters={filters}
-          onChange={setFilters}
-          options={{ gender: optionsFor("gender"), accent: optionsFor("accent"), age: optionsFor("age") }}
-          note={`${shown.length} of ${voices.length} voices`}
-        />
-      )}
-      {/* Compact rows: name and details on one line, small buttons, dividers instead of cards. */}
-      <ul className="voice-list">
-        {shown.map(({ id, name, detail }) => (
-          <li key={id} className={`voice-row${id === current ? " in-use" : ""}`}>
-            <span className="voice-text">
-              <span className="voice-name">{name}</span>
-              <span className="voice-detail">{detail}</span>
-            </span>
-            {id === current && <span className="tag on-deck-tag">In use</span>}
-            <button className="compact-button" onClick={() => listen(id)} disabled={playing === id}>
-              {playing === id ? "…" : "Listen"}
-            </button>
-            {id !== current && (
-              <button className="compact-button primary" onClick={() => choose(id)}>
-                Use
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {filterable && shown.length === 0 && <p className="empty">No voices match. Try other filters.</p>}
     </>
   );
 }
@@ -487,3 +522,9 @@ function Slider(props: {
   );
 }
 
+
+/** Keeps the page behind an open sheet still (a component, so a sheet drawn inline can use it). */
+function LockPageScroll() {
+  useLockPageScroll();
+  return null;
+}

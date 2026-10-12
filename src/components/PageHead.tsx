@@ -9,7 +9,8 @@ export function PageHead({
   title,
   right,
 }: {
-  back: string;
+  /** Where the back arrow goes; no arrow when left out (screens whose way back is the app bar's Teams link). */
+  back?: string;
   /** Replaces following the link, e.g. to leave a mode on the same page. */
   onBack?: () => void;
   eyebrow?: string;
@@ -17,21 +18,23 @@ export function PageHead({
   right?: ReactNode;
 }) {
   return (
-    <header className="page-head">
-      <Link
-        to={back}
-        className="back"
-        aria-label="Back"
-        onClick={
-          onBack &&
-          ((e) => {
-            e.preventDefault();
-            onBack();
-          })
-        }
-      >
-        <BackIcon />
-      </Link>
+    <header className={`page-head${back === undefined ? " no-back" : ""}`}>
+      {back !== undefined && (
+        <Link
+          to={back}
+          className="back"
+          aria-label="Back"
+          onClick={
+            onBack &&
+            ((e) => {
+              e.preventDefault();
+              onBack();
+            })
+          }
+        >
+          <BackIcon />
+        </Link>
+      )}
       <div className="title">
         {eyebrow && <div className="eyebrow truncate">{eyebrow}</div>}
         {title}

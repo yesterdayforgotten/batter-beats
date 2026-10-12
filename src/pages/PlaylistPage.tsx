@@ -60,7 +60,7 @@ export function PlaylistsPage() {
 
   return (
     <>
-      <PageHead back="/" title={<div className="display" style={{ fontSize: 30 }}>Playlists</div>} />
+      <PageHead title={<div className="display" style={{ fontSize: 30 }}>Playlists</div>} />
       <p className="muted small" style={{ margin: "0 4px 14px" }}>
         Music for between innings and warm-ups, shared by everyone. Play them from the Jukebox tab in game mode.
       </p>

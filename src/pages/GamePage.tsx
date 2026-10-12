@@ -275,8 +275,7 @@ export function GamePage() {
   return (
     <div style={teamStyle(roster?.color)}>
       <PageHead
-        back="/"
-        onBack={editing ? () => setEditing(false) : undefined}
+
         eyebrow={editing ? "Reorder" : undefined}
         title={
           editing ? (
@@ -286,7 +285,10 @@ export function GamePage() {
           ) : (
             // One compact row: team name, then the Lineup | Jukebox tabs.
             <div className="game-title">
-              <span className="display truncate">{roster?.name ?? ""}</span>
+              <span className="game-name">
+                <span className="eyebrow">Game mode</span>
+                <span className="display truncate">{roster?.name ?? ""}</span>
+              </span>
               {/* What the tab's icons do: on Lineup, reorder and edit the team; on Jukebox, edit the playlist. */}
               <span className="head-icons">
                 {tab === "lineup" && (

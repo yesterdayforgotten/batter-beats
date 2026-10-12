@@ -9,7 +9,7 @@ import type { AnnouncerEngineInfo } from "../components/AnnouncerSettings.tsx";
 export function AdminPage() {
   return (
     <section>
-      <PageHead back="/" title={<div className="display" style={{ fontSize: 30 }}>Admin</div>} />
+      <PageHead title={<div className="display" style={{ fontSize: 30 }}>Admin</div>} />
       <ul className="list">
         <li className="list-item">
           <Link to="/admin/users">
