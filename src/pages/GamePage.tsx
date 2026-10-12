@@ -468,7 +468,7 @@ export function GamePage() {
       )}
       {!editing && playable && showJukebox && (
         <>
-          {shownTab === "lineup" && <hr className="section-rule" />}
+          <hr className="section-rule" />
           <NowPlaying state={jukeboxState} playlist={playlist} onPlay={playJukebox} />
         </>
       )}
