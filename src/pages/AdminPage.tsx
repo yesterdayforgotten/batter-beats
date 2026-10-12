@@ -181,43 +181,40 @@ function AnnouncerVoice() {
             </button>
           </div>
           <div className="editor-rows" style={{ padding: 0 }}>
-            {/* Energy changes the punctuation the voice reads (see withEnergy in server/announcer.ts). */}
-            <div className="editor-row">
-              <span className="label">Energy</span>
-              <div className="segmented grow" role="radiogroup" aria-label="Energy">
-                {(["calm", "lively", "hyped"] as Energy[]).map((e) => (
-                  <button
-                    key={e}
-                    role="radio"
-                    aria-checked={style.energy === e}
-                    className={style.energy === e ? "on" : ""}
-                    onClick={() => change({ energy: e })}
-                  >
-                    {{ calm: "Calm", lively: "Lively", hyped: "Hyped" }[e]}
-                  </button>
-                ))}
-              </div>
-            </div>
             {eleven && (
-              <>
-                <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
-                {/* ElevenLabs has exactly three settings here (Robust, Natural, Creative), so the slider has three stops. */}
-                <Slider
-                  label="Range"
-                  aria="Emotional range"
-                  min={0}
-                  max={RANGES.length - 1}
-                  step={1}
-                  value={RANGES.findIndex((r) => r.label === rangeOf(style.excitement))}
-                  show={rangeOf(style.excitement)}
-                  onChange={(i) => change({ excitement: RANGES[i].value })}
-                />
-              </>
+              <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} help={HELP.cue} />
+            )}
+            {/* Energy changes the punctuation the voice reads (see withEnergy in server/announcer.ts). */}
+            <Slider
+              label="Energy"
+              aria="Energy"
+              help={eleven ? HELP.energy : HELP.energyKokoro}
+              min={0}
+              max={ENERGIES.length - 1}
+              step={1}
+              value={Math.max(0, ENERGIES.findIndex((e) => e.value === style.energy))}
+              show={ENERGIES.find((e) => e.value === style.energy)?.label ?? "Lively"}
+              onChange={(i) => change({ energy: ENERGIES[i].value })}
+            />
+            {eleven && (
+              // ElevenLabs has exactly three settings here (Robust, Natural, Creative), so the slider has three stops.
+              <Slider
+                label="Range"
+                aria="Emotional range"
+                help={HELP.range}
+                min={0}
+                max={RANGES.length - 1}
+                step={1}
+                value={RANGES.findIndex((r) => r.label === rangeOf(style.excitement))}
+                show={rangeOf(style.excitement)}
+                onChange={(i) => change({ excitement: RANGES[i].value })}
+              />
             )}
             {info.controls.speed && (
               <Slider
                 label="Speed"
                 aria="Speed"
+                help={HELP.speed}
                 min={STYLE_LIMITS.minSpeed}
                 max={STYLE_LIMITS.maxSpeed}
                 step={0.05}
@@ -230,6 +227,7 @@ function AnnouncerVoice() {
               <Slider
                 label="Pitch"
                 aria="Pitch lift"
+                help={HELP.pitch}
                 min={0}
                 max={STYLE_LIMITS.maxPitch}
                 step={0.5}
@@ -241,6 +239,7 @@ function AnnouncerVoice() {
             <Slider
               label="Echo"
               aria="Stadium echo amount"
+              help={HELP.echo}
               min={0}
               max={1}
               step={0.05}
@@ -252,6 +251,7 @@ function AnnouncerVoice() {
               <Slider
                 label="Distance"
                 aria="Stadium echo distance"
+                help={HELP.distance}
                 min={0}
                 max={DISTANCES.length - 1}
                 step={1}
@@ -261,14 +261,6 @@ function AnnouncerVoice() {
               />
             )}
           </div>
-          <p className="muted small" style={{ margin: 0 }}>
-            {eleven
-              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, each cue in [square brackets] (or separated by commas), or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. Energy changes the punctuation it reads (Hyped: \"Now batting! Number 12! Ava!\"). "
-              : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
-            Echo adds the delayed echoes you hear off the stands at a ballpark; Distance sets how far away they come
-            back from. A real field's speakers add their own echo, so a little goes a long way. Listen to try a mix;
-            the Listen buttons below use it too.
-          </p>
           {styleChanged && (
             <button className="primary" onClick={saveStyle}>
               Use these settings
@@ -341,21 +333,19 @@ const rangeOf = (excitement: number) => (excitement >= 1.4 ? "Wild" : excitement
 const CUE_SUGGESTIONS = ["shouting", "excited", "enthusiastic", "energetic", "proud", "dramatic", "speaking quickly"];
 
 /**
- * The ElevenLabs cues: free text, several separated by commas, with
- * suggestions shown while the box is in use or hovered (phones have no
- * hover, so tapping in shows them too). Tapping a suggestion adds it, or
- * takes it out if it's already there.
+ * The ElevenLabs cues: free text, each in [square brackets], with
+ * suggestions floating over the settings below while the box is selected.
+ * Tapping a suggestion adds it, or takes it out if it's already there.
  */
-function CueInput({ value, onChange }: { value: string; onChange(v: string): void }) {
+function CueInput({ value, onChange, help }: { value: string; onChange(v: string): void; help?: string }) {
   const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
   const cues = splitCues(value);
   const has = (c: string) => cues.some((x) => x.toLowerCase() === c.toLowerCase());
   const toggle = (c: string) =>
     onChange(formatCues(has(c) ? cues.filter((x) => x.toLowerCase() !== c.toLowerCase()) : [...cues, c]));
   return (
-    <div className="editor-row cue-row" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <span className="label">Cue</span>
+    <div className="editor-row cue-row">
+      <SettingLabel label="Cue" help={help} />
       <div className="cue-field grow">
         <input
           value={value}
@@ -366,14 +356,14 @@ function CueInput({ value, onChange }: { value: string; onChange(v: string): voi
           onBlur={() => {
             // Show what was typed the way ElevenLabs gets it: "shouting, excited" becomes "[shouting] [excited]".
             if (value.trim()) onChange(formatCues(cues));
-            window.setTimeout(() => setOpen(false), 250);
+            setOpen(false);
           }}
           placeholder="e.g. [shouting] [excited]"
           maxLength={200}
           aria-label="Delivery cue"
           title={`Each cue in square brackets. Suggestions: ${formatCues(CUE_SUGGESTIONS)}`}
         />
-        {(open || hover) && (
+        {open && (
           <div className="cue-suggestions" role="listbox" aria-multiselectable="true" aria-label="Suggested cues">
             <span className="muted small cue-hint">Tap to add or remove. Up to 5, each in [square brackets].</span>
             {CUE_SUGGESTIONS.map((c) => (
@@ -429,9 +419,70 @@ function VoiceFilters(props: {
   );
 }
 
+/** What each delivery setting does; shown when its name is hovered or tapped. */
+const HELP = {
+  cue: "How the voice delivers the line, like an actor's direction. Write each cue in [square brackets], or tap in the box for suggestions. Emotion words like [shouting] or [excited] work best.",
+  energy: 'Changes the punctuation the voice reads. Calm: "…, Ava." Lively: "…, Ava!" Hyped: "Now batting! Number 12! Ava!"',
+  energyKokoro:
+    'This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it\'s read. Hyped: "Now batting! Number 12! Ava!"',
+  range:
+    "How much emotion the voice allows. Steady is the most consistent; Wild is the most expressive, and varies more each time. Cues work best on Natural or Wild.",
+  speed: "How fast the voice talks.",
+  pitch: "Raises the voice. A little higher sounds more excited; too much sounds processed.",
+  echo: "Delayed echoes, like you hear off the stands at a ballpark. A real field's speakers add their own echo, so a little goes a long way.",
+  distance: "How far away the echoes come back from: quick ones at a small field, later ones at a big stadium.",
+};
+
+/** The three Energy settings, as stops on a slider. */
+const ENERGIES: { value: Energy; label: string }[] = [
+  { value: "calm", label: "Calm" },
+  { value: "lively", label: "Lively" },
+  { value: "hyped", label: "Hyped" },
+];
+
+/**
+ * A setting's name. With help, it's a button: hovering with a mouse or
+ * tapping it (phones) shows what the setting does; tapping elsewhere hides it.
+ */
+function SettingLabel({ label, help }: { label: string; help?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  if (!help) return <span className="label">{label}</span>;
+  return (
+    <span
+      ref={ref}
+      className="label setting-label"
+      // Hover only for a real mouse: on a phone the tap would open it and the click then close it.
+      onPointerEnter={(e) => e.pointerType === "mouse" && setOpen(true)}
+      onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
+    >
+      <button type="button" className="label-button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {label}
+        <span className="help-mark" aria-hidden>
+          ?
+        </span>
+      </button>
+      {open && (
+        <span role="tooltip" className="setting-help">
+          {help}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function Slider(props: {
   label: string;
   aria: string;
+  help?: string;
   min: number;
   max: number;
   step: number;
@@ -441,7 +492,7 @@ function Slider(props: {
 }) {
   return (
     <div className="editor-row">
-      <span className="label">{props.label}</span>
+      <SettingLabel label={props.label} help={props.help} />
       <input
         type="range"
         className="grow"
