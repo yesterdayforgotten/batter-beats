@@ -820,9 +820,12 @@ label,
   letter-spacing: 0;
   color: var(--muted);
 }
-/* Everything under the at-bat name (song, "No song", loading…) in the dark ink, never grey */
+/* Everything under the at-bat name (song, "No song", loading…): the dark ink softened a
+   little towards the row's colour, so it sits below the name but stays easy to read.
+   Older phones without color-mix (iOS before 16.2) get the plain ink. */
 .bat-row.at-bat .bat-status {
   color: var(--accent-ink);
+  color: color-mix(in srgb, var(--accent-ink) 75%, var(--accent));
   font-weight: 700;
 }
 .bat-row.at-bat,
