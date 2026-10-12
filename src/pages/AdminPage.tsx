@@ -3,9 +3,11 @@ import { Link } from "react-router-dom";
 import { api, upload } from "../api.ts";
 import { context, Playback, unlockAudio } from "../audio/engine.ts";
 import { CheckIcon, ChevronIcon } from "../components/Icons.tsx";
+import { DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../../shared/types.ts";
 
 interface AnnouncerInfo {
   voice: string;
+  style: AnnouncerStyle;
   voices: string[];
   error: string | null;
 }
@@ -50,13 +52,36 @@ function AnnouncerVoice() {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  /** Delivery settings being tried out; saved with "Use these settings". */
+  const [style, setStyle] = useState<AnnouncerStyle>(DEFAULT_STYLE);
+  const [savedNote, setSavedNote] = useState(false);
   const current = useRef<Playback | null>(null);
 
   useEffect(() => {
     api<AnnouncerInfo>("/announcer")
-      .then(setInfo)
+      .then((r) => {
+        setInfo(r);
+        setStyle(r.style);
+      })
       .catch((err) => setError(err.message));
   }, []);
+
+  const styleChanged = !!info && JSON.stringify(style) !== JSON.stringify(info.style);
+  const change = (c: Partial<AnnouncerStyle>) => {
+    setStyle((s) => ({ ...s, ...c }));
+    setSavedNote(false);
+  };
+
+  async function saveStyle() {
+    try {
+      const r = await api<{ style: AnnouncerStyle }>("/announcer/style", { method: "PUT", body: style });
+      setInfo((i) => i && { ...i, style: r.style });
+      setStyle(r.style);
+      setSavedNote(true);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
 
   async function listen(voice: string) {
     unlockAudio(); // must start inside the tap
@@ -67,7 +92,7 @@ function AnnouncerVoice() {
       const res = await fetch("/api/announcer/sample", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voice }),
+        body: JSON.stringify({ voice, style }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "The sample didn't play.");
       const buffer = await context().decodeAudioData(await res.arrayBuffer());
@@ -107,6 +132,84 @@ function AnnouncerVoice() {
       </p>
       {(error || info?.error) && <p className="error">{error ?? info?.error}</p>}
       {!info && !error && <p className="muted">Loading…</p>}
+      {info && !info.error && (
+        <div className="card stack" style={{ marginBottom: 10 }}>
+          <div className="row">
+            <span className="section-title grow">Delivery</span>
+            <button className="small-button" onClick={() => listen(info.voice)} disabled={playing === info.voice}>
+              {playing === info.voice ? "…" : "Listen"}
+            </button>
+          </div>
+          <div className="segmented" role="radiogroup" aria-label="Energy">
+            {(["calm", "lively", "hyped"] as Energy[]).map((e) => (
+              <button key={e} role="radio" aria-checked={style.energy === e} className={style.energy === e ? "on" : ""} onClick={() => change({ energy: e })}>
+                {{ calm: "Calm", lively: "Lively", hyped: "Hyped" }[e]}
+              </button>
+            ))}
+          </div>
+          <div className="editor-rows" style={{ padding: 0 }}>
+            <div className="editor-row">
+              <span className="label">Speed</span>
+              <input
+                type="range"
+                className="grow"
+                min={STYLE_LIMITS.minSpeed}
+                max={STYLE_LIMITS.maxSpeed}
+                step={0.05}
+                value={style.speed}
+                onChange={(e) => change({ speed: Number(e.target.value) })}
+                aria-label="Speed"
+              />
+              <span className="value">{style.speed.toFixed(2)}×</span>
+            </div>
+            <div className="editor-row">
+              <span className="label">Pitch</span>
+              <input
+                type="range"
+                className="grow"
+                min={0}
+                max={STYLE_LIMITS.maxPitch}
+                step={0.5}
+                value={style.pitch}
+                onChange={(e) => change({ pitch: Number(e.target.value) })}
+                aria-label="Pitch lift"
+              />
+              <span className="value">{style.pitch === 0 ? "Normal" : `+${style.pitch}`}</span>
+            </div>
+            <div className="editor-row">
+              <span className="label grow" style={{ width: "auto" }}>
+                Stadium echo
+              </span>
+              <button
+                role="switch"
+                aria-checked={style.echo}
+                aria-label="Stadium echo"
+                className={`switch${style.echo ? " on" : ""}`}
+                onClick={() => change({ echo: !style.echo })}
+              >
+                <span className="switch-track">
+                  <span className="switch-knob" />
+                </span>
+              </button>
+            </div>
+          </div>
+          <p className="muted small" style={{ margin: 0 }}>
+            The voice engine has no emotion setting, so Energy changes how the announcement is punctuated, which changes
+            how it's read. A little pitch lift and speed also sound more excited. Listen to try a mix; the voice
+            Listen buttons below use it too.
+          </p>
+          {styleChanged && (
+            <button className="primary" onClick={saveStyle}>
+              Use these settings
+            </button>
+          )}
+          {savedNote && !styleChanged && (
+            <p className="muted small" style={{ margin: 0 }}>
+              <CheckIcon /> Saved. Every announcement is being remade.
+            </p>
+          )}
+        </div>
+      )}
       <ul className="list">
         {shown.map(({ id, d }) => (
           <li key={id} className="list-item">

@@ -102,13 +102,23 @@ export async function durationMs(file: string): Promise<number> {
 export const VOICE_LUFS = -13;
 
 /** Integrated loudness of a file in LUFS (EBU R128). */
-async function loudness(file: string): Promise<number> {
-  const { err } = await runFull("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128", "-f", "null", "-"]);
+async function loudness(file: string, effects: string): Promise<number> {
+  const filters = [effects, "ebur128"].filter(Boolean).join(",");
+  const { err } = await runFull("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", filters, "-f", "null", "-"]);
   // The summary at the end (older ffmpeg also logs every frame before it).
   const m = /Integrated loudness:\s*I:\s*(-?[\d.]+) LUFS/.exec(err.slice(err.lastIndexOf("Summary:")));
   const value = m ? Number(m[1]) : NaN;
   if (!Number.isFinite(value)) throw new Error("Couldn't measure the announcement's loudness.");
   return value;
+}
+
+/** ffmpeg filters for an announcer style: a pitch lift that keeps the voice natural, and a stadium echo. */
+export function voiceEffects(pitchSemitones: number, echo: boolean): string {
+  const filters: string[] = [];
+  if (pitchSemitones > 0) filters.push(`rubberband=pitch=${(2 ** (pitchSemitones / 12)).toFixed(4)}:formant=preserved`);
+  // Room for the echo to ring out, then two quick reflections like a ballpark PA.
+  if (echo) filters.push("apad=pad_dur=0.5", "aecho=0.8:0.55:110|230:0.35|0.18");
+  return filters.join(",");
 }
 
 /**
@@ -120,12 +130,14 @@ async function loudness(file: string): Promise<number> {
  * announcements are, so the loudness is measured and the gain set directly,
  * with a limiter catching the loudest syllables.
  */
-export async function normalizeVoice(input: string, output: string): Promise<void> {
-  const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input))));
+export async function normalizeVoice(input: string, output: string, effects = ""): Promise<void> {
+  // Effects (pitch, echo) come first, so the loudness is measured as heard.
+  const gainDb = Math.max(-20, Math.min(30, VOICE_LUFS - (await loudness(input, effects))));
+  const filters = [effects, `volume=${gainDb.toFixed(2)}dB`, "alimiter=limit=0.84:attack=2:release=50:level=false"];
   await run("ffmpeg", [
     "-v", "error", "-y",
     "-i", input,
-    "-af", `volume=${gainDb.toFixed(2)}dB,alimiter=limit=0.84:attack=2:release=50:level=false`,
+    "-af", filters.filter(Boolean).join(","),
     "-ar", "44100", "-ac", "1",
     "-c:a", "libmp3lame", "-b:a", "96k",
     output,

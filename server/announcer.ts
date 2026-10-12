@@ -11,9 +11,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db.ts";
 import { config } from "./config.ts";
-import { durationMs, normalizeVoice, removeQuietly } from "./audio.ts";
+import { durationMs, normalizeVoice, removeQuietly, voiceEffects } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
-import { ANNOUNCER } from "../shared/types.ts";
+import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../shared/types.ts";
 
 /** A deep, clear American voice that suits a stadium announcer. Changeable by an admin. */
 export const DEFAULT_VOICE = "am_michael";
@@ -52,6 +52,47 @@ export function setSetting(key: string, value: string) {
 
 export const currentVoice = () => getSetting("announcer_voice") || DEFAULT_VOICE;
 
+const ENERGIES: Energy[] = ["calm", "lively", "hyped"];
+const round = (v: number, step: number) => Math.round(v / step) * step;
+
+/** A style with every value present and within range. */
+export function cleanStyle(input: unknown): AnnouncerStyle {
+  const s = (typeof input === "object" && input ? input : {}) as Partial<AnnouncerStyle>;
+  const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+  return {
+    speed: round(Math.max(STYLE_LIMITS.minSpeed, Math.min(STYLE_LIMITS.maxSpeed, num(s.speed, DEFAULT_STYLE.speed))), 0.05),
+    energy: ENERGIES.includes(s.energy as Energy) ? (s.energy as Energy) : DEFAULT_STYLE.energy,
+    pitch: round(Math.max(0, Math.min(STYLE_LIMITS.maxPitch, num(s.pitch, DEFAULT_STYLE.pitch))), 0.5),
+    echo: typeof s.echo === "boolean" ? s.echo : DEFAULT_STYLE.echo,
+  };
+}
+
+export function currentStyle(): AnnouncerStyle {
+  try {
+    return cleanStyle(JSON.parse(getSetting("announcer_style") ?? "{}"));
+  } catch {
+    return { ...DEFAULT_STYLE };
+  }
+}
+
+export function setStyle(style: AnnouncerStyle) {
+  setSetting("announcer_style", JSON.stringify(cleanStyle(style)));
+}
+
+/**
+ * Kokoro has no emotion setting, but it reads punctuation: exclamation marks
+ * and short phrases make it sound livelier.
+ *   calm:   "Now batting, number 12, Ava."
+ *   lively: "Now batting, number 12, Ava!"
+ *   hyped:  "Now batting! Number 12! Ava!"
+ */
+export function withEnergy(text: string, energy: Energy): string {
+  const bare = text.replace(/[.!?\s]+$/, "");
+  if (energy === "calm") return `${bare}.`;
+  if (energy === "lively") return `${bare}!`;
+  return `${bare.replace(/,\s*/g, "! ").replace(/!\s+([a-z])/g, (_, c: string) => `! ${c.toUpperCase()}`)}!`;
+}
+
 /** Fills in the team's wording. A player with no number skips the "number …" part. */
 export function announcementText(template: string, name: string, number: string): string {
   let t = template || ANNOUNCER.defaultTemplate;
@@ -71,24 +112,29 @@ function rosterRow(rosterId: number): AnnouncerRosterRow {
 }
 
 /** What an announcement for this player would say, and the key identifying it; null when announcing is off. */
-export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voice: string } | null {
+export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voice: string; style: AnnouncerStyle } | null {
   if (!config.ttsUrl || !p.announce_enabled) return null;
   const r = rosterRow(p.roster_id);
   if (!r?.announce_enabled) return null;
   const text = announcementText(r.announce_template, p.pronunciation.trim() || p.name, p.number);
   const voice = currentVoice();
-  const key = crypto.createHash("sha1").update(`${PROCESSING}\n${voice}\n${text}`).digest("hex").slice(0, 12);
-  return { text, key, voice };
+  const style = currentStyle();
+  const key = crypto
+    .createHash("sha1")
+    .update(`${PROCESSING}\n${voice}\n${JSON.stringify(style)}\n${text}`)
+    .digest("hex")
+    .slice(0, 12);
+  return { text, key, voice, style };
 }
 
 /** Asks the voice engine to speak some text; returns MP3 data. */
-export async function speak(text: string, voice: string): Promise<Buffer> {
+export async function speak(text: string, voice: string, speed = 1): Promise<Buffer> {
   let res: Response;
   try {
     res = await fetch(`${config.ttsUrl}/v1/audio/speech`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "mp3", speed: 1 }),
+      body: JSON.stringify({ model: "kokoro", input: text, voice, response_format: "mp3", speed }),
       signal: AbortSignal.timeout(60_000),
     });
   } catch {
@@ -99,12 +145,12 @@ export async function speak(text: string, voice: string): Promise<Buffer> {
 }
 
 /** Speaks text and returns a finished, loudness-matched announcement file in tmp (the caller moves or deletes it). */
-async function makeAnnouncementFile(text: string, voice: string): Promise<string> {
+async function makeAnnouncementFile(text: string, voice: string, style: AnnouncerStyle): Promise<string> {
   const raw = path.join(dirs.tmp, `${crypto.randomUUID()}-raw.mp3`);
   const out = path.join(dirs.tmp, `${crypto.randomUUID()}.mp3`);
   try {
-    await fs.promises.writeFile(raw, await speak(text, voice));
-    await normalizeVoice(raw, out);
+    await fs.promises.writeFile(raw, await speak(withEnergy(text, style.energy), voice, style.speed));
+    await normalizeVoice(raw, out, voiceEffects(style.pitch, style.echo));
     return out;
   } finally {
     removeQuietly(raw);
@@ -112,8 +158,8 @@ async function makeAnnouncementFile(text: string, voice: string): Promise<string
 }
 
 /** Speaks text in a voice and returns the finished MP3 data (for "listen" buttons and voice samples). */
-export async function sample(text: string, voice: string): Promise<Buffer> {
-  const file = await makeAnnouncementFile(text, voice);
+export async function sample(text: string, voice: string, style: AnnouncerStyle = currentStyle()): Promise<Buffer> {
+  const file = await makeAnnouncementFile(text, voice, style);
   try {
     return await fs.promises.readFile(file);
   } finally {
@@ -131,7 +177,7 @@ async function update(playerId: number) {
   const w = wanted(p);
   if (!w || (p.announce_key === w.key && p.announce_file && fs.existsSync(announcementPath(p.announce_file)))) return;
   try {
-    const tmp = await makeAnnouncementFile(w.text, w.voice);
+    const tmp = await makeAnnouncementFile(w.text, w.voice, w.style);
     const file = `${p.id}-${w.key}.mp3`;
     await fs.promises.rename(tmp, announcementPath(file));
     const ms = await durationMs(announcementPath(file));

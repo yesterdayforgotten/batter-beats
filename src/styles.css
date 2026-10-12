@@ -947,3 +947,24 @@ label {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
+
+/* Choose-one buttons side by side (Calm / Lively / Hyped) */
+.segmented {
+  display: flex;
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 3px;
+  gap: 3px;
+}
+.segmented button {
+  flex: 1;
+  min-height: 40px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+}
+.segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}

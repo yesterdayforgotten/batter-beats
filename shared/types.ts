@@ -94,6 +94,20 @@ export interface Player {
   announcementError: string | null;
 }
 
+/** How the announcer delivers every announcement (set by an admin). */
+export type Energy = "calm" | "lively" | "hyped";
+export interface AnnouncerStyle {
+  /** Talking speed, 1 = normal. */
+  speed: number;
+  energy: Energy;
+  /** Raise the voice by this many semitones; a little higher sounds more excited. */
+  pitch: number;
+  /** A short stadium-style echo. */
+  echo: boolean;
+}
+export const DEFAULT_STYLE: AnnouncerStyle = { speed: 1, energy: "lively", pitch: 0, echo: false };
+export const STYLE_LIMITS = { minSpeed: 0.8, maxSpeed: 1.4, maxPitch: 4 } as const;
+
 export const ANNOUNCER = {
   defaultTemplate: "Now batting, number {number}, {name}",
   maxSongDelayMs: 10_000,
