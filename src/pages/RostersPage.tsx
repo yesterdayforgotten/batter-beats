@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { EditIcon } from "../components/Icons.tsx";
+import { KebabIcon } from "../components/Icons.tsx";
 import type { Roster, RosterSummary } from "../../shared/types.ts";
 
 export function RostersPage() {
@@ -40,8 +40,8 @@ export function RostersPage() {
               </span>
             </Link>
             {editor && (
-              <Link to={`/rosters/${r.id}/edit`} aria-label={`Edit ${r.name}`} className="icon-link">
-                <EditIcon />
+              <Link to={`/rosters/${r.id}/edit`} aria-label={`Edit ${r.name}`} className="kebab">
+                <KebabIcon />
               </Link>
             )}
           </li>

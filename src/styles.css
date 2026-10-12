@@ -649,16 +649,23 @@ label {
   gap: 10px;
 }
 
-.icon-link {
-  width: 48px;
-  height: 48px;
+/* Small "more" button at the end of a row; the whole row height stays tappable. */
+.list-item > .kebab {
+  flex: none;
+  min-height: 0;
+  padding: 0;
+  width: 40px;
+  align-self: stretch;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
+  border-radius: 12px;
+  color: var(--faint);
+}
+.list-item > .kebab:active {
   background: var(--raised);
-  color: var(--muted);
+  color: var(--text);
 }
 
 /* Drag to reorder */
