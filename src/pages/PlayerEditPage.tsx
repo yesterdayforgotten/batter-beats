@@ -253,7 +253,7 @@ export function PlayerEditPage() {
     return (
       <>
         <PageHead back="/" eyebrow="Edit player" />
-        {error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}
+        {error ? <p className="error" role="alert">{error}</p> : <p className="muted">Loading…</p>}
       </>
     );
   }
@@ -264,7 +264,7 @@ export function PlayerEditPage() {
   return (
     <div style={teamStyle(teamColor)}>
       <PageHead
-        back={`/rosters/${player.rosterId}/edit`}
+        done={`/rosters/${player.rosterId}/edit`}
         eyebrow="Edit player"
         title={
           <div className="display truncate" style={{ fontSize: 30 }}>
@@ -296,7 +296,7 @@ export function PlayerEditPage() {
         </div>
 
         {error && (
-          <p className="error" onClick={() => setError(null)}>
+          <p className="error" role="alert" onClick={() => setError(null)}>
             {error}
           </p>
         )}
@@ -541,7 +541,7 @@ function AnnouncerCard(props: {
             "Kay-den"). For exact sounds, use phonetic symbols like [Siobhan](/ʃɪvˈɔːn/).
           </p>
           {player.announcementStatus === "error" && (
-            <p className="error" style={{ margin: 0 }}>
+            <p className="error" role="alert" style={{ margin: 0 }}>
               {player.announcementError}
             </p>
           )}

@@ -107,11 +107,18 @@ export function RosterEditPage() {
   return (
     <div style={teamStyle(roster?.color)}>
       <PageHead
-        back={editBack(id)}
+        done={editBack(id)}
         eyebrow="Edit team"
-        title={roster ? <div className="display truncate" style={{ fontSize: 30, color: "var(--accent)" }}>{roster.name}</div> : undefined}
+        title={
+          roster ? (
+            // The team name opens the team's game mode.
+            <Link to={`/rosters/${roster.id}`} className="display truncate head-title-link" style={{ fontSize: 30 }}>
+              {roster.name}
+            </Link>
+          ) : undefined
+        }
       />
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {roster && (
         <div className="stack" style={{ gap: 12 }}>
           <label>
@@ -310,7 +317,7 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
         />
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Name" required maxLength={80} />
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
         <button className="primary">Add player</button>
         <button type="button" onClick={() => setOpen(false)}>

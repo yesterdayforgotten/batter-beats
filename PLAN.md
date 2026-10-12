@@ -280,6 +280,16 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
+### UI review (2026-10-12)
+Owner-approved conventions from a full review at iPhone 6s size:
+- Navigation: the app bar (icon + name → Teams, ☰ menu) is on every screen. Screens whose way back is just Teams have no back arrow (game mode, Playlists, Music, Admin). Edit screens (Edit team, Edit player, a playlist for editors) have **Done** at the top right instead of a back arrow, returning where you came from; edits save as you go. Screens you browse into keep a back arrow (Users → Admin, a playlist for regular users → Playlists). On Edit team, tapping the team name opens its game mode.
+- Headers show what you're on: "EDIT TEAM / WAVES", "EDIT PLAYER / #1 AVA", "PLAYLIST / WARM-UP", "GAME MODE / WAVES".
+- Player editor: song and clip first, then the announcer; "Delete player" (matching Delete team / Delete song); team colour.
+- Edit team shows only the current voice (Listen, Change voice); the voice list with filters opens in a sheet.
+- Song picker: current song first, then songs tagged for the player/team, then all; Listen on each row; upload is a secondary button.
+- Uploads of a song already in the library (same title and artist, length within 1 s) aren't stored again; the existing song is used (batch tags are added to it). `POST /api/songs` answers `{song, existing}`.
+- Music: A–Z / Newest sort. Users can be removed (not yourself, not the last admin; `DELETE /api/users/:id`). Admin's Announcer section only appears when there's an engine choice. Errors are `role="alert"`.
+
 ### Jukebox and shared playlists (2026-10-12, owner's request)
 - Playlists are shared by everyone and there can be many (owner's choice); editors create, rename, reorder, add/remove songs and delete them; everyone can play them and keep any of them on their phone. Tables `playlists` and `playlist_items` (migration turned each user's old personal list into a shared playlist named "<username>'s playlist"). API: `GET/POST /api/playlists`, `PATCH/DELETE /api/playlists/:id`, `PUT /api/playlists/:id/songs`.
 - Screens: Playlists (☰ menu; `/playlists`, the old `/playlist` redirects) and one playlist (`/playlists/:id`): name, Keep on this phone, compact numbered song rows with × to remove, Reorder (drag), "+ Add songs" sheet with search and tag filters (tap to add or take out), Delete playlist.

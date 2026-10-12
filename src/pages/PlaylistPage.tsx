@@ -62,11 +62,11 @@ export function PlaylistsPage() {
     <>
       <PageHead title={<div className="display" style={{ fontSize: 30 }}>Playlists</div>} />
       <p className="muted small" style={{ margin: "0 4px 14px" }}>
-        Music for between innings and warm-ups, shared by everyone. Play them from the Jukebox tab in game mode.
+        Shared by everyone. Play them from game mode's Jukebox tab.
       </p>
       {offline && <p className="notice">No connection. Showing the playlists as last saved on this phone.</p>}
       {error && (
-        <p className="error" onClick={() => setError(null)}>
+        <p className="error" role="alert" onClick={() => setError(null)}>
           {error}
         </p>
       )}
@@ -170,10 +170,13 @@ export function PlaylistEditPage() {
 
   return (
     <>
-      <PageHead back="/playlists" eyebrow="Playlist" title={!canEdit && playlist ? <div className="display truncate" style={{ fontSize: 30 }}>{playlist.name}</div> : undefined} />
+      <PageHead
+        back={canEdit ? undefined : "/playlists"}
+        done={canEdit ? "/playlists" : undefined}
+        eyebrow="Playlist" title={playlist ? <div className="display truncate" style={{ fontSize: 30 }}>{playlist.name}</div> : undefined} />
       {offline && <p className="notice">No connection. Showing the playlist as last saved on this phone.</p>}
       {error && (
-        <p className="error" onClick={() => setError(null)}>
+        <p className="error" role="alert" onClick={() => setError(null)}>
           {error}
         </p>
       )}
@@ -281,7 +284,7 @@ function AddSongsSheet({ inPlaylist, onChange, onClose }: { inPlaylist: number[]
             Done
           </button>
         </div>
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         {library && library.length > 0 && <SongFilterBar filter={filter} />}
         <div className="sheet-list">
           {library?.length === 0 && <p className="empty">The library is empty. Upload songs on the Music screen.</p>}

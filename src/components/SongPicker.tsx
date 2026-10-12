@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, upload } from "../api.ts";
 import { SongFilterBar, useSongFilter } from "./SongFilter.tsx";
+import { PlayIcon, StopIcon } from "./Icons.tsx";
 import type { RosterSummary, Song } from "../../shared/types.ts";
 import { useLockPageScroll } from "../lockScroll.ts";
 
@@ -28,6 +29,20 @@ export function SongPicker({
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  /** The song being listened to before choosing (whole song, from the start). */
+  const [listening, setListening] = useState<number | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => audio.current?.pause(), []);
+
+  function listen(song: Song) {
+    audio.current?.pause();
+    if (listening === song.id) return setListening(null);
+    const a = new Audio(`/api/media/songs/${song.id}.mp3`);
+    a.onended = () => setListening((id) => (id === song.id ? null : id));
+    a.play().catch(() => setListening(null));
+    audio.current = a;
+    setListening(song.id);
+  }
 
   useEffect(() => {
     api<{ songs: Song[] }>("/songs")
@@ -45,8 +60,22 @@ export function SongPicker({
     const names = [player?.name, teamName].filter((n): n is string => !!n).map((n) => n.toLowerCase());
     return new Set(filter.shown.filter((s) => s.tags.some((t) => names.includes(t.toLowerCase()))).map((s) => s.id));
   }, [filter.shown, player?.name, teamName]);
-  const tagged = filter.shown.filter((s) => forPlayer.has(s.id));
-  const rest = filter.shown.filter((s) => !forPlayer.has(s.id));
+  const current = filter.shown.find((s) => s.id === selectedId) ?? null;
+  const tagged = filter.shown.filter((s) => forPlayer.has(s.id) && s.id !== selectedId);
+  const rest = filter.shown.filter((s) => !forPlayer.has(s.id) && s.id !== selectedId);
+  const option = (s: Song) => (
+    <SongOption
+      key={s.id}
+      song={s}
+      selected={s.id === selectedId}
+      listening={listening === s.id}
+      onListen={() => listen(s)}
+      onPick={(song) => {
+        audio.current?.pause();
+        onPick(song);
+      }}
+    />
+  );
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -72,8 +101,8 @@ export function SongPicker({
             Close
           </button>
         </div>
-        <button className="primary" disabled={progress !== null} onClick={() => fileInput.current?.click()}>
-          {progress === null ? "Upload an MP3" : progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : "Preparing waveform…"}
+        <button className="add-button" disabled={progress !== null} onClick={() => fileInput.current?.click()}>
+          {progress === null ? "+ Upload an MP3" : progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : "Preparing waveform…"}
         </button>
         {progress !== null && (
           <div className="progress">
@@ -87,38 +116,57 @@ export function SongPicker({
           style={{ display: "none" }}
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         {songs && songs.length > 0 && <SongFilterBar filter={filter} />}
         <div className="sheet-list">
           {songs && songs.length === 0 && <p className="empty">The library is empty. Upload the first song.</p>}
           {songs && songs.length > 0 && filter.shown.length === 0 && <p className="empty">No songs match.</p>}
+          {current && (
+            <>
+              <span className="faint small sheet-group">Current song</span>
+              {option(current)}
+            </>
+          )}
           {tagged.length > 0 && (
             <>
               <span className="faint small sheet-group">Tagged for {player?.name}{teamName ? ` or ${teamName}` : ""}</span>
-              {tagged.map((s) => (
-                <SongOption key={s.id} song={s} selected={s.id === selectedId} onPick={onPick} />
-              ))}
-              {rest.length > 0 && <span className="faint small sheet-group">All songs</span>}
+              {tagged.map(option)}
             </>
           )}
-          {rest.map((s) => (
-            <SongOption key={s.id} song={s} selected={s.id === selectedId} onPick={onPick} />
-          ))}
+          {rest.length > 0 && (current || tagged.length > 0) && <span className="faint small sheet-group">All songs</span>}
+          {rest.map(option)}
         </div>
       </div>
     </div>
   );
 }
 
-function SongOption({ song, selected, onPick }: { song: Song; selected: boolean; onPick(song: Song): void }) {
+function SongOption({
+  song,
+  selected,
+  listening,
+  onListen,
+  onPick,
+}: {
+  song: Song;
+  selected: boolean;
+  listening: boolean;
+  onListen(): void;
+  onPick(song: Song): void;
+}) {
   return (
-    <button className={`song-option ${selected ? "selected" : ""}`} onClick={() => onPick(song)}>
-      <span className="title">{song.title}</span>
-      <span className="artist">
-        {song.artist ? `${song.artist} · ` : ""}
-        {formatLength(song.durationMs)}
-        {song.tags.length > 0 ? ` · ${song.tags.join(", ")}` : ""}
-      </span>
-    </button>
+    <div className={`song-option ${selected ? "selected" : ""}`}>
+      <button className={`song-play${listening ? " on" : ""}`} aria-label={listening ? `Stop ${song.title}` : `Listen to ${song.title}`} onClick={onListen}>
+        {listening ? <StopIcon /> : <PlayIcon />}
+      </button>
+      <button className="song-option-pick" onClick={() => onPick(song)}>
+        <span className="song-title truncate">{song.title}</span>
+        <span className="song-meta truncate">
+          {song.artist ? `${song.artist} · ` : ""}
+          {formatLength(song.durationMs)}
+          {song.tags.length > 0 ? <span className="song-tags">{song.tags.map((t) => ` #${t}`).join("")}</span> : null}
+        </span>
+      </button>
+    </div>
   );
 }

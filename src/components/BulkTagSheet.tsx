@@ -83,7 +83,7 @@ export function BulkTagSheet({
               </>
             )}
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && <p className="error" role="alert">{error}</p>}
         </div>
         <button className="primary" disabled={busy || (add.length === 0 && remove.length === 0)} onClick={apply}>
           {busy ? "Saving…" : add.length === 0 && remove.length === 0 ? "Choose tags to add or remove" : `Apply to ${count}`}

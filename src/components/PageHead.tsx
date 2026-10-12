@@ -8,6 +8,7 @@ export function PageHead({
   eyebrow,
   title,
   right,
+  done,
 }: {
   /** Where the back arrow goes; no arrow when left out (screens whose way back is the app bar's Teams link). */
   back?: string;
@@ -16,6 +17,8 @@ export function PageHead({
   eyebrow?: string;
   title?: ReactNode;
   right?: ReactNode;
+  /** Edit screens: a Done link at the top right (instead of a back arrow) that returns here. */
+  done?: string;
 }) {
   return (
     <header className={`page-head${back === undefined ? " no-back" : ""}`}>
@@ -40,6 +43,11 @@ export function PageHead({
         {title}
       </div>
       {right}
+      {done !== undefined && (
+        <Link to={done} className="link-button head-done">
+          Done
+        </Link>
+      )}
     </header>
   );
 }

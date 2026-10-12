@@ -82,7 +82,7 @@ function AnnouncerEngine() {
           ))}
         </div>
       )}
-      {(error || info?.error) && <p className="error">{error ?? info?.error}</p>}
+      {(error || info?.error) && <p className="error" role="alert">{error ?? info?.error}</p>}
     </>
   );
 }
@@ -152,7 +152,7 @@ function Backup() {
             <CheckIcon /> {message}
           </p>
         )}
-        {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
+        {error && <p className="error" role="alert" style={{ margin: 0 }}>{error}</p>}
       </div>
     </>
   );

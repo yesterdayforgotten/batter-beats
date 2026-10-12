@@ -39,7 +39,7 @@ export function RostersPage() {
   return (
     <section>
       <h1 className="big-title">Teams</h1>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {offline && (
         <p className="notice">
           No connection. {rosters?.length ? "Showing the teams saved on this phone." : "No teams are saved on this phone yet."}
@@ -181,7 +181,7 @@ function NewRoster() {
         Team name
         <input className="input-large" value={name} onChange={(e) => setName(e.target.value)} autoFocus required maxLength={80} />
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
         <button className="primary">Create</button>
         <button type="button" onClick={() => setOpen(false)}>

@@ -40,7 +40,7 @@ export function UsersPage() {
     <section>
       <PageHead back="/admin" title={<div className="display" style={{ fontSize: 30 }}>Users</div>} />
       <AddUserForm onAdded={(u) => setUsers((list) => [...list, u].sort(byName))} />
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <ul className="list" style={{ marginTop: 12 }}>
         {users.map((u) => (
           <li key={u.id} className="card user-row">
@@ -138,7 +138,7 @@ function AddUserForm({ onAdded }: { onAdded(user: User): void }) {
           ))}
         </select>
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
         <button className="primary">Create user</button>
         <button type="button" onClick={() => setOpen(false)}>
@@ -198,7 +198,7 @@ function ResetPassword({ user }: { user: User }) {
           autoFocus
         />
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
         <button className="primary">Save</button>
         <button type="button" onClick={() => setOpen(false)}>

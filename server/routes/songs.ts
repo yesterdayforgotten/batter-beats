@@ -67,8 +67,10 @@ songsRouter.post("/songs", requireRole("editor"), upload.single("file"), async (
     // Browsers send the file name as UTF-8, but multer reads it as Latin-1, which garbles
     // anything beyond plain ASCII (curly quotes, accents). Reinterpret the bytes.
     const name = Buffer.from(req.file.originalname, "latin1").toString("utf8");
-    let song = await addSong(req.file.path, name, req.user!.id);
-    // Tags for a batch of uploads come along as a JSON list in a "tags" field.
+    const added = await addSong(req.file.path, name, req.user!.id);
+    let song = added.song;
+    // Tags for a batch of uploads come along as a JSON list in a "tags" field. They're
+    // added to the song's tags (a song already in the library keeps the ones it had).
     if (req.body?.tags) {
       let tags: unknown = [];
       try {
@@ -76,9 +78,9 @@ songsRouter.post("/songs", requireRole("editor"), upload.single("file"), async (
       } catch {
         // ignore unreadable tags; the song itself is fine
       }
-      song = setSongTags(song.id, cleanTags(tags)) ?? song;
+      song = editTagsOf([song.id], cleanTags(tags), [])[0] ?? song;
     }
-    res.status(201).json({ song });
+    res.status(added.existing ? 200 : 201).json({ song, existing: added.existing });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message.includes("MP3") ? (err as Error).message : "That file isn't an MP3 we can use." });
   }

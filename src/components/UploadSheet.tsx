@@ -7,7 +7,7 @@ import { useLockPageScroll } from "../lockScroll.ts";
 type FileState =
   | { status: "waiting" }
   | { status: "uploading"; progress: number }
-  | { status: "done"; song: Song }
+  | { status: "done"; song: Song; existing: boolean }
   | { status: "failed"; error: string };
 
 const formatSize = (bytes: number) =>
@@ -42,10 +42,10 @@ export function UploadSheet({
     for (let i = 0; i < files.length; i++) {
       set(i, { status: "uploading", progress: 0 });
       try {
-        const r = await upload<{ song: Song }>("/songs", files[i], (p) => set(i, { status: "uploading", progress: p }), {
+        const r = await upload<{ song: Song; existing: boolean }>("/songs", files[i], (p) => set(i, { status: "uploading", progress: p }), {
           tags: JSON.stringify(tags),
         });
-        set(i, { status: "done", song: r.song });
+        set(i, { status: "done", song: r.song, existing: r.existing });
         onUploaded(r.song);
       } catch (err) {
         set(i, { status: "failed", error: (err as Error).message });
@@ -54,7 +54,8 @@ export function UploadSheet({
     setPhase("finished");
   }
 
-  const done = states.filter((s) => s.status === "done").length;
+  const done = states.filter((s) => s.status === "done" && !s.existing).length;
+  const already = states.filter((s) => s.status === "done" && s.existing).length;
   const failed = states.filter((s) => s.status === "failed").length;
   const count = `${files.length} ${files.length === 1 ? "song" : "songs"}`;
 
@@ -63,7 +64,7 @@ export function UploadSheet({
       <div className="sheet" role="dialog" aria-label="Upload songs" onClick={(e) => e.stopPropagation()}>
         <div className="row">
           <span className="section-title grow">
-            {phase === "choosing" ? `Upload ${count}` : phase === "uploading" ? `Uploading ${done + failed + 1} of ${files.length}…` : "Upload finished"}
+            {phase === "choosing" ? `Upload ${count}` : phase === "uploading" ? `Uploading ${done + already + failed + 1} of ${files.length}…` : "Upload finished"}
           </span>
           {phase !== "uploading" && (
             <button className="link-button" onClick={onClose}>
@@ -85,7 +86,7 @@ export function UploadSheet({
                     <span className={`small truncate ${s.status === "failed" ? "error-text" : "muted"}`}>
                       {s.status === "waiting" && formatSize(f.size)}
                       {s.status === "uploading" && (s.progress < 1 ? `Uploading… ${Math.round(s.progress * 100)}%` : "Adding to the library…")}
-                      {s.status === "done" && `Added${s.song.artist ? ` · ${s.song.artist}` : ""}`}
+                      {s.status === "done" && `${s.existing ? "Already in the library" : "Added"}${s.song.artist ? ` · ${s.song.artist}` : ""}`}
                       {s.status === "failed" && s.error}
                     </span>
                   </span>
@@ -109,7 +110,7 @@ export function UploadSheet({
           )}
           {phase === "finished" && (
             <p className="muted small" style={{ margin: "12px 0 0" }}>
-              {done} added{failed ? `, ${failed} failed` : ""}.
+              {done} added{already ? `, ${already} already in the library` : ""}{failed ? `, ${failed} failed` : ""}.
               {tags.length ? ` Tagged ${tags.join(", ")}.` : ""}
             </p>
           )}

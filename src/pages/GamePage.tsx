@@ -324,14 +324,14 @@ export function GamePage() {
         }
         right={
           editing ? (
-            <button className="link-button" style={{ color: "var(--accent)", padding: "8px 6px" }} onClick={() => setEditing(false)}>
+            <button className="link-button head-done" onClick={() => setEditing(false)}>
               Done
             </button>
           ) : undefined
         }
       />
       {error && (
-        <p className="error" onClick={() => setError(null)}>
+        <p className="error" role="alert" onClick={() => setError(null)}>
           {error}
         </p>
       )}

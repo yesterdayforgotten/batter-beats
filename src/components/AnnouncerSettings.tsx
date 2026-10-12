@@ -134,7 +134,7 @@ export function AnnouncerSettings(props: {
 
   return (
     <>
-      {(error || info?.error) && <p className="error">{error ?? info?.error}</p>}
+      {(error || info?.error) && <p className="error" role="alert">{error ?? info?.error}</p>}
       {!info && !error && <p className="muted">Loading…</p>}
       {info && !info.error && (
         <div className="stack" style={{ marginBottom: 10 }}>
@@ -271,7 +271,7 @@ export function AnnouncerSettings(props: {
                 Close
               </button>
             </div>
-            {error && <p className="error">{error}</p>}
+            {error && <p className="error" role="alert">{error}</p>}
             {filterable && (
               <VoiceFilters
                 filters={filters}

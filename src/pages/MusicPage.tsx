@@ -57,6 +57,12 @@ export function MusicPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   /** Select mode: tapping songs ticks them, for changing tags on many at once. */
+  /** A–Z, or newest first (handy right after uploading). */
+  const [sort, setSort] = useState<"az" | "new">("az");
+  const sorted =
+    sort === "az"
+      ? filter.shown
+      : [...filter.shown].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -151,10 +157,10 @@ export function MusicPage() {
     <>
       <PageHead title={<div className="display" style={{ fontSize: 30 }}>Music</div>} />
       <p className="muted small" style={{ margin: "0 4px 14px" }}>
-        Every uploaded song, shared by all teams and playlists. Tap a song to fix its title, tag it (a team, a player…) or delete it.
+        Every song, shared by all teams. Tap one to edit, tag or delete it.
       </p>
       {error && (
-        <p className="error" onClick={() => setError(null)}>
+        <p className="error" role="alert" onClick={() => setError(null)}>
           {error}
         </p>
       )}
@@ -213,6 +219,9 @@ export function MusicPage() {
               <span className="muted small grow">
                 {filter.filtering ? `${filter.shown.length} of ${songs.length} songs` : `${songs.length} ${songs.length === 1 ? "song" : "songs"}`}
               </span>
+              <button className="link-button" onClick={() => setSort(sort === "az" ? "new" : "az")} aria-label="Change sort order">
+                {sort === "az" ? "A–Z" : "Newest"} ⇅
+              </button>
               <button
                 className="link-button"
                 onClick={() => {
@@ -230,7 +239,7 @@ export function MusicPage() {
       {songs && songs.length > 0 && filter.shown.length === 0 && <p className="empty">No songs match.</p>}
 
       <ul className="list song-list">
-        {filter.shown.map((s) => {
+        {sorted.map((s) => {
           const open = openId === s.id;
           return (
             <li key={s.id} className={`list-item song-item${open ? " open" : ""}${selected.has(s.id) ? " selected" : ""}`}>

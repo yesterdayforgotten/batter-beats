@@ -149,12 +149,21 @@ export function deleteSong(id: number) {
 }
 
 /** Checks an uploaded file, stores it in the library and builds its waveform. */
-export async function addSong(tmpFile: string, originalName: string, userId: number): Promise<Song> {
+export async function addSong(tmpFile: string, originalName: string, userId: number): Promise<{ song: Song; existing: boolean }> {
   try {
     const buf = await fs.promises.readFile(tmpFile);
     const info = scanMp3(buf); // throws for anything that is not a usable MP3
     const tags = await readTags(tmpFile);
     const fallbackTitle = path.basename(originalName).replace(/\.mp3$/i, "").slice(0, 200) || "Untitled";
+    // The same song uploaded again (same title, artist and length to within a second)
+    // isn't stored twice: the copy already in the library is used instead.
+    const same = db
+      .prepare(
+        `SELECT id FROM songs WHERE title = ? COLLATE NOCASE AND artist = ? COLLATE NOCASE
+         AND ABS(duration_ms - ?) < 1000 ORDER BY id LIMIT 1`,
+      )
+      .get(tags.title ?? fallbackTitle, tags.artist ?? "", Math.round(info.durationSec * 1000)) as { id: number } | undefined;
+    if (same) return { song: getSong(same.id)!, existing: true };
     const peaks = await computePeaks(tmpFile);
     const id = Number(
       db
@@ -164,7 +173,7 @@ export async function addSong(tmpFile: string, originalName: string, userId: num
     );
     await fs.promises.rename(tmpFile, songPath(id));
     await fs.promises.writeFile(peaksPath(id), JSON.stringify(peaks));
-    return getSong(id)!;
+    return { song: getSong(id)!, existing: false };
   } finally {
     removeQuietly(tmpFile);
   }
