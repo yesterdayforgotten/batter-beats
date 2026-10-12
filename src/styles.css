@@ -174,12 +174,10 @@ label,
   text-decoration: none;
 }
 
-.brand::before {
-  content: "";
-  width: 12px;
-  height: 12px;
-  border-radius: 6px;
-  background: var(--accent);
+.brand img {
+  display: block;
+  /* The icon's dark square sits on the page's own background; trim its edge a little. */
+  margin: -2px 0;
 }
 
 .topnav {

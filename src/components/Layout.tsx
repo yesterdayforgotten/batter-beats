@@ -15,6 +15,7 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <Link to="/" className="brand">
+          <img src="/favicon.svg" alt="" width={28} height={28} />
           Batter Beats
         </Link>
         <nav className="topnav">
