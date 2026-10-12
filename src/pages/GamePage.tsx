@@ -196,11 +196,15 @@ export function GamePage() {
     jukebox.fadeOut(BATTER_FADE_SEC); // the jukebox fades out for the batter
     const current = playback.current;
 
-    // Tapping the batter whose song is playing fades it out.
+    // Tapping the batter whose song is playing fades it out; tapping again while it fades stops it at once.
     if (player.id === sound?.playerId && current?.playing) {
       if (!current.fading) {
         current.fadeOut();
         setSound({ playerId: player.id, state: "fading" });
+      } else {
+        current.stop();
+        playback.current = null;
+        setSound(null);
       }
       return;
     }
@@ -257,7 +261,7 @@ export function GamePage() {
   function status(p: Player) {
     if (sound?.playerId === p.id) {
       if (sound.state === "loading") return <span className="bat-status">Loading…</span>;
-      if (sound.state === "fading") return <span className="bat-status">Fading out</span>;
+      if (sound.state === "fading") return <span className="bat-status">Fading out · tap to stop</span>;
       return (
         <span className="bat-status">
           <SoundBars /> <span className="truncate">{p.clip?.song.title ?? "Announcement"}</span>
@@ -480,7 +484,11 @@ function NowPlaying({
   return (
     <div className="innings-bar">
       <div className="innings-button on">
-        <button className="bar-icon" aria-label="Stop the jukebox" disabled={state.status === "fading"} onClick={() => jukebox.fadeOut()}>
+        <button
+          className="bar-icon"
+          aria-label={state.status === "fading" ? "Stop the jukebox now" : "Stop the jukebox"}
+          onClick={() => (state.status === "fading" ? jukebox.stop() : jukebox.fadeOut())}
+        >
           <StopIcon />
         </button>
         <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
