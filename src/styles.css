@@ -660,3 +660,43 @@ label {
   background: var(--raised);
   color: var(--muted);
 }
+
+/* Drag to reorder */
+.sortable.dragging {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.sortable.dragging .list-item:not(.lifted) {
+  transition: transform 150ms ease;
+}
+.list-item.lifted {
+  position: relative;
+  z-index: 2;
+  background: var(--raised);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 2px var(--accent);
+}
+.grip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  align-self: stretch;
+  color: var(--muted);
+  touch-action: none;
+  cursor: grab;
+}
+.lifted .grip {
+  color: var(--accent);
+  cursor: grabbing;
+}
+.list-item > .player-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px 12px 14px;
+  min-height: 64px;
+}

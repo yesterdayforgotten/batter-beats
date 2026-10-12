@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import { ChevronIcon } from "../components/Icons.tsx";
+import { SortableList } from "../components/SortableList.tsx";
 import type { Player, Roster } from "../../shared/types.ts";
 
 export function RosterEditPage() {
@@ -11,6 +12,7 @@ export function RosterEditPage() {
   const [roster, setRoster] = useState<Roster | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sorting, setSorting] = useState(false);
 
   useEffect(() => {
     api<{ roster: Roster }>(`/rosters/${id}`)
@@ -30,6 +32,22 @@ export function RosterEditPage() {
     } catch (err) {
       setError((err as Error).message);
       setName(roster.name);
+    }
+  }
+
+  async function saveOrder(players: Player[]) {
+    if (!roster) return;
+    const before = roster;
+    setRoster({ ...roster, players });
+    try {
+      const r = await api<{ roster: Roster }>(`/rosters/${roster.id}/order`, {
+        method: "PUT",
+        body: { playerIds: players.map((p) => p.id) },
+      });
+      setRoster(r.roster);
+    } catch (err) {
+      setRoster(before);
+      setError((err as Error).message);
     }
   }
 
@@ -58,27 +76,43 @@ export function RosterEditPage() {
           </label>
 
           <div className="row" style={{ marginTop: 8 }}>
-            <span className="section-title grow">Players</span>
-            <span className="muted small">batting order is set in game mode</span>
+            <span className="section-title grow">{sorting ? "Drag to set batting order" : "Players"}</span>
+            {roster.players.length > 1 && (
+              <button
+                className="link-button"
+                style={sorting ? { color: "var(--accent)" } : undefined}
+                onClick={() => setSorting(!sorting)}
+              >
+                {sorting ? "Done" : "Reorder"}
+              </button>
+            )}
           </div>
           {roster.players.length === 0 && <p className="empty">No players yet.</p>}
-          <ul className="list">
-            {roster.players.map((p) => (
-              <li key={p.id} className="list-item">
-                <Link to={`/players/${p.id}`}>
+          <SortableList items={roster.players} keyOf={(p) => p.id} sorting={sorting} onReorder={saveOrder}>
+            {(p) => {
+              const content = (
+                <>
                   <span className="jersey">{p.number}</span>
                   <span className="stack grow" style={{ gap: 2 }}>
                     <span className="player-name truncate">{p.name}</span>
                     <span className="small truncate muted">{p.clip ? p.clip.song.title : "No song yet"}</span>
                   </span>
+                </>
+              );
+              // While reordering, rows aren't links, so a missed grab can't open a player.
+              return sorting ? (
+                <div className="player-row">{content}</div>
+              ) : (
+                <Link to={`/players/${p.id}`}>
+                  {content}
                   <span className="muted">
                     <ChevronIcon />
                   </span>
                 </Link>
-              </li>
-            ))}
-          </ul>
-          <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster({ ...roster, players: [...roster.players, p] })} />
+              );
+            }}
+          </SortableList>
+          {!sorting && <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster({ ...roster, players: [...roster.players, p] })} />}
 
           <button className="danger" style={{ marginTop: 24, alignSelf: "center" }} onClick={deleteRoster}>
             Delete roster

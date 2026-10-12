@@ -82,6 +82,22 @@ rostersRouter.delete("/rosters/:id", editor, (req, res) => {
   res.json({ ok: true });
 });
 
+// Batting order. Everyone can reorder the lineup (it's part of running a game), not just editors.
+rostersRouter.put("/rosters/:id/order", (req, res) => {
+  const rosterId = Number(req.params.id);
+  const roster = getRoster(rosterId);
+  if (!roster) return res.status(404).json({ error: "Roster not found." });
+  const ids = Array.isArray(req.body?.playerIds) ? req.body.playerIds.map(Number) : [];
+  const current = new Set(roster.players.map((p) => p.id));
+  if (ids.length !== current.size || new Set(ids).size !== ids.length || !ids.every((id: number) => current.has(id))) {
+    return res.status(409).json({ error: "The roster changed on another phone. Reload and try again." });
+  }
+  const set = db.prepare("UPDATE players SET lineup_position = ? WHERE id = ?");
+  db.transaction(() => ids.forEach((id: number, i: number) => set.run(i, id)))();
+  touchRoster(rosterId);
+  res.json({ roster: getRoster(rosterId) });
+});
+
 // ── Players ──────────────────────────────────────────────────────────────
 
 rostersRouter.post("/rosters/:id/players", editor, (req, res) => {

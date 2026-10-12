@@ -44,3 +44,9 @@ export const SoundBars = () => (
     <span />
   </span>
 );
+
+export const GripIcon = () => (
+  <svg {...common}>
+    <path d="M5 8h14M5 12h14M5 16h14" />
+  </svg>
+);
