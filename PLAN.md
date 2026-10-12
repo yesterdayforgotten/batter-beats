@@ -204,6 +204,12 @@ These were not verified during planning. Test each one and tell the owner what y
 ### App icon
 - Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png`, and `icon-maskable-*.png` (plate shrunk to fit Android's circle crop). `public/manifest.webmanifest` (added 2026-10-12) gives the installed app its name, the near-black background and theme colour (Android's start-up screen) and these icons.
 
+### GitHub and Docker (done early, 2026-10-12, at the owner's request)
+- Repo: `github.com/yesterdayforgotten/batter-beats` (public), remote `origin`.
+- `Dockerfile`: multi-stage; builds the screens, keeps production dependencies only, runs `node server/index.ts` (Node 22 strips TypeScript types itself, so server code must avoid enums and other non-erasable syntax). Includes ffmpeg, mp3gain and tini; runs as `node`; data in `/data`; health check on `/api/health`.
+- `.github/workflows/docker.yml` publishes `ghcr.io/yesterdayforgotten/batter-beats` (`latest`, short SHA, and version tags `v*`) on each push to `main`.
+- `docker-compose.yml` is the production stack for Portainer; the voice engine container joins it in phase 5.
+
 ### Dev environment notes
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.
 - No browser in the container; for screenshots a headless Chromium was downloaded to `~/.cache/ms-playwright` with missing libraries unpacked into the session scratchpad (not part of the repo).

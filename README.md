@@ -5,6 +5,17 @@ home screen, served from your own server.
 
 Work in progress. See [PLAN.md](PLAN.md) for the plan and current status.
 
+## Running it
+
+A ready-built image is published to `ghcr.io/yesterdayforgotten/batter-beats`
+on every push to `main`. It includes everything it needs (Node, ffmpeg,
+mp3gain). Start it with [docker-compose.yml](docker-compose.yml) (in Portainer:
+Stacks → Add stack, paste the file), after setting an admin password in it.
+
+All data (database, songs, clips) lives in the `/data` volume. Put the app
+behind an https reverse proxy: adding it to a phone's home screen and storing
+clips for offline use need https.
+
 ## Development
 
 Requires Node.js 22, `ffmpeg` and `mp3gain`.

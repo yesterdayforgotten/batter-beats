@@ -4,7 +4,7 @@ import fs from "node:fs";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { config } from "./config.ts";
-import "./db.ts";
+import { db } from "./db.ts";
 import { loadUser } from "./auth.ts";
 import { ensureFirstAdmin } from "./users.ts";
 import { authRouter } from "./routes/auth.ts";
@@ -37,6 +37,11 @@ app.use("/api", (req, res, next) => {
 app.use("/api", loadUser);
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
+// For Docker's health check: is the server up and the database readable?
+app.get("/api/health", (_req, res) => {
+  db.prepare("SELECT 1").get();
+  res.json({ ok: true });
+});
 app.use("/api", rostersRouter);
 app.use("/api", songsRouter);
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found." }));

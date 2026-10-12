@@ -1,0 +1,20 @@
+# Batter Beats production stack. In Portainer: Stacks → Add stack → paste this.
+# Change the published port if 8090 is taken, and set an admin password
+# (only used the first time, to create the first admin account).
+services:
+  batter-beats:
+    image: ghcr.io/yesterdayforgotten/batter-beats:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: change-me
+      # Proxies on the local network (such as Apache) are trusted for https detection.
+      TRUST_PROXY: loopback, linklocal, uniquelocal
+    volumes:
+      # Everything the app stores: database, songs, clips. Updating the image never touches it.
+      - batter-beats-data:/data
+
+volumes:
+  batter-beats-data:
