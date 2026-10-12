@@ -1,14 +1,14 @@
 // The voice engines the announcer can use. Everything engine-specific lives
 // here, so adding or swapping engines doesn't touch the rest of the app.
 //
-// Self-hosted, in its own container at TTS_URL (TTS_ENGINE says which kind):
-// - Kokoro (Kokoro-FastAPI): light, runs on any CPU, fixed voices, no emotion control.
-// - Chatterbox (chatterbox-tts-api): an emotion ("exaggeration") dial and voices
-//   cloned from a short recording; wants a graphics card, works slowly without one.
-// Cloud, when their keys are set (announcements are made once and stored, so the cost is tiny):
-// - Murf (MURF_API_KEY): professional voices with speaking styles (Promo, Newscast, …).
-// - ElevenLabs (ELEVENLABS_API_KEY): very natural voices, a large shared voice
-//   library, and delivery cues like [excited] written into the text (Eleven v3).
+// - ElevenLabs (ELEVENLABS_API_KEY, cloud): very natural voices, a large shared
+//   voice library, and delivery cues like [excited] written into the text
+//   (Eleven v3). Announcements are made once and stored, so the cost is tiny.
+// - Kokoro (Kokoro-FastAPI, self-hosted at TTS_URL): light, free, runs on any
+//   CPU; plainer voices with no emotion control. A fallback that needs no key.
+//
+// (Chatterbox and Murf were tried in October 2026 and removed: Chatterbox was
+// very slow on the server's CPU; the owner preferred ElevenLabs to Murf.)
 
 import fs from "node:fs";
 import { config } from "./config.ts";
@@ -18,14 +18,16 @@ export interface Engine {
   id: VoiceEngine;
   label: string;
   defaultVoice: string;
-  /** True when the engine changes speed itself; otherwise it's done afterwards with ffmpeg. */
-  nativeSpeed: boolean;
-  /** Whether new voices can be added from a recording. */
-  canAddVoices: boolean;
+  /**
+   * How speed and pitch are changed: by the engine itself ("native", best),
+   * afterwards with ffmpeg ("after", audibly processed), or not at all
+   * ("none": the setting is hidden).
+   */
+  speed: "native" | "after" | "none";
+  pitch: "native" | "after" | "none";
   /** Speaks text; returns audio data in whatever format the engine produces (ffmpeg reads it). */
   speak(text: string, voice: string, style: AnnouncerStyle): Promise<Buffer>;
   voices(): Promise<AnnouncerVoice[]>;
-  addVoice(name: string, file: string, fileName: string): Promise<void>;
   /** Searching and adding voices from the engine's shared library (ElevenLabs). */
   searchLibrary?(query: string, filters: LibraryFilters): Promise<LibraryVoice[]>;
   addFromLibrary?(ownerId: string, voiceId: string, name: string): Promise<void>;
@@ -97,8 +99,8 @@ const kokoro: Engine = {
   id: "kokoro",
   label: "Kokoro",
   defaultVoice: "am_michael",
-  nativeSpeed: true,
-  canAddVoices: false,
+  speed: "native",
+  pitch: "after",
   async speak(text, voice, style) {
     const res = await call(
       "/v1/audio/speech",
@@ -117,133 +119,6 @@ const kokoro: Engine = {
       .map((v) => describeKokoro(typeof v === "string" ? v : v.id))
       .filter((v): v is AnnouncerVoice => !!v)
       .sort((a, b) => a.detail.localeCompare(b.detail) || a.name.localeCompare(b.name));
-  },
-  async addVoice() {
-    throw new Error("Kokoro can't learn new voices.");
-  },
-};
-
-// ── Chatterbox ───────────────────────────────────────────────────────────
-
-/** The engine's built-in voice (its default sample) is used when no voice is named. */
-const CHATTERBOX_DEFAULT = "";
-
-const chatterbox: Engine = {
-  id: "chatterbox",
-  label: "Chatterbox",
-  defaultVoice: CHATTERBOX_DEFAULT,
-  nativeSpeed: false,
-  canAddVoices: true,
-  async speak(text, voice, style) {
-    const body: Record<string, unknown> = {
-      input: text,
-      exaggeration: style.excitement,
-      cfg_weight: style.pace,
-      temperature: 0.8,
-    };
-    if (voice) body.voice = voice;
-    // Without a graphics card this can take a minute.
-    const res = await call(
-      "/v1/audio/speech",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
-      300_000,
-    );
-    return Buffer.from(await res.arrayBuffer());
-  },
-  async voices() {
-    const data = (await (await call("/voices", {}, 10_000)).json()) as { voices?: { name?: string }[] };
-    const library = (data.voices ?? [])
-      .map((v) => v.name)
-      .filter((n): n is string => !!n)
-      .sort((a, b) => a.localeCompare(b))
-      .map((name) => ({ id: name, name, detail: "From a recording" }));
-    return [{ id: CHATTERBOX_DEFAULT, name: "Built-in voice", detail: "Chatterbox's own sample" }, ...library];
-  },
-  async addVoice(name, file, fileName) {
-    const form = new FormData();
-    form.set("voice_name", name);
-    form.set("language", "en");
-    form.set("voice_file", new Blob([await fs.promises.readFile(file)]), fileName);
-    await call("/voices", { method: "POST", body: form }, 120_000);
-  },
-};
-
-// ── Murf (cloud) ─────────────────────────────────────────────────────────
-
-interface MurfVoice {
-  voiceId?: string;
-  displayName?: string;
-  gender?: string;
-  locale?: string;
-  description?: string;
-  supportedLocales?: Record<string, { availableStyles?: string[]; detail?: string }>;
-  availableStyles?: string[];
-}
-
-const murfCall = (path: string, init: RequestInit, timeoutMs: number) =>
-  call(path, { ...init, headers: { ...(init.headers ?? {}), "api-key": config.murfApiKey } }, timeoutMs, config.murfUrl).catch(
-    (err: Error) => {
-      if (/\((401|403)\)/.test(err.message)) throw new Error("Murf refused the API key. Check MURF_API_KEY.");
-      if (/\(402\)/.test(err.message)) throw new Error("The Murf account is out of credit.");
-      throw new Error(err.message.replace("The announcer voice engine", "Murf"));
-    },
-  );
-
-let murfVoiceCache: { at: number; voices: AnnouncerVoice[] } | null = null;
-
-const murf: Engine = {
-  id: "murf",
-  label: "Murf",
-  defaultVoice: "en-US-ken",
-  nativeSpeed: true,
-  canAddVoices: false,
-  async speak(text, voice, style) {
-    const body: Record<string, unknown> = {
-      text,
-      voiceId: voice || this.defaultVoice,
-      // Murf's rate is −50…50 around normal; our speed 1.2 means 20% faster.
-      rate: Math.max(-50, Math.min(50, Math.round((style.speed - 1) * 100))),
-      format: "MP3",
-      sampleRate: 44100,
-      channelType: "MONO",
-      // Return the audio itself, so Murf keeps no copy.
-      encodeAsBase64: true,
-      modelVersion: "GEN2",
-    };
-    // Styles differ per voice; only ask for one this voice has (after switching voices, the saved one may not exist).
-    const styles = (await this.voices().catch(() => [])).find((v) => v.id === body.voiceId)?.styles ?? [];
-    if (style.murfStyle && styles.includes(style.murfStyle)) body.style = style.murfStyle;
-    const res = await murfCall(
-      "/v1/speech/generate",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
-      60_000,
-    );
-    const data = (await res.json()) as { encodedAudio?: string; audioFile?: string };
-    if (data.encodedAudio) return Buffer.from(data.encodedAudio, "base64");
-    if (data.audioFile) return Buffer.from(await (await fetch(data.audioFile)).arrayBuffer());
-    throw new Error("Murf sent no audio.");
-  },
-  async voices() {
-    // The list rarely changes; ask at most once an hour.
-    if (murfVoiceCache && Date.now() - murfVoiceCache.at < 3_600_000) return murfVoiceCache.voices;
-    const list = (await (await murfCall("/v1/speech/voices", {}, 15_000)).json()) as MurfVoice[];
-    const voices = list
-      .filter((v) => v.voiceId && (v.locale ?? "").startsWith("en"))
-      .map((v) => ({
-        id: v.voiceId!,
-        name: (v.displayName ?? v.voiceId!).replace(/\s*\([MF]\)$/, ""),
-        detail: [v.locale, v.gender?.toLowerCase(), v.description].filter(Boolean).join(" · "),
-        styles: v.supportedLocales?.[v.locale ?? ""]?.availableStyles ?? v.availableStyles ?? [],
-        gender: normGender(v.gender),
-        accent: normAccent(v.locale),
-        age: normAge(v.description),
-      }))
-      .sort((a, b) => a.detail.localeCompare(b.detail) || a.name.localeCompare(b.name));
-    murfVoiceCache = { at: Date.now(), voices };
-    return voices;
-  },
-  async addVoice() {
-    throw new Error("Voices can't be added to Murf from here.");
   },
 };
 
@@ -291,8 +166,8 @@ const elevenlabs: Engine = {
   label: "ElevenLabs",
   // "Brian", one of ElevenLabs' own voices: deep, American, male.
   defaultVoice: "nPczCjzI2devNBz1zQrb",
-  nativeSpeed: false,
-  canAddVoices: false,
+  speed: "none",
+  pitch: "none",
   async speak(text, voice, style) {
     const cue = style.elevenTag.trim().replace(/^\[|\]$/g, "");
     const res = await elevenCall(
@@ -323,9 +198,6 @@ const elevenlabs: Engine = {
         age: normAge(v.labels?.age),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  },
-  async addVoice() {
-    throw new Error("Add ElevenLabs voices from its library instead.");
   },
   async searchLibrary(query, filters) {
     const params = new URLSearchParams({ page_size: "30", language: "en", sort: "cloned_by_count" });
@@ -358,9 +230,8 @@ const elevenlabs: Engine = {
   },
 };
 
-/** The engines this server can use: the self-hosted one (if TTS_URL is set) and the cloud ones whose keys are set. */
+/** The engines this server can use: ElevenLabs if its key is set, Kokoro if TTS_URL is set. */
 export const engines: Engine[] = [
-  ...(config.ttsUrl ? [config.ttsEngine === "chatterbox" ? chatterbox : kokoro] : []),
-  ...(config.murfApiKey ? [murf] : []),
   ...(config.elevenLabsApiKey ? [elevenlabs] : []),
+  ...(config.ttsUrl ? [kokoro] : []),
 ];

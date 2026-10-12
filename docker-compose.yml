@@ -12,37 +12,21 @@ services:
       ADMIN_PASSWORD: change-me
       # Proxies on the local network (such as Apache) are trusted for https detection.
       TRUST_PROXY: loopback, linklocal, uniquelocal
-      # The announcer's voice engine (the service below).
-      TTS_ENGINE: chatterbox
-      TTS_URL: http://chatterbox:4123
-      # Optional: Murf's paid cloud voices as a second engine, switchable under Admin.
-      # Paste your Murf API key here (never commit it anywhere).
-      # MURF_API_KEY: ""
-      # Optional: ElevenLabs' paid cloud voices as another engine (key needs the
-      # Text to Speech and Voices permissions).
-      # ELEVENLABS_API_KEY: ""
+      # The announcer's voice: ElevenLabs (paid cloud voices, the expressive one).
+      # Paste your key here, never anywhere public. The key needs the
+      # "Text to Speech" and "Voices" (read and write) permissions.
+      ELEVENLABS_API_KEY: ""
+      # Kokoro (the service below): a free fallback voice engine on this server.
+      TTS_URL: http://kokoro:8880
     volumes:
       # Everything the app stores: database, songs, clips. Updating the image never touches it.
       - batter-beats-data:/data
 
-  # Announcer voice engine: Chatterbox (github.com/travisvn/chatterbox-tts-api).
-  # It has an emotion dial and learns voices from a recording. It is meant for a
-  # graphics card; this CPU version works, slowly (announcements are made once
-  # and stored, so that's acceptable). It needs 4–8 GB of memory and downloads
-  # its voice model (a few GB) on first start.
-  chatterbox:
-    image: ghcr.io/yesterdayforgotten/chatterbox-tts-api:cpu
+  # Free, light voice engine that runs on any CPU. Plainer voices than
+  # ElevenLabs; used if no ElevenLabs key is set, or chosen under Admin.
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
     restart: unless-stopped
-    environment:
-      DEVICE: cpu
-      # The original English model. The default multilingual one failed to
-      # speak on a CPU ("TTS generation failed" for every request).
-      USE_MULTILINGUAL_MODEL: "false"
-    volumes:
-      - chatterbox-models:/cache
-      - chatterbox-voices:/voices
 
 volumes:
   batter-beats-data:
-  chatterbox-models:
-  chatterbox-voices:

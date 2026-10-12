@@ -125,16 +125,20 @@ export function voiceEffects(o: { pitch: number; tempo: number; reverb: number; 
     filters.push(`rubberband=pitch=${(2 ** (o.pitch / 12)).toFixed(4)}:tempo=${o.tempo.toFixed(3)}:formant=preserved`);
   }
   if (o.reverb > 0) {
-    // Several reflections, further apart and quieter as they go, like sound bouncing round a ballpark.
-    const spread = 0.5 + 1.5 * o.reverbSize;
-    const delays = [45, 95, 160, 250, 370].map((ms) => Math.round(ms * spread));
-    const decays = [0.55, 0.42, 0.32, 0.22, 0.14].map((d) => d * o.reverb * (0.7 + 0.3 * o.reverbSize));
-    const outGain = 1 / (1 + decays.reduce((a, b) => a + b, 0));
-    const tail = (delays[delays.length - 1] * 3) / 1000 + 0.2;
+    // A soft "big space" reverb: the voice is split, one copy gets a dense
+    // cluster of quiet, uneven reflections, darkened like sound off far walls,
+    // and is mixed back under the dry voice. (A few loud, even echoes sound metallic.)
+    const spread = 0.6 + 1.6 * o.reverbSize;
+    const taps = [19, 31, 47, 61, 79, 97, 127, 151, 181, 223, 269, 331].map((ms) => Math.round(ms * spread));
+    const decays = taps.map((_, i) => (0.6 * 0.82 ** i).toFixed(3));
+    const tail = (taps[taps.length - 1] * 4) / 1000 + 0.3;
+    const wet = (0.55 * o.reverb).toFixed(3);
     filters.push(
       `apad=pad_dur=${tail.toFixed(2)}`,
-      `aecho=1:${outGain.toFixed(3)}:${delays.join("|")}:${decays.map((d) => d.toFixed(3)).join("|")}`,
-      // Trim the silence left at the end once the reflections die away (only at the end: reversed, trimmed, reversed back).
+      `asplit=2[dry][wet];[wet]aecho=0.8:0.9:${taps.join("|")}:${decays.join("|")},` +
+        `highpass=f=200,lowpass=f=${Math.round(5000 - 2500 * o.reverbSize)}[rev];` +
+        `[dry][rev]amix=inputs=2:weights=1 ${wet}:normalize=0`,
+      // Trim the silence left at the end once the reverb dies away (only at the end: reversed, trimmed, reversed back).
       "areverse",
       "silenceremove=start_periods=1:start_threshold=-60dB",
       "areverse",
@@ -161,7 +165,7 @@ export async function normalizeVoice(input: string, output: string, effects = ""
     "-i", input,
     "-af", filters.filter(Boolean).join(","),
     "-ar", "44100", "-ac", "1",
-    "-c:a", "libmp3lame", "-b:a", "96k",
+    "-c:a", "libmp3lame", "-b:a", "128k",
     output,
   ]);
 }

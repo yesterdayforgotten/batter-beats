@@ -1,5 +1,5 @@
 // The announcer: "Now batting, number 12, Ava", spoken by the voice engine
-// (Kokoro or Chatterbox, in its own container; see voiceEngines.ts) and stored
+// (ElevenLabs, or Kokoro self-hosted; see voiceEngines.ts) and stored
 // as an MP3 per player, so phones play it like any clip and it works offline.
 //
 // An announcement is remade only when what it's made from changes: the
@@ -16,7 +16,7 @@ import { engines, type Engine } from "./voiceEngines.ts";
 import { ANNOUNCER, DEFAULT_STYLE, STYLE_LIMITS, type AnnouncerStyle, type Energy } from "../shared/types.ts";
 
 /** Bumped when the way announcements are processed changes, so existing ones are remade. */
-const PROCESSING = "loudness-2";
+const PROCESSING = "quality-3";
 
 export interface AnnouncerPlayerRow {
   id: number;
@@ -89,8 +89,6 @@ export function cleanStyle(input: unknown): AnnouncerStyle {
       clamp(num(s.excitement, DEFAULT_STYLE.excitement), STYLE_LIMITS.minExcitement, STYLE_LIMITS.maxExcitement),
       0.05,
     ),
-    pace: round(clamp(num(s.pace, DEFAULT_STYLE.pace), 0, 1), 0.05),
-    murfStyle: typeof s.murfStyle === "string" ? s.murfStyle.trim().slice(0, 40) : DEFAULT_STYLE.murfStyle,
     elevenTag:
       typeof s.elevenTag === "string" ? s.elevenTag.replace(/[[\]]/g, "").trim().slice(0, 40) : DEFAULT_STYLE.elevenTag,
   };
@@ -165,8 +163,10 @@ async function makeAnnouncementFile(text: string, voice: string, style: Announce
   const out = path.join(dirs.tmp, `${crypto.randomUUID()}.mp3`);
   try {
     await fs.promises.writeFile(raw, await engine.speak(withEnergy(text, style.energy), voice, style));
-    const tempo = engine.nativeSpeed ? 1 : style.speed;
-    await normalizeVoice(raw, out, voiceEffects({ pitch: style.pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize }));
+    // Only what the engine can't do itself is done here, afterwards.
+    const tempo = engine.speed === "after" ? style.speed : 1;
+    const pitch = engine.pitch === "after" ? style.pitch : 0;
+    await normalizeVoice(raw, out, voiceEffects({ pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize }));
     return out;
   } finally {
     removeQuietly(raw);

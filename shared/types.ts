@@ -105,12 +105,8 @@ export interface AnnouncerStyle {
   /** Stadium reverb: how much (0 = none, 1 = lots) and how big a space (0 = small room, 1 = ballpark). */
   reverb: number;
   reverbSize: number;
-  /** Chatterbox only: emotion intensity, 0.25 (flat) to 2 (very dramatic). */
+  /** ElevenLabs: emotional range, 0.25 (steady) to 2 (wild); shown as Range. */
   excitement: number;
-  /** Chatterbox only: pacing, 0 (slow, deliberate) to 1 (quick). */
-  pace: number;
-  /** Murf only: the voice's speaking style, e.g. "Promo" ("" = the voice's default). */
-  murfStyle: string;
   /** ElevenLabs only: a delivery cue the voice acts out, e.g. "excited" (written as [excited] before the text). */
   elevenTag: string;
 }
@@ -121,8 +117,6 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   reverb: 0,
   reverbSize: 0.6,
   excitement: 1,
-  pace: 0.3,
-  murfStyle: "",
   elevenTag: "excited",
 };
 export const STYLE_LIMITS = {
@@ -133,15 +127,13 @@ export const STYLE_LIMITS = {
   maxExcitement: 2,
 } as const;
 
-/** The voice engines the announcer can use: a self-hosted one (TTS_ENGINE) and/or Murf (MURF_API_KEY). */
-export type VoiceEngine = "kokoro" | "chatterbox" | "murf" | "elevenlabs";
+/** The voice engines the announcer can use: ElevenLabs (ELEVENLABS_API_KEY) and/or Kokoro (TTS_URL). */
+export type VoiceEngine = "elevenlabs" | "kokoro";
 
 export interface AnnouncerVoice {
   id: string;
   name: string;
   detail: string;
-  /** Speaking styles the voice offers (Murf). */
-  styles?: string[];
   /** A short sample to hear the voice without spending credit (ElevenLabs library). */
   previewUrl?: string;
   /** For filtering, where the engine says: "Male" / "Female", "American", "Young" / "Middle-aged" / "Older". */

@@ -17,7 +17,8 @@ import {
 interface AnnouncerInfo {
   engine: VoiceEngine | null;
   engines: { id: VoiceEngine; label: string }[];
-  canAddVoices: boolean;
+  /** Which delivery settings the engine can use. */
+  controls: { speed: boolean; pitch: boolean };
   voice: string;
   style: AnnouncerStyle;
   voices: Voice[];
@@ -51,11 +52,11 @@ function AnnouncerVoice() {
   const [info, setInfo] = useState<AnnouncerInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
-  // Male voices first, since they suit a stadium announcer; change the filters to see others.
-  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male" });
   /** Delivery settings being tried out; saved with "Use these settings". */
   const [style, setStyle] = useState<AnnouncerStyle>(DEFAULT_STYLE);
   const [savedNote, setSavedNote] = useState(false);
+  // Male voices first, since they suit a stadium announcer; change the filters to see others.
+  const [filters, setFilters] = useState<LibraryFilters>({ gender: "Male" });
   const current = useRef<Playback | null>(null);
 
   const load = () =>
@@ -131,18 +132,8 @@ function AnnouncerVoice() {
     }
   }
 
-  const chatterbox = info?.engine === "chatterbox";
-  const murf = info?.engine === "murf";
   const eleven = info?.engine === "elevenlabs";
   const voices = info?.voices ?? [];
-  // Kokoro and Murf have many voices: male ones first, since they suit a stadium announcer; the rest on request.
-  // Murf styles differ per voice. The list offers every style; picking one the voice in use
-  // lacks narrows the voices below to those that have it.
-  const allStyles = [...new Set(voices.flatMap((v) => v.styles ?? []))].sort((a, b) => a.localeCompare(b));
-  const currentVoice = voices.find((v) => v.id === info?.voice);
-  const styleFilter = murf && style.murfStyle ? style.murfStyle : "";
-  const styleMissing = !!styleFilter && !(currentVoice?.styles ?? []).includes(styleFilter);
-  const withStyle = styleFilter ? voices.filter((v) => v.styles?.includes(styleFilter)) : voices;
   const filterable = voices.some((v) => v.gender || v.accent || v.age);
   const matches = (v: Voice) =>
     !filterable ||
@@ -150,10 +141,9 @@ function AnnouncerVoice() {
     ((!filters.gender || v.gender === filters.gender) &&
       (!filters.accent || v.accent === filters.accent) &&
       (!filters.age || v.age === filters.age));
-  const shown = withStyle.filter(matches);
+  const shown = voices.filter(matches);
   const optionsFor = (key: keyof LibraryFilters) =>
     [...new Set(voices.map((v) => v[key]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
-  const slow = chatterbox ? " Without a graphics card each one can take a minute." : "";
 
   return (
     <>
@@ -162,7 +152,7 @@ function AnnouncerVoice() {
       </div>
       <p className="muted small" style={{ margin: "0 4px 10px" }}>
         Listen to "Now batting, number 12, Alex Rivera" in each voice. Choosing a voice or delivery remakes every
-        announcement in the background.{slow}
+        announcement in the background.
       </p>
       {info && info.engines.length > 1 && (
         <div className="segmented" role="radiogroup" aria-label="Voice engine" style={{ marginBottom: 10 }}>
@@ -203,56 +193,9 @@ function AnnouncerVoice() {
             ))}
           </div>
           <div className="editor-rows" style={{ padding: 0 }}>
-            {murf && (
-              <div className="editor-row">
-                <span className="label">Style</span>
-                <select
-                  className="grow"
-                  value={style.murfStyle}
-                  onChange={(e) => change({ murfStyle: e.target.value })}
-                  aria-label="Speaking style"
-                >
-                  <option value="">Voice's default</option>
-                  {allStyles.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                      {currentVoice?.styles?.includes(st) ? "" : ` (not ${currentVoice?.name ?? "this voice"})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
             {eleven && (
               <>
-                <div className="editor-row">
-                  <span className="label">Cue</span>
-                  <select
-                    className="grow"
-                    value={ELEVEN_CUES.includes(style.elevenTag) ? style.elevenTag : "custom"}
-                    onChange={(e) => change({ elevenTag: e.target.value === "custom" ? "" : e.target.value })}
-                    aria-label="Delivery cue"
-                  >
-                    {ELEVEN_CUES.map((c) => (
-                      <option key={c} value={c}>
-                        {c ? `[${c}]` : "None"}
-                      </option>
-                    ))}
-                    <option value="custom">Your own…</option>
-                  </select>
-                </div>
-                {!ELEVEN_CUES.includes(style.elevenTag) && (
-                  <div className="editor-row">
-                    <span className="label">Your cue</span>
-                    <input
-                      className="grow"
-                      value={style.elevenTag}
-                      onChange={(e) => change({ elevenTag: e.target.value })}
-                      placeholder="e.g. stadium announcer, booming"
-                      maxLength={40}
-                      aria-label="Your own delivery cue"
-                    />
-                  </div>
-                )}
+                <CueInput value={style.elevenTag} onChange={(elevenTag) => change({ elevenTag })} />
                 <Slider
                   label="Range"
                   aria="Emotional range"
@@ -265,50 +208,30 @@ function AnnouncerVoice() {
                 />
               </>
             )}
-            {chatterbox && (
-              <>
-                <Slider
-                  label="Excite"
-                  aria="Excitement"
-                  min={STYLE_LIMITS.minExcitement}
-                  max={STYLE_LIMITS.maxExcitement}
-                  step={0.05}
-                  value={style.excitement}
-                  show={style.excitement.toFixed(2)}
-                  onChange={(v) => change({ excitement: v })}
-                />
-                <Slider
-                  label="Pace"
-                  aria="Pace"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={style.pace}
-                  show={style.pace < 0.3 ? "Slow" : style.pace > 0.6 ? "Quick" : "Steady"}
-                  onChange={(v) => change({ pace: v })}
-                />
-              </>
+            {info.controls.speed && (
+              <Slider
+                label="Speed"
+                aria="Speed"
+                min={STYLE_LIMITS.minSpeed}
+                max={STYLE_LIMITS.maxSpeed}
+                step={0.05}
+                value={style.speed}
+                show={`${style.speed.toFixed(2)}×`}
+                onChange={(v) => change({ speed: v })}
+              />
             )}
-            <Slider
-              label="Speed"
-              aria="Speed"
-              min={STYLE_LIMITS.minSpeed}
-              max={STYLE_LIMITS.maxSpeed}
-              step={0.05}
-              value={style.speed}
-              show={`${style.speed.toFixed(2)}×`}
-              onChange={(v) => change({ speed: v })}
-            />
-            <Slider
-              label="Pitch"
-              aria="Pitch lift"
-              min={0}
-              max={STYLE_LIMITS.maxPitch}
-              step={0.5}
-              value={style.pitch}
-              show={style.pitch === 0 ? "Normal" : `+${style.pitch}`}
-              onChange={(v) => change({ pitch: v })}
-            />
+            {info.controls.pitch && (
+              <Slider
+                label="Pitch"
+                aria="Pitch lift"
+                min={0}
+                max={STYLE_LIMITS.maxPitch}
+                step={0.5}
+                value={style.pitch}
+                show={style.pitch === 0 ? "Normal" : `+${style.pitch}`}
+                onChange={(v) => change({ pitch: v })}
+              />
+            )}
             <Slider
               label="Reverb"
               aria="Reverb amount"
@@ -333,15 +256,11 @@ function AnnouncerVoice() {
             )}
           </div>
           <p className="muted small" style={{ margin: 0 }}>
-            {chatterbox
-              ? "Excite is the voice engine's emotion dial: higher sounds more dramatic. For a big stadium read, try Excite above 1 with a slow Pace. "
-              : murf
-                ? "Style changes the voice's delivery; each Murf voice has its own styles (Promo is a good start for announcing). Energy changes the punctuation it reads. "
-                : eleven
-                  ? "Cue tells the voice how to deliver the line, like an actor's direction; you can write your own. Range sets how much emotion it allows: Wild is the most expressive. "
-                : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
-            Reverb adds the echo of a big space; Space sets how big. Listen to try a mix; the Listen buttons below use it
-            too.
+            {eleven
+              ? "Cue tells the voice how to deliver the line, like an actor's direction: write anything, or tap in the box for suggestions (for pace, try \"speaking quickly\"). Range sets how much emotion it allows: Wild is the most expressive. "
+              : "This voice engine has no emotion setting, so Energy changes the punctuation it reads, which changes how it's read. "}
+            Reverb adds the echo of a big space; Space sets how big. A real ballpark's speakers add their own echo, so
+            go easy. Listen to try a mix; the Listen buttons below use it too.
           </p>
           {styleChanged && (
             <button className="primary" onClick={saveStyle}>
@@ -355,37 +274,23 @@ function AnnouncerVoice() {
           )}
         </div>
       )}
-      {styleMissing && (
-        <p className="notice">
-          {currentVoice?.name ?? "The voice in use"} doesn't have the {styleFilter} style. The voices below do: Listen to
-          them, then tap Use.
-        </p>
-      )}
-      {styleFilter && !styleMissing && withStyle.length > 1 && (
-        <p className="muted small" style={{ margin: "0 4px 8px" }}>
-          Showing the voices that have the {styleFilter} style.
-        </p>
-      )}
       {filterable && (
         <VoiceFilters
           filters={filters}
           onChange={setFilters}
           options={{ gender: optionsFor("gender"), accent: optionsFor("accent"), age: optionsFor("age") }}
-          note={`${shown.length} of ${withStyle.length} voices`}
+          note={`${shown.length} of ${voices.length} voices`}
         />
       )}
       <ul className="list">
-        {shown.map(({ id, name, detail, styles }) => (
-          <li key={id || "default"} className="list-item">
+        {shown.map(({ id, name, detail }) => (
+          <li key={id} className="list-item">
             <div className="player-row">
               <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
                 <span className="player-name truncate">
                   {name} {id === info?.voice && <span className="tag on-deck-tag">In use</span>}
                 </span>
                 <span className="muted small">{detail}</span>
-                {murf && !styleFilter && styles && styles.length > 0 && (
-                  <span className="faint small truncate">{styles.join(", ")}</span>
-                )}
               </span>
               <button className="small-button" onClick={() => listen(id)} disabled={playing === id}>
                 {playing === id ? "…" : "Listen"}
@@ -400,14 +305,71 @@ function AnnouncerVoice() {
         ))}
       </ul>
       {filterable && shown.length === 0 && <p className="empty">No voices match. Try other filters.</p>}
-      {info?.canAddVoices && <AddVoice onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
       {eleven && <VoiceLibrary onAdded={(voices) => setInfo((i) => i && { ...i, voices })} />}
     </>
   );
 }
 
-/** Delivery cues offered for ElevenLabs (written as [cue] before the announcement). */
-const ELEVEN_CUES = ["", "excited", "enthusiastic", "shouting", "energetic", "sports announcer", "dramatic"];
+/** Suggested ElevenLabs delivery cues (any words work; they're written as [cue] before the announcement). */
+const CUE_SUGGESTIONS = [
+  "excited",
+  "enthusiastic",
+  "energetic",
+  "shouting",
+  "dramatic",
+  "sports announcer",
+  "stadium PA announcer, booming",
+  "excited, speaking quickly",
+  "slow and dramatic build-up",
+  "proud",
+];
+
+/**
+ * The ElevenLabs cue: free text, with suggestions shown while the box is in
+ * use or hovered (phones have no hover, so tapping in shows them too).
+ */
+function CueInput({ value, onChange }: { value: string; onChange(v: string): void }) {
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  return (
+    <div className="editor-row cue-row" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <span className="label">Cue</span>
+      <div className="cue-field grow">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          placeholder="How to say it, e.g. excited"
+          maxLength={60}
+          aria-label="Delivery cue"
+          title={`Suggestions: ${CUE_SUGGESTIONS.join(", ")}`}
+        />
+        {(open || hover) && (
+          <div className="cue-suggestions" role="listbox" aria-label="Suggested cues">
+            {CUE_SUGGESTIONS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                role="option"
+                aria-selected={c === value}
+                className={c === value ? "on" : ""}
+                // Keep the box focused so the list stays open while choosing.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(c);
+                  setHover(false);
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Search ElevenLabs' shared library and add voices to the account. Previews are free; adding costs nothing. */
 function VoiceLibrary({ onAdded }: { onAdded(voices: Voice[]): void }) {
@@ -567,46 +529,6 @@ function Slider(props: {
         aria-label={props.aria}
       />
       <span className="value">{props.show}</span>
-    </div>
-  );
-}
-
-/** Teach the voice engine a new voice from 10–30 seconds of someone speaking. */
-function AddVoice({ onAdded }: { onAdded(voices: Voice[]): void }) {
-  const [name, setName] = useState("");
-  const [progress, setProgress] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-
-  async function add(file: File | undefined) {
-    if (fileInput.current) fileInput.current.value = "";
-    if (!file) return;
-    setError(null);
-    setProgress(0);
-    try {
-      const r = await upload<{ voices: Voice[] }>("/announcer/voices", file, setProgress, { name });
-      onAdded(r.voices);
-      setName("");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setProgress(null);
-    }
-  }
-
-  return (
-    <div className="card stack" style={{ marginTop: 10 }}>
-      <span style={{ fontWeight: 800 }}>Add a voice from a recording</span>
-      <p className="muted small" style={{ margin: 0 }}>
-        10 to 30 seconds of one person speaking clearly, with no music behind them (MP3, WAV or M4A). A recording of a
-        stadium announcer, or someone doing the voice, gives the announcer that style.
-      </p>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Ballpark Bob" maxLength={60} aria-label="Voice name" />
-      <button disabled={!name.trim() || progress !== null} onClick={() => fileInput.current?.click()}>
-        {progress === null ? "Choose the recording…" : progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : "Learning the voice…"}
-      </button>
-      <input ref={fileInput} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => add(e.target.files?.[0])} />
-      {error && <p className="error" style={{ margin: 0 }}>{error}</p>}
     </div>
   );
 }

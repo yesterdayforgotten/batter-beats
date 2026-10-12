@@ -1,8 +1,5 @@
 import { Router } from "express";
-import multer from "multer";
 import { requireRole } from "../auth.ts";
-import { removeQuietly } from "../audio.ts";
-import { dirs } from "../storage.ts";
 import { engines } from "../voiceEngines.ts";
 import {
   activeEngine,
@@ -21,8 +18,6 @@ import { ANNOUNCER, type AnnouncerVoice } from "../../shared/types.ts";
 
 export const announcerRouter = Router();
 
-const upload = multer({ dest: dirs.tmp, limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
-
 // The engines available, the one in use, its voices, the chosen voice and the delivery settings.
 announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
   const engine = activeEngine();
@@ -35,7 +30,7 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
     } catch (err) {
       // Cloud engines explain themselves (wrong key, missing permission, no credit).
       error =
-        engine.id === "murf" || engine.id === "elevenlabs"
+        engine.id === "elevenlabs"
           ? (err as Error).message
           : "The announcer voice engine isn't reachable. If it was just started, it may still be loading.";
     }
@@ -43,7 +38,8 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
   res.json({
     engine: engine?.id ?? null,
     engines: engines.map((e) => ({ id: e.id, label: e.label })),
-    canAddVoices: engine?.canAddVoices ?? false,
+    // Which delivery settings this engine can use.
+    controls: { speed: !!engine && engine.speed !== "none", pitch: !!engine && engine.pitch !== "none" },
     voice: currentVoice(),
     style: currentStyle(),
     voices,
@@ -51,7 +47,7 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
   });
 });
 
-// Switch engine (for example between Chatterbox and Murf); every announcement is remade.
+// Switch engine (ElevenLabs or Kokoro); every announcement is remade.
 announcerRouter.put("/announcer/engine", requireRole("admin"), (req, res) => {
   if (!setEngine(String(req.body?.engine ?? ""))) return res.status(400).json({ error: "That voice engine isn't set up." });
   void refreshAllAnnouncements();
@@ -90,23 +86,6 @@ announcerRouter.put("/announcer/voice", requireRole("admin"), (req, res) => {
   setVoice(voice);
   void refreshAllAnnouncements();
   res.json({ voice });
-});
-
-// Teach the engine a new voice from a recording (Chatterbox).
-announcerRouter.post("/announcer/voices", requireRole("admin"), upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Choose a recording." });
-  try {
-    const name = String(req.body?.name ?? "").trim().replace(/[^\w -]/g, "").slice(0, 60);
-    if (!name) return res.status(400).json({ error: "Give the voice a name." });
-    const engine = activeEngine();
-    if (!engine?.canAddVoices) return res.status(400).json({ error: "This voice engine can't learn new voices." });
-    await engine.addVoice(name, req.file.path, Buffer.from(req.file.originalname, "latin1").toString("utf8"));
-    res.status(201).json({ voices: await listVoices() });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  } finally {
-    removeQuietly(req.file.path);
-  }
 });
 
 // Search an engine's shared voice library (ElevenLabs).
