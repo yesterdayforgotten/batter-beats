@@ -501,24 +501,28 @@ function NowPlaying({
     const next = jukebox.upNext(playlist);
     return (
       <div className="innings-bar">
+        {/* Like a batter's row: details on the left, Skip, then the play circle on the right. */}
         <div className="innings-button">
           <button className="bar-play" disabled={!next} onClick={() => !jukebox.justStopped() && onPlay(playlist)}>
-            <span className="bar-icon" aria-hidden>
-              <PlayIcon />
-            </span>
-            <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
-              <span className="innings-title truncate">{next ? next.title : "Jukebox"}</span>
-              <span className="innings-song truncate">
-                {next ? `Up next · ${playlist.name}` : `${playlist.name} has no songs yet`}
-              </span>
+            <span className="innings-title truncate">{next ? next.title : "Jukebox"}</span>
+            <span className="innings-song truncate">
+              {next ? `Up next · ${playlist.name}` : `${playlist.name} has no songs yet`}
             </span>
           </button>
           {playlist.songs.length > 1 && (
             // Picks a different song to play next; nothing starts.
-            <button className="bar-icon" aria-label="Pick a different next song" onClick={() => jukebox.skip(playlist)}>
+            <button className="bar-icon bar-skip" aria-label="Pick a different next song" onClick={() => jukebox.skip(playlist)}>
               <SkipIcon />
             </button>
           )}
+          <button
+            className="bar-icon"
+            aria-label="Play the jukebox"
+            disabled={!next}
+            onClick={() => !jukebox.justStopped() && onPlay(playlist)}
+          >
+            <PlayIcon />
+          </button>
         </div>
       </div>
     );
@@ -526,14 +530,7 @@ function NowPlaying({
   return (
     <div className="innings-bar">
       <div className="innings-button on">
-        <button
-          className="bar-icon"
-          aria-label={state.status === "fading" ? "Stop the jukebox now" : "Stop the jukebox"}
-          onClick={() => (state.status === "fading" ? jukebox.stop() : jukebox.fadeOut())}
-        >
-          <StopIcon />
-        </button>
-        <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
+        <span className="bar-text">
           <span className="innings-title now-title">
             {state.status === "playing" && <SoundBars />}
             <span className="truncate">{state.song.title}</span>
@@ -544,8 +541,20 @@ function NowPlaying({
             {state.playlist.name}
           </span>
         </span>
-        <button className="bar-icon" aria-label="Next song" disabled={state.status === "fading"} onClick={() => jukebox.skip(state.playlist)}>
+        <button
+          className="bar-icon bar-skip"
+          aria-label="Next song"
+          disabled={state.status === "fading"}
+          onClick={() => jukebox.skip(state.playlist)}
+        >
           <SkipIcon />
+        </button>
+        <button
+          className="bar-icon"
+          aria-label={state.status === "fading" ? "Stop the jukebox now" : "Stop the jukebox"}
+          onClick={() => (state.status === "fading" ? jukebox.stop() : jukebox.fadeOut())}
+        >
+          <StopIcon />
         </button>
       </div>
     </div>

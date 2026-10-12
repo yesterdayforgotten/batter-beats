@@ -372,7 +372,7 @@ class Jukebox {
   }
 
   /** When the music last stopped (see justStopped). */
-  private stoppedAt = 0;
+  private stoppedAt = -Infinity; // never stopped yet (performance.now() starts near 0 when the page opens)
 
   /**
    * True just after the music stopped: Play takes Stop's place in the bar, so a
