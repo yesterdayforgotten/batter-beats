@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
-import { api, upload } from "../api.ts";
+import { api } from "../api.ts";
 import { PlayIcon, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SongFilterBar, useSongFilter } from "../components/SongFilter.tsx";
 import { TagEditor } from "../components/TagEditor.tsx";
+import { UploadSheet } from "../components/UploadSheet.tsx";
 import type { LibrarySong, Song, TagSuggestions } from "../../shared/types.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -26,7 +27,8 @@ export function MusicPage() {
   const filter = useSongFilter(songs);
   const [openId, setOpenId] = useState<number | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
-  const [uploading, setUploading] = useState<number | null>(null);
+  /** Files chosen for upload; the upload sheet is open while set. */
+  const [picked, setPicked] = useState<File[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
 
@@ -93,22 +95,6 @@ export function MusicPage() {
     }
   }
 
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
-    setError(null);
-    setUploading(0);
-    try {
-      const r = await upload<{ song: Song }>("/songs", file, setUploading);
-      await load();
-      setOpenId(r.song.id); // open it, so a wrong title can be fixed straight away
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setUploading(null);
-      if (fileInput.current) fileInput.current.value = "";
-    }
-  }
-
   return (
     <>
       <PageHead back="/" title={<div className="display" style={{ fontSize: 30 }}>Music</div>} />
@@ -121,20 +107,29 @@ export function MusicPage() {
         </p>
       )}
 
-      <button className="add-button" style={{ marginBottom: 8 }} disabled={uploading !== null} onClick={() => fileInput.current?.click()}>
-        {uploading === null
-          ? "+ Upload an MP3"
-          : uploading < 1
-            ? `Uploading… ${Math.round(uploading * 100)}%`
-            : "Adding to the library…"}
+      <button className="add-button" style={{ marginBottom: 8 }} onClick={() => fileInput.current?.click()}>
+        + Upload MP3s
       </button>
       <input
         ref={fileInput}
         type="file"
         accept="audio/mpeg,.mp3"
+        multiple
         style={{ display: "none" }}
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = ""; // so choosing the same files again still opens the sheet
+          if (files.length) setPicked(files);
+        }}
       />
+      {picked && (
+        <UploadSheet
+          files={picked}
+          suggestions={suggestions}
+          onUploaded={() => void load()}
+          onClose={() => setPicked(null)}
+        />
+      )}
       {songs && songs.length > 0 && (
         <div style={{ margin: "6px 0 10px" }}>
           <SongFilterBar filter={filter} />
