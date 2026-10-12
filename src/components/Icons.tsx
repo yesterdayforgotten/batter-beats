@@ -63,9 +63,10 @@ export const ChevronIcon = () => (
 /** Per-bar frequency ranges (FFT bins of ~180 Hz, low to high) and how much to lift each (treble is quieter). */
 const BANDS: [number, number, number][] = [
   [0, 2, 0.85],
-  [2, 6, 0.95],
-  [6, 16, 1.25],
-  [16, 48, 1.6],
+  [2, 5, 0.95],
+  [5, 11, 1.15],
+  [11, 24, 1.4],
+  [24, 56, 1.7],
 ];
 
 /**
@@ -98,10 +99,9 @@ export function SoundBars() {
   }, []);
   return (
     <span className="eq" aria-hidden ref={ref}>
-      <span />
-      <span />
-      <span />
-      <span />
+      {BANDS.map((_, i) => (
+        <span key={i} />
+      ))}
     </span>
   );
 }
