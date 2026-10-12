@@ -371,7 +371,19 @@ class Jukebox {
     this.stopTimer = window.setTimeout(() => this.stop(), seconds * 1000 + 50);
   }
 
+  /** When the music last stopped (see justStopped). */
+  private stoppedAt = 0;
+
+  /**
+   * True just after the music stopped: Play takes Stop's place in the bar, so a
+   * tap meant to stop it shouldn't start it again.
+   */
+  justStopped(ms = 800) {
+    return performance.now() - this.stoppedAt < ms;
+  }
+
   stop() {
+    if (this.state.status !== "stopped") this.stoppedAt = performance.now();
     window.clearTimeout(this.stopTimer);
     this.playId++;
     this.audio?.pause();

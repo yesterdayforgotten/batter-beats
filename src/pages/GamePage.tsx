@@ -24,6 +24,12 @@ import {
 import { JukeboxPanel } from "../components/JukeboxPanel.tsx";
 import type { Player, Playlist, Roster } from "../../shared/types.ts";
 
+/**
+ * After a batter's song stops (forced, or the fade ran out), taps on that batter
+ * are ignored this long, so a tap meant to stop it doesn't start it again.
+ */
+const RESTART_GUARD_MS = 800;
+
 /** How quickly a playing song gets out of the way when a different batter is tapped. */
 const SWITCH_FADE_SEC = 0.5;
 
@@ -106,6 +112,8 @@ export function GamePage() {
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
   const playback = useRef<Playback | null>(null);
   const tapCount = useRef(0);
+  /** Which batter's song stopped last, and when (see RESTART_GUARD_MS). */
+  const lastStop = useRef<{ playerId: number; at: number } | null>(null);
 
   useEffect(() => {
     const show = (r: Roster) => {
@@ -214,6 +222,9 @@ export function GamePage() {
     jukebox.fadeOut(BATTER_FADE_SEC); // the jukebox fades out for the batter
     const current = playback.current;
 
+    // A tap that arrives just after this batter's song stopped was meant to stop it: ignore it.
+    if (lastStop.current?.playerId === player.id && performance.now() - lastStop.current.at < RESTART_GUARD_MS) return;
+
     // Tapping the batter whose song is playing fades it out; tapping again while it fades stops it at once.
     if (player.id === sound?.playerId && current?.playing) {
       if (!current.fading) {
@@ -223,6 +234,7 @@ export function GamePage() {
         current.stop();
         playback.current = null;
         setSound(null);
+        lastStop.current = { playerId: player.id, at: performance.now() };
       }
       return;
     }
@@ -253,6 +265,7 @@ export function GamePage() {
         if (playback.current === p) {
           playback.current = null;
           setSound(null);
+          lastStop.current = { playerId: player.id, at: performance.now() };
         }
       };
     } catch (err) {
@@ -489,7 +502,7 @@ function NowPlaying({
     return (
       <div className="innings-bar">
         <div className="innings-button">
-          <button className="bar-play" disabled={!next} onClick={() => onPlay(playlist)}>
+          <button className="bar-play" disabled={!next} onClick={() => !jukebox.justStopped() && onPlay(playlist)}>
             <span className="bar-icon" aria-hidden>
               <PlayIcon />
             </span>
