@@ -4,7 +4,8 @@ import { api } from "../api.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import { ChevronIcon } from "../components/Icons.tsx";
 import { SortableList } from "../components/SortableList.tsx";
-import type { Player, Roster } from "../../shared/types.ts";
+import { AnnouncerSettings } from "../components/AnnouncerSettings.tsx";
+import type { AnnouncerStyle, Player, Roster } from "../../shared/types.ts";
 
 export function RosterEditPage() {
   const { id } = useParams();
@@ -65,6 +66,14 @@ export function RosterEditPage() {
     }
   }
 
+  /** Saves the team's announcer voice or delivery; its announcements are remade. */
+  async function saveTeamAnnouncer(changes: { voice?: string; style?: AnnouncerStyle }): Promise<Roster | null> {
+    if (!roster) return null;
+    const r = await api<{ roster: Roster }>(`/rosters/${roster.id}/announcer`, { method: "PUT", body: changes });
+    setRoster(r.roster);
+    return r.roster;
+  }
+
   async function deleteRoster() {
     if (!roster) return;
     if (!confirm(`Delete ${roster.name} and all its players? Songs stay in the library.`)) return;
@@ -121,6 +130,15 @@ export function RosterEditPage() {
                   With ElevenLabs you can direct parts of the line with cues in square brackets, e.g.{" "}
                   {"[drawn out] Now batting, [excited] number {number}, {name}!"}
                 </p>
+                <AnnouncerSettings
+                  voice={roster.announcerVoice}
+                  style={roster.announcerStyle}
+                  template={roster.announceTemplate}
+                  onVoice={async (voice) => {
+                    await saveTeamAnnouncer({ voice });
+                  }}
+                  onStyle={async (style) => (await saveTeamAnnouncer({ style }))?.announcerStyle ?? style}
+                />
               </>
             )}
           </div>

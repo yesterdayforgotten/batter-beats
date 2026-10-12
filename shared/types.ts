@@ -193,5 +193,8 @@ export interface Roster {
   announce: boolean;
   /** Wording, with {number} and {name}. */
   announceTemplate: string;
+  /** The team's announcer voice (for the engine in use) and delivery. */
+  announcerVoice: string;
+  announcerStyle: AnnouncerStyle;
   players: Player[];
 }

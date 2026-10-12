@@ -11,8 +11,6 @@ import {
   refreshAllAnnouncements,
   sample,
   setEngine,
-  setStyle,
-  setVoice,
 } from "../announcer.ts";
 import { ANNOUNCER, type AnnouncerVoice } from "../../shared/types.ts";
 
@@ -57,10 +55,15 @@ announcerRouter.put("/announcer/engine", requireRole("admin"), (req, res) => {
 // Hear something in a voice (or the current one). Returns the MP3 itself.
 announcerRouter.post("/announcer/sample", requireRole("editor"), async (req, res) => {
   const voice = typeof req.body?.voice === "string" ? req.body.voice.slice(0, 100) : currentVoice();
+  // A team's wording (with its cues), filled in with a sample player.
+  const template =
+    typeof req.body?.template === "string" && req.body.template.includes("{name}")
+      ? req.body.template.slice(0, 200)
+      : ANNOUNCER.defaultTemplate;
   const text =
     typeof req.body?.text === "string" && req.body.text.trim()
       ? req.body.text.trim().slice(0, 300)
-      : announcementText(ANNOUNCER.defaultTemplate, "Alex Rivera", "12");
+      : announcementText(template, "Alex Rivera", "12");
   try {
     // A style can be tried out before it's saved.
     const style = req.body?.style === undefined ? currentStyle() : cleanStyle(req.body.style);
@@ -71,19 +74,3 @@ announcerRouter.post("/announcer/sample", requireRole("editor"), async (req, res
   }
 });
 
-// How every announcement is delivered; every announcement is remade.
-announcerRouter.put("/announcer/style", requireRole("admin"), (req, res) => {
-  const style = cleanStyle(req.body);
-  setStyle(style);
-  void refreshAllAnnouncements();
-  res.json({ style });
-});
-
-// Choose the announcer voice; every announcement is remade in it.
-announcerRouter.put("/announcer/voice", requireRole("admin"), (req, res) => {
-  if (typeof req.body?.voice !== "string") return res.status(400).json({ error: "Choose a voice." });
-  const voice = req.body.voice.trim().slice(0, 100);
-  setVoice(voice);
-  void refreshAllAnnouncements();
-  res.json({ voice });
-});

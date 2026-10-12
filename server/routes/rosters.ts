@@ -3,7 +3,7 @@ import { db } from "../db.ts";
 import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
 import { announcementPath, clipPath } from "../storage.ts";
-import { refreshAnnouncements, refreshRosterAnnouncements } from "../announcer.ts";
+import { refreshAnnouncements, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
 import { ANNOUNCER } from "../../shared/types.ts";
 import {
   getPlayer,
@@ -110,6 +110,19 @@ function changedAt(value: unknown): string {
   const t = typeof value === "string" ? new Date(value) : now;
   return (isNaN(t.getTime()) || t > now ? now : t).toISOString();
 }
+
+// The team's announcer voice and/or delivery; its announcements are remade.
+rostersRouter.put("/rosters/:id/announcer", editor, (req, res) => {
+  const id = Number(req.params.id);
+  if (!getRoster(id)) return res.status(404).json({ error: "Team not found." });
+  const voice = typeof req.body?.voice === "string" ? req.body.voice.trim().slice(0, 100) : undefined;
+  const style = req.body?.style;
+  if (voice === undefined && style === undefined) return res.status(400).json({ error: "Nothing to change." });
+  setTeamAnnouncer(id, { voice, style });
+  touchRoster(id);
+  void refreshRosterAnnouncements(id);
+  res.json({ roster: getRoster(id) });
+});
 
 // Batting order. Everyone can reorder the lineup (it's part of running a game), not just editors.
 // If a newer order is already saved, this one is ignored: the most recent change wins.

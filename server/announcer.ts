@@ -43,6 +43,8 @@ export interface AnnouncerPlayerRow {
 interface AnnouncerRosterRow {
   announce_enabled: number;
   announce_template: string;
+  announcer_voices: string | null;
+  announcer_style: string | null;
 }
 
 export function getSetting(key: string): string | null {
@@ -69,15 +71,12 @@ export function setEngine(id: string): boolean {
   return true;
 }
 
-// Each engine has its own voices, so the chosen voice is stored per engine.
+// The app-wide voice and delivery, from before these were chosen per team, are now the
+// defaults for a team that hasn't chosen its own. (Stored per engine, as each has its own voices.)
 const voiceSetting = (e: Engine) => (e.id === "kokoro" ? "announcer_voice" : `announcer_voice_${e.id}`);
 export const currentVoice = () => {
   const e = activeEngine();
   return e ? (getSetting(voiceSetting(e)) ?? e.defaultVoice) : "";
-};
-export const setVoice = (voice: string) => {
-  const e = activeEngine();
-  if (e) setSetting(voiceSetting(e), voice);
 };
 
 const ENERGIES: Energy[] = ["calm", "lively", "hyped"];
@@ -104,16 +103,13 @@ export function cleanStyle(input: unknown): AnnouncerStyle {
   };
 }
 
+/** The default delivery, for teams that haven't chosen their own. */
 export function currentStyle(): AnnouncerStyle {
   try {
     return cleanStyle(JSON.parse(getSetting("announcer_style") ?? "{}"));
   } catch {
     return { ...DEFAULT_STYLE };
   }
-}
-
-export function setStyle(style: AnnouncerStyle) {
-  setSetting("announcer_style", JSON.stringify(cleanStyle(style)));
 }
 
 /**
@@ -144,8 +140,53 @@ export function announcementText(template: string, name: string, number: string)
     .trim();
 }
 
-function rosterRow(rosterId: number): AnnouncerRosterRow {
-  return db.prepare("SELECT announce_enabled, announce_template FROM rosters WHERE id = ?").get(rosterId) as AnnouncerRosterRow;
+function rosterRow(rosterId: number): AnnouncerRosterRow | undefined {
+  return db
+    .prepare("SELECT announce_enabled, announce_template, announcer_voices, announcer_style FROM rosters WHERE id = ?")
+    .get(rosterId) as AnnouncerRosterRow | undefined;
+}
+
+function parse<T>(json: string | null): T | null {
+  try {
+    return json ? (JSON.parse(json) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Each team has its own announcer voice and delivery; a team that hasn't chosen
+// uses the app-wide defaults (the settings from before voices were per team).
+
+/** A team's voice for the engine in use. */
+function voiceOf(r: AnnouncerRosterRow | undefined, engine: Engine): string {
+  return parse<Record<string, string>>(r?.announcer_voices ?? null)?.[engine.id] ?? currentVoice();
+}
+
+/** A team's delivery settings. */
+function styleOf(r: AnnouncerRosterRow | undefined): AnnouncerStyle {
+  const saved = parse<unknown>(r?.announcer_style ?? null);
+  return saved ? cleanStyle(saved) : currentStyle();
+}
+
+/** The voice and delivery a team's announcements use. */
+export function teamAnnouncer(rosterId: number): { voice: string; style: AnnouncerStyle } {
+  const r = rosterRow(rosterId);
+  const engine = activeEngine();
+  return { voice: engine ? voiceOf(r, engine) : "", style: styleOf(r) };
+}
+
+/** Saves a team's voice (for the engine in use) and/or delivery. */
+export function setTeamAnnouncer(rosterId: number, changes: { voice?: string; style?: unknown }) {
+  const r = rosterRow(rosterId);
+  const engine = activeEngine();
+  if (changes.voice !== undefined && engine) {
+    const voices = parse<Record<string, string>>(r?.announcer_voices ?? null) ?? {};
+    voices[engine.id] = changes.voice;
+    db.prepare("UPDATE rosters SET announcer_voices = ? WHERE id = ?").run(JSON.stringify(voices), rosterId);
+  }
+  if (changes.style !== undefined) {
+    db.prepare("UPDATE rosters SET announcer_style = ? WHERE id = ?").run(JSON.stringify(cleanStyle(changes.style)), rosterId);
+  }
 }
 
 /** What an announcement for this player would say, and the key identifying it; null when announcing is off. */
@@ -155,8 +196,8 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
   const r = rosterRow(p.roster_id);
   if (!r?.announce_enabled) return null;
   const text = announcementText(r.announce_template, p.pronunciation.trim() || p.name, p.number);
-  const voice = currentVoice();
-  const style = currentStyle();
+  const voice = voiceOf(r, engine);
+  const style = styleOf(r);
   const key = crypto
     .createHash("sha1")
     // Reverb changes how it sounds, so a new reverb version remakes only announcements that use reverb.
@@ -166,7 +207,6 @@ export function wanted(p: AnnouncerPlayerRow): { text: string; key: string; voic
   return { text, key, voice, style };
 }
 
-/** Speaks text and returns a finished, loudness-matched announcement file in tmp (the caller moves or deletes it). */
 /** How many raw recordings to keep (about 50 KB each); the least recently used go first. */
 const SPEECH_CACHE_FILES = 500;
 

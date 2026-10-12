@@ -4,7 +4,7 @@ import { db } from "./db.ts";
 import { scanMp3, cutClip } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
-import { wanted, type AnnouncerPlayerRow } from "./announcer.ts";
+import { teamAnnouncer, wanted, type AnnouncerPlayerRow } from "./announcer.ts";
 import { CLIP_LIMITS, type Clip, type Player, type Roster, type RosterSummary, type Song } from "../shared/types.ts";
 
 // ── Songs ────────────────────────────────────────────────────────────────
@@ -169,6 +169,10 @@ export function getRoster(id: number): Roster | undefined {
     updatedAt: r.updated_at,
     announce: !!r.announce_enabled,
     announceTemplate: r.announce_template,
+    ...(() => {
+      const t = teamAnnouncer(r.id);
+      return { announcerVoice: t.voice, announcerStyle: t.style };
+    })(),
     players,
   };
 }

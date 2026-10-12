@@ -109,6 +109,12 @@ const migrations: string[] = [
     PRIMARY KEY (user_id, song_id)
   );
   `,
+  `
+  -- Each team's announcer voice (one per engine, as JSON {"elevenlabs": "<voice id>"}) and
+  -- delivery (JSON, as AnnouncerStyle). Empty means the app-wide defaults.
+  ALTER TABLE rosters ADD COLUMN announcer_voices TEXT;
+  ALTER TABLE rosters ADD COLUMN announcer_style TEXT;
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */
