@@ -186,7 +186,7 @@ export function RosterEditPage() {
             )}
           </div>
           {roster.players.length === 0 && <p className="empty">No players yet.</p>}
-          <SortableList items={roster.players} keyOf={(p) => p.id} sorting={sorting} onReorder={saveOrder}>
+          <SortableList items={roster.players} keyOf={(p) => p.id} sorting={sorting} compact={sorting} onReorder={saveOrder}>
             {(p) => {
               const content = (
                 <>

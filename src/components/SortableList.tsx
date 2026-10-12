@@ -9,6 +9,8 @@ interface Props<T> {
   /** When on, each row gets a grab bar on the right for dragging. */
   sorting: boolean;
   onReorder(items: T[]): void;
+  /** Shorter rows, for reordering (more players fit on screen). */
+  compact?: boolean;
 }
 
 interface Drag {
@@ -31,7 +33,7 @@ const MAX_SCROLL = 12; // px per frame
  * Built on pointer events so it works the same with a finger or a mouse,
  * including iOS 15 Safari.
  */
-export function SortableList<T>({ items, keyOf, children, sorting, onReorder }: Props<T>) {
+export function SortableList<T>({ items, keyOf, children, sorting, onReorder, compact }: Props<T>) {
   const rows = useRef<(HTMLLIElement | null)[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -111,7 +113,7 @@ export function SortableList<T>({ items, keyOf, children, sorting, onReorder }: 
   }
 
   return (
-    <ul className={`list sortable${drag ? " dragging" : ""}`}>
+    <ul className={`list sortable${compact ? " compact" : ""}${drag ? " dragging" : ""}`}>
       {items.map((item, i) => (
         <li
           key={keyOf(item)}

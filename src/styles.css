@@ -1253,3 +1253,31 @@ label {
     transition: none;
   }
 }
+
+/* Compact rows while reordering: more players fit on screen (game mode keeps its tall buttons). */
+.list.compact {
+  gap: 5px;
+}
+.list.compact .list-item {
+  border-radius: 12px;
+  padding: 0;
+}
+.list.compact .player-row {
+  min-height: 46px;
+  padding: 4px 6px 4px 10px;
+  gap: 10px;
+}
+.list.compact .jersey {
+  font-size: 22px;
+  width: 34px;
+}
+.list.compact .player-name {
+  font-size: 16px;
+}
+.list.compact .small-button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+.list.compact .grip {
+  width: 44px;
+}

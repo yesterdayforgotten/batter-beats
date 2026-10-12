@@ -263,7 +263,7 @@ export function GamePage() {
           <p className="muted small" style={{ margin: "0 4px 10px" }}>
             Drag to change the batting order. Sit out anyone who isn't playing today.
           </p>
-          <SortableList items={lineup} keyOf={(p) => p.id} sorting onReorder={saveOrder}>
+          <SortableList items={lineup} keyOf={(p) => p.id} sorting compact onReorder={saveOrder}>
             {(p) => (
               <div className="player-row">
                 <span className="jersey">{p.number}</span>
@@ -308,7 +308,7 @@ export function GamePage() {
           <div className="section-title" style={{ margin: "22px 4px 8px" }}>
             Unavailable
           </div>
-          <ul className="list bench">
+          <ul className={`list bench${editing ? " compact" : ""}`}>
             {bench.map((p) => (
               <li key={p.id} className="list-item">
                 <div className="player-row">
