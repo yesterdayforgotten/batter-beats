@@ -42,7 +42,7 @@ function TopBar() {
   return (
     <header className="topbar">
       <Link to="/" className="brand">
-        <img src="/favicon.svg?v=9" alt="" width={28} height={28} />
+        <img src="/brand.svg?v=10" alt="" width={32} height={32} />
         Batter Beats
       </Link>
       <MoreMenu
