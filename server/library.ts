@@ -90,7 +90,7 @@ export function listLibrary(): LibrarySong[] {
   const rows = db
     .prepare(
       `SELECT s.*, u.username AS uploaded_by_name,
-              (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.song_id = s.id) AS playlists
+              (SELECT COUNT(*) FROM playlist_items pi WHERE pi.song_id = s.id) AS playlists
        FROM songs s LEFT JOIN users u ON u.id = s.uploaded_by
        ORDER BY s.title COLLATE NOCASE, s.artist COLLATE NOCASE`,
     )

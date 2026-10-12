@@ -7,7 +7,7 @@ import { GamePage } from "./pages/GamePage.tsx";
 import { RosterEditPage } from "./pages/RosterEditPage.tsx";
 import { PlayerEditPage } from "./pages/PlayerEditPage.tsx";
 import { UsersPage } from "./pages/UsersPage.tsx";
-import { PlaylistPage } from "./pages/PlaylistPage.tsx";
+import { PlaylistEditPage, PlaylistsPage } from "./pages/PlaylistPage.tsx";
 import { AdminPage } from "./pages/AdminPage.tsx";
 import { MusicPage } from "./pages/MusicPage.tsx";
 
@@ -28,7 +28,9 @@ export function App() {
       </Route>
       <Route element={<Plain />}>
         <Route path="rosters/:id" element={<GamePage />} />
-        <Route path="playlist" element={<PlaylistPage />} />
+        <Route path="playlists" element={<PlaylistsPage />} />
+        <Route path="playlists/:id" element={<PlaylistEditPage />} />
+        <Route path="playlist" element={<Navigate to="/playlists" replace />} />
         {editor && <Route path="music" element={<MusicPage />} />}
         {editor && <Route path="rosters/:id/edit" element={<RosterEditPage />} />}
         {editor && <Route path="players/:id" element={<PlayerEditPage />} />}

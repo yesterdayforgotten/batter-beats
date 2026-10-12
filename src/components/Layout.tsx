@@ -49,7 +49,7 @@ function TopBar() {
         icon={<MenuIcon />}
         label="Menu"
         items={[
-          { label: "Playlist", to: "/playlist" },
+          { label: "Playlists", to: "/playlists" },
           ...(hasRole(user, "editor") ? [{ label: "Music", to: "/music" }] : []),
           ...(hasRole(user, "admin") ? [{ label: "Admin", to: "/admin" }] : []),
           { label: "Sign out", onSelect: handleSignOut },

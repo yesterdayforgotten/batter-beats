@@ -118,6 +118,13 @@ export interface TagSuggestions {
   used: string[];
 }
 
+/** A shared playlist for the jukebox: songs in order. */
+export interface Playlist {
+  id: number;
+  name: string;
+  songs: PlaylistSong[];
+}
+
 export interface Announcement {
   url: string;
   durationMs: number;

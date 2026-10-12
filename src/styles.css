@@ -1587,3 +1587,132 @@ label,
   padding: 0 6px;
   font-size: 13px;
 }
+
+/* Playlist editor: compact song rows */
+.player-row.playlist-song {
+  gap: 10px;
+  padding: 6px 8px 6px 4px;
+  min-height: 0;
+}
+.playlist-pos {
+  width: 26px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+/* Add-songs sheet: a tappable row per library song */
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px 8px 6px;
+  border-radius: 12px;
+  border: none;
+  background: var(--raised);
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+}
+.pick-row.on {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Game mode: Lineup | Jukebox tabs */
+.game-tabs {
+  margin: 0 0 12px;
+}
+/* Jukebox tab: song list */
+.jukebox-songs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jukebox-song {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px 8px 4px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+}
+.jukebox-song.now {
+  border-color: var(--accent);
+}
+.jukebox-song.now .playlist-pos {
+  color: var(--accent);
+  display: flex;
+  justify-content: center;
+}
+.slider-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.slider-row > span:first-child {
+  width: 104px;
+  flex-shrink: 0;
+}
+.slider-row input {
+  flex: 1;
+}
+.slider-value {
+  width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+/* Now-playing bar: Stop and Skip buttons */
+div.innings-button {
+  padding: 8px 10px;
+  gap: 10px;
+}
+.bar-icon {
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.bar-icon:last-child {
+  background: var(--card);
+  color: var(--text);
+}
+.row-remove {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.row-remove:active {
+  background: var(--raised);
+  color: var(--text);
+}

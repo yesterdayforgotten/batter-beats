@@ -66,6 +66,13 @@ export const GripIcon = () => (
   </svg>
 );
 
+export const SkipIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
+    <path d="M5 5l10 7-10 7Z" fill="currentColor" />
+    <rect x="16.5" y="5" width="3" height="14" rx="1.2" fill="currentColor" />
+  </svg>
+);
+
 export const StopIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />

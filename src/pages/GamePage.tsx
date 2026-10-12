@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
 import { fetchClip, loadClip, Playback, unlockAudio } from "../audio/engine.ts";
-import { PlayIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
+import { PlayIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { MoreMenu } from "../components/MoreMenu.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
@@ -12,8 +12,17 @@ import { changeLineup, onOfflineChange, savedRoster, saveIfKept, stuckChanges, w
 import { cameFromGame } from "../editReturn.ts";
 import { teamStyle } from "../teamColors.ts";
 import { allowSleep, keepAwake } from "../wakeLock.ts";
-import { innings, loadPlaylist, onPlaylistChange } from "../playlist.ts";
-import type { Player, PlaylistSong, Roster } from "../../shared/types.ts";
+import {
+  BATTER_FADE_SEC,
+  jukebox,
+  jukeboxSettings,
+  loadPlaylists,
+  onPlaylistChange,
+  setTeamPlaylist,
+  teamPlaylistId,
+} from "../playlist.ts";
+import { JukeboxPanel } from "../components/JukeboxPanel.tsx";
+import type { Player, Playlist, Roster } from "../../shared/types.ts";
 
 /** How quickly a playing song gets out of the way when a different batter is tapped. */
 const SWITCH_FADE_SEC = 0.5;
@@ -61,8 +70,26 @@ export function GamePage() {
   /** Lineup changes still unsent after a few tries (one blip isn't worth a message). */
   const [waiting, setWaiting] = useState(() => stuckChanges());
   const [reloads, setReloads] = useState(0);
-  const [playlist, setPlaylist] = useState<PlaylistSong[] | null>(null);
-  const [inningsState, setInningsState] = useState(innings.state);
+  const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
+  const [jukeboxState, setJukeboxState] = useState(jukebox.state);
+  const [settings, setSettings] = useState(jukeboxSettings);
+  const [chosenPlaylist, setChosenPlaylist] = useState(() => teamPlaylistId(id ?? ""));
+  /** Lineup or Jukebox, remembered for this team while the app is open. */
+  const [tab, setTabState] = useState<"lineup" | "jukebox">(() => {
+    try {
+      return sessionStorage.getItem(`bb.gameTab.${id}`) === "jukebox" ? "jukebox" : "lineup";
+    } catch {
+      return "lineup";
+    }
+  });
+  const setTab = (t: "lineup" | "jukebox") => {
+    setTabState(t);
+    try {
+      sessionStorage.setItem(`bb.gameTab.${id}`, t);
+    } catch {
+      // ignore
+    }
+  };
   // Reorder is its own history entry, so Back (the arrow, or the phone's back gesture) returns to game mode.
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,34 +142,43 @@ export function GamePage() {
 
   useEffect(() => onOfflineChange(() => setWaiting(stuckChanges())), []);
 
-  // The user's between-innings playlist.
+  // Playlists for the jukebox.
   useEffect(() => {
-    loadPlaylist()
-      .then((r) => setPlaylist(r.songs))
-      .catch(() => setPlaylist([]));
-    return onPlaylistChange(() => setInningsState(innings.state));
+    loadPlaylists()
+      .then((r) => setPlaylists(r.playlists))
+      .catch(() => setPlaylists([]));
+    return onPlaylistChange(() => {
+      setJukeboxState(jukebox.state);
+      setSettings(jukeboxSettings());
+    });
   }, []);
 
   // Leaving game mode: stop the music and let the screen sleep.
   useEffect(
     () => () => {
       playback.current?.stop();
-      innings.stop();
+      jukebox.stop();
       allowSleep();
     },
     [],
   );
 
-  function toggleInnings() {
+  /** The team's playlist: the one chosen on this phone, or the first one. */
+  const playlist = playlists?.find((p) => p.id === chosenPlaylist) ?? playlists?.[0] ?? null;
+
+  function choosePlaylist(playlistId: number) {
+    setChosenPlaylist(playlistId);
+    if (id) setTeamPlaylist(id, playlistId);
+  }
+
+  function playJukebox(p: Playlist, songId?: number) {
     unlockAudio(); // must start inside the tap
     keepAwake();
-    if (innings.state.status === "playing") return innings.fadeOut();
-    if (innings.state.status === "fading") return;
     // A walkup still playing gets out of the way.
     playback.current?.fadeOut(SWITCH_FADE_SEC);
     playback.current = null;
     setSound(null);
-    if (playlist?.length) innings.start(playlist);
+    jukebox.play(p, songId);
   }
 
   const order = roster?.players ?? [];
@@ -158,7 +194,7 @@ export function GamePage() {
   async function tap(player: Player) {
     unlockAudio(); // both of these must start inside the tap
     keepAwake();
-    innings.fadeOut(); // between-innings music fades out for the batter
+    jukebox.fadeOut(BATTER_FADE_SEC); // the jukebox fades out for the batter
     const current = playback.current;
 
     // Tapping the batter whose song is playing fades it out.
@@ -252,7 +288,13 @@ export function GamePage() {
           ) : (
             <MoreMenu
               items={[
-                { label: "Reorder", onSelect: () => setEditing(true) },
+                {
+                  label: "Reorder",
+                  onSelect: () => {
+                    setTab("lineup");
+                    setEditing(true);
+                  },
+                },
                 ...(hasRole(user, "editor") && roster && !fromPhone
                   ? [{ label: "Edit Team", to: `/rosters/${roster.id}/edit`, onSelect: () => cameFromGame(roster.id) }]
                   : []),
@@ -274,9 +316,29 @@ export function GamePage() {
             : ""}
         </p>
       )}
-      {roster && order.length === 0 && <p className="empty">No players on this roster yet.</p>}
+      {!editing && (
+        <div className="segmented game-tabs" role="tablist">
+          {(["lineup", "jukebox"] as const).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+              {t === "lineup" ? "Lineup" : "Jukebox"}
+            </button>
+          ))}
+        </div>
+      )}
+      {!editing && tab === "jukebox" && playlists && (
+        <JukeboxPanel
+          playlists={playlists}
+          selected={playlist}
+          state={jukeboxState}
+          settings={settings}
+          editor={hasRole(user, "editor") && !fromPhone}
+          onSelect={choosePlaylist}
+          onPlay={playJukebox}
+        />
+      )}
+      {(editing || tab === "lineup") && roster && order.length === 0 && <p className="empty">No players on this roster yet.</p>}
 
-      {editing ? (
+      {!editing && tab === "jukebox" ? null : editing ? (
         <>
           <p className="muted small" style={{ margin: "0 4px 10px" }}>
             Drag to change the batting order. Tap Away for anyone who isn't playing today.
@@ -322,7 +384,7 @@ export function GamePage() {
         </ol>
       )}
 
-      {bench.length > 0 && (
+      {bench.length > 0 && (editing || tab === "lineup") && (
         <>
           <div className="section-title" style={{ margin: "22px 4px 8px" }}>
             Unavailable
@@ -344,30 +406,70 @@ export function GamePage() {
           </ul>
         </>
       )}
-      {!editing && playlist && (
-        <div className="innings-bar">
-          {playlist.length > 0 ? (
-            <button className={`innings-button${inningsState.status !== "stopped" ? " on" : ""}`} onClick={toggleInnings}>
-              {inningsState.status === "stopped" ? <PlayIcon /> : <StopIcon />}
-              <span className="stack" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
-                <span className="innings-title">Between innings</span>
-                <span className="innings-song truncate">
-                  {inningsState.status === "stopped"
-                    ? `${playlist.length} songs, shuffled`
-                    : `${inningsState.status === "fading" ? "Fading out · " : ""}${inningsState.song.title}`}
-                </span>
-              </span>
-            </button>
-          ) : (
-            <Link to="/playlist" className="innings-setup">
-              Set up your between-innings playlist
-            </Link>
-          )}
-        </div>
-      )}
+      {!editing && playlists && <NowPlaying state={jukeboxState} playlist={playlist} onPlay={playJukebox} />}
       <footer style={{ marginTop: 28 }}>
         <AppVersion />
       </footer>
+    </div>
+  );
+}
+
+/**
+ * The bar along the bottom of game mode, on both tabs: what the jukebox is
+ * playing, with Stop (fades out) and Skip; or, when it's quiet, one tap to
+ * start the team's playlist.
+ */
+function NowPlaying({
+  state,
+  playlist,
+  onPlay,
+}: {
+  state: typeof jukebox.state;
+  playlist: Playlist | null;
+  onPlay(p: Playlist): void;
+}) {
+  if (state.status === "stopped") {
+    if (!playlist) {
+      return (
+        <div className="innings-bar">
+          <Link to="/playlists" className="innings-setup">
+            Set up a playlist for the jukebox
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <div className="innings-bar">
+        <button className="innings-button" disabled={playlist.songs.length === 0} onClick={() => onPlay(playlist)}>
+          <PlayIcon />
+          <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
+            <span className="innings-title">Jukebox</span>
+            <span className="innings-song truncate">
+              {playlist.name} · {playlist.songs.length} {playlist.songs.length === 1 ? "song" : "songs"}
+            </span>
+          </span>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="innings-bar">
+      <div className="innings-button on">
+        <button className="bar-icon" aria-label="Stop the jukebox" disabled={state.status === "fading"} onClick={() => jukebox.fadeOut()}>
+          <StopIcon />
+        </button>
+        <span className="stack grow" style={{ gap: 1, minWidth: 0, textAlign: "left" }}>
+          <span className="innings-title truncate">{state.song.title}</span>
+          <span className="innings-song truncate">
+            {state.status === "fading" ? "Fading out · " : state.status === "loading" ? "Loading… · " : ""}
+            {state.song.artist ? `${state.song.artist} · ` : ""}
+            {state.playlist.name}
+          </span>
+        </span>
+        <button className="bar-icon" aria-label="Next song" disabled={state.status === "fading"} onClick={() => jukebox.skip()}>
+          <SkipIcon />
+        </button>
+      </div>
     </div>
   );
 }

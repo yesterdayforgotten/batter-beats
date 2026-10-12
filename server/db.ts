@@ -127,6 +127,27 @@ const migrations: string[] = [
     PRIMARY KEY (song_id, tag)
   );
   `,
+  `
+  -- Playlists are shared by everyone (editors manage them) and there can be many.
+  -- Each user's old personal playlist becomes a shared one named after them.
+  CREATE TABLE playlists (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+  CREATE TABLE playlist_items (
+    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    song_id     INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, song_id)
+  );
+  INSERT INTO playlists (id, name)
+    SELECT u.id, u.username || '''s playlist' FROM users u
+    WHERE EXISTS (SELECT 1 FROM playlist_songs ps WHERE ps.user_id = u.id);
+  INSERT INTO playlist_items (playlist_id, song_id, position)
+    SELECT user_id, song_id, position FROM playlist_songs;
+  DROP TABLE playlist_songs;
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */
