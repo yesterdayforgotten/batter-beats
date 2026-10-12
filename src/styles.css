@@ -701,6 +701,10 @@ label,
   border-radius: 12px;
   color: var(--faint);
 }
+/* On the Teams list it's the Edit team pencil: white, as a button people look for */
+.list-item > .kebab {
+  color: var(--text);
+}
 .kebab:active,
 .list-item > .kebab:active {
   background: var(--raised);
