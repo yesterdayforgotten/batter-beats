@@ -202,7 +202,7 @@ These were not verified during planning. Test each one and tell the owner what y
 - Roster screen (`/rosters/:id`) is a read-only lineup until game mode in phase 3.
 
 ### App icon
-- Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png` (ready for the Android app manifest in phase 4).
+- Agreed 2026-10-12: "P2a", a blue home plate at regulation proportions (as tall as wide) with five dark sound bars, on the near-black background. Files in `public/`: `favicon.svg` and `favicon.ico` (browser tab), `apple-touch-icon.png` (iPhone home screen, 180 px, square; iOS rounds the corners), `icon-192.png` and `icon-512.png`, and `icon-maskable-*.png` (plate shrunk to fit Android's circle crop). `public/manifest.webmanifest` (added 2026-10-12) gives the installed app its name, the near-black background and theme colour (Android's start-up screen) and these icons.
 
 ### Dev environment notes
 - `mp3gain` 1.6.2 and `ffmpeg` 5.1 are installed in the dev container.
