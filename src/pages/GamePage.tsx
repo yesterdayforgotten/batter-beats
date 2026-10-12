@@ -242,7 +242,7 @@ export function GamePage() {
         back="/"
         onBack={editing ? () => setEditing(false) : undefined}
         eyebrow={editing ? "Reorder" : "Game mode"}
-        title={<div className="display truncate" style={{ fontSize: 30 }}>{roster?.name ?? ""}</div>}
+        title={<div className="display truncate" style={{ fontSize: 30, color: "var(--accent)" }}>{roster?.name ?? ""}</div>}
         right={
           editing ? (
             <button className="link-button" style={{ color: "var(--accent)", padding: "8px 6px" }} onClick={() => setEditing(false)}>
