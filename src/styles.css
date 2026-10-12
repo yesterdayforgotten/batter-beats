@@ -820,7 +820,8 @@ label,
   letter-spacing: 0;
   color: var(--muted);
 }
-.bat-row.at-bat .bat-status.song {
+/* Everything under the at-bat name (song, "No song", loading…) in the dark ink, never grey */
+.bat-row.at-bat .bat-status {
   color: var(--accent-ink);
   font-weight: 700;
 }
