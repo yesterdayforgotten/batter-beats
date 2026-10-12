@@ -2,6 +2,7 @@ import { useState } from "react";
 import { upload } from "../api.ts";
 import { TagEditor } from "./TagEditor.tsx";
 import type { Song, TagSuggestions } from "../../shared/types.ts";
+import { useLockPageScroll } from "../lockScroll.ts";
 
 type FileState =
   | { status: "waiting" }
@@ -29,6 +30,7 @@ export function UploadSheet({
   onUploaded(song: Song): void;
   onClose(): void;
 }) {
+  useLockPageScroll();
   const [tags, setTags] = useState<string[]>([]);
   const [states, setStates] = useState<FileState[]>(() => files.map(() => ({ status: "waiting" })));
   const [phase, setPhase] = useState<"choosing" | "uploading" | "finished">("choosing");

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, upload } from "../api.ts";
 import { SongFilterBar, useSongFilter } from "./SongFilter.tsx";
 import type { RosterSummary, Song } from "../../shared/types.ts";
+import { useLockPageScroll } from "../lockScroll.ts";
 
 const formatLength = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 
@@ -20,6 +21,7 @@ export function SongPicker({
   onPick(song: Song): void;
   onClose(): void;
 }) {
+  useLockPageScroll();
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [teamName, setTeamName] = useState<string | null>(null);
   const filter = useSongFilter(songs);
