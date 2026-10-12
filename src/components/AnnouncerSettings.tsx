@@ -250,25 +250,23 @@ export function AnnouncerSettings(props: {
           note={`${shown.length} of ${voices.length} voices`}
         />
       )}
-      <ul className="list">
+      {/* Compact rows: name and details on one line, small buttons, dividers instead of cards. */}
+      <ul className="voice-list">
         {shown.map(({ id, name, detail }) => (
-          <li key={id} className="list-item">
-            <div className="player-row">
-              <span className="stack grow" style={{ gap: 2, minWidth: 0 }}>
-                <span className="player-name truncate">
-                  {name} {id === current && <span className="tag on-deck-tag">In use</span>}
-                </span>
-                <span className="muted small">{detail}</span>
-              </span>
-              <button className="small-button" onClick={() => listen(id)} disabled={playing === id}>
-                {playing === id ? "…" : "Listen"}
+          <li key={id} className={`voice-row${id === current ? " in-use" : ""}`}>
+            <span className="voice-text">
+              <span className="voice-name">{name}</span>
+              <span className="voice-detail">{detail}</span>
+            </span>
+            {id === current && <span className="tag on-deck-tag">In use</span>}
+            <button className="compact-button" onClick={() => listen(id)} disabled={playing === id}>
+              {playing === id ? "…" : "Listen"}
+            </button>
+            {id !== current && (
+              <button className="compact-button primary" onClick={() => choose(id)}>
+                Use
               </button>
-              {id !== current && (
-                <button className="small-button primary" onClick={() => choose(id)}>
-                  Use
-                </button>
-              )}
-            </div>
+            )}
           </li>
         ))}
       </ul>
