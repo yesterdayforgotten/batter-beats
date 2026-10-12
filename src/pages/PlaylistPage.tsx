@@ -122,7 +122,6 @@ export function PlaylistEditPage() {
   const [offline, setOffline] = useState(false);
   const [name, setName] = useState(playlist?.name ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [sorting, setSorting] = useState(false);
   const [adding, setAdding] = useState(false);
   const canEdit = editor && !offline;
 
@@ -197,19 +196,14 @@ export function PlaylistEditPage() {
           {playlist.songs.length > 0 && <KeepOnPhone playlist={playlist} />}
 
           <div className="row" style={{ marginTop: 6 }}>
-            <span className="section-title">{sorting ? "Drag to set the order" : "Songs"}</span>
-            <span className="muted small grow">{sorting ? "" : summary(playlist)}</span>
-            {canEdit && playlist.songs.length > 1 && (
-              <button className="link-button" style={sorting ? { color: "var(--accent)" } : undefined} onClick={() => setSorting(!sorting)}>
-                {sorting ? "Done" : "Reorder"}
-              </button>
-            )}
+            <span className="section-title">Songs</span>
+            <span className="muted small grow">{summary(playlist)}</span>
           </div>
           {playlist.songs.length === 0 && <p className="empty">{canEdit ? "No songs yet. Add some below." : "No songs yet."}</p>}
           <SortableList
             items={playlist.songs}
             keyOf={(s) => s.id}
-            sorting={sorting}
+            sorting={canEdit && playlist.songs.length > 1}
             compact
             onReorder={(songs) => {
               setPlaylist({ ...playlist, songs });
@@ -226,7 +220,7 @@ export function PlaylistEditPage() {
                     {formatLength(s.durationMs)}
                   </span>
                 </span>
-                {canEdit && !sorting && (
+                {canEdit && (
                   <button
                     className="row-remove"
                     aria-label={`Remove ${s.title}`}
@@ -239,7 +233,7 @@ export function PlaylistEditPage() {
             )}
           </SortableList>
 
-          {canEdit && !sorting && (
+          {canEdit && (
             <button className="add-button" onClick={() => setAdding(true)}>
               + Add songs
             </button>
