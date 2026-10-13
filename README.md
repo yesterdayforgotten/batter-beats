@@ -4,7 +4,7 @@ Walkup music for baseball and softball games. A web app you add to your
 phone's home screen, served from your own server.
 
 - **Game mode:** the lineup as big buttons. Tap a batter: the announcer says
-  "Now batting, number 12, Ava" and their walkup song comes in under the voice.
+  "Now batting number 12, Ava!" and their walkup song comes in under the voice.
   Tap again to fade it out. The next batter is marked on deck.
 - **Works at the field without signal:** each phone keeps the teams it needs
   (the short clips and announcements, roughly 15 MB per team).

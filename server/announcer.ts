@@ -1,4 +1,4 @@
-// The announcer: "Now batting, number 12, Ava", spoken by the voice engine
+// The announcer: "Now batting number 12, Ava!", spoken by the voice engine
 // (ElevenLabs, or Kokoro self-hosted; see voiceEngines.ts) and stored
 // as an MP3 per player, so phones play it like any clip and it works offline.
 //
@@ -62,11 +62,18 @@ export function setSetting(key: string, value: string) {
 
 /** The engine making announcements: the one an admin chose, else the first available. Null when none is set up. */
 /** Voices starred in the voice list (shared by everyone), per engine since voice ids differ. */
+/** Starred to begin with, until someone changes the stars: ElevenLabs' Roger, Adam and Matilda (owner's picks). */
+const DEFAULT_FAVORITES: Partial<Record<string, string[]>> = {
+  elevenlabs: ["CwhRBWXzGAHq8TQ4Fs17", "pNInz6obpgDQGcFmaJgB", "XrExE9yKIg1WjnnlVkGX"],
+};
+
 export function favoriteVoices(): string[] {
   const engine = activeEngine();
   if (!engine) return [];
   try {
-    const list = JSON.parse(getSetting(`voice_favorites_${engine.id}`) ?? "[]");
+    const saved = getSetting(`voice_favorites_${engine.id}`);
+    if (saved === null) return DEFAULT_FAVORITES[engine.id] ?? [];
+    const list = JSON.parse(saved);
     return Array.isArray(list) ? list.filter((v): v is string => typeof v === "string") : [];
   } catch {
     return [];

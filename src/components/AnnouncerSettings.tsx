@@ -157,6 +157,7 @@ export function AnnouncerSettings(props: {
   const matches = (v: Voice) =>
     !filterable ||
     v.id === current || // the voice in use always shows
+    (info?.favorites ?? []).includes(v.id) || // so do starred voices, whatever the filters
     ((!filters.gender || v.gender === filters.gender) &&
       (!filters.accent || v.accent === filters.accent) &&
       (!filters.age || v.age === filters.age));

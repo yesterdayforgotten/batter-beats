@@ -188,7 +188,7 @@ export function splitCues(text: string): string[] {
 }
 export const DEFAULT_STYLE: AnnouncerStyle = {
   speed: 1,
-  energy: "lively",
+  energy: "hyped",
   pitch: 0,
   reverb: 0,
   reverbSize: 0.6,
@@ -226,7 +226,7 @@ export interface VoiceFilters {
 }
 
 export const ANNOUNCER = {
-  defaultTemplate: "Now batting, number {number}, {name}",
+  defaultTemplate: "Now batting number {number}, {name}!",
   maxSongDelayMs: 10_000,
   /** How loud the song is while the voice speaks over it. */
   duckGain: 0.25,

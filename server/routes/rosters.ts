@@ -3,7 +3,7 @@ import { db } from "../db.ts";
 import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
 import { announcementPath, clipPath } from "../storage.ts";
-import { refreshAnnouncements, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
+import { cleanStyle, currentStyle, refreshAnnouncements, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
 import { ANNOUNCER, TEAM_COLORS } from "../../shared/types.ts";
 import {
   getPlayer,
@@ -61,7 +61,13 @@ rostersRouter.get("/rosters", (_req, res) => {
 rostersRouter.post("/rosters", editor, (req, res) => {
   const name = text(req.body?.name, 80);
   if (!name) return res.status(400).json({ error: "Give the team a name." });
-  const id = Number(db.prepare("INSERT INTO rosters (name) VALUES (?)").run(name).lastInsertRowid);
+  // New teams start with the default wording and Hyped energy (the rest of the delivery follows the app-wide settings).
+  const id = Number(
+    db
+      .prepare("INSERT INTO rosters (name, announce_template, announcer_style) VALUES (?, ?, ?)")
+      .run(name, ANNOUNCER.defaultTemplate, JSON.stringify(cleanStyle({ ...currentStyle(), energy: "hyped" })))
+      .lastInsertRowid,
+  );
   res.status(201).json({ roster: getRoster(id) });
 });
 
