@@ -22,22 +22,22 @@ interface Props {
   onSeek?(ms: number): void;
 }
 
-/** "tap" until the finger has moved far enough to count as dragging the clip. */
-type Drag = { kind: "start" | "end" | "move" | "tap"; grabMs: number; grabX: number; startMs: number; endMs: number };
-
-/** How far a finger may move and still count as a tap. */
-const TAP_SLOP_PX = 8;
+/** A handle being dragged, or the playhead being placed (a tap, or a drag along the waveform). */
+type Drag = { kind: "start" | "end" | "seek"; grabMs: number; startMs: number; endMs: number };
 
 /**
  * The whole song as a waveform, with the clip highlighted. Drag the handles
- * to change the start or end, drag the middle to move the clip, or tap
- * anywhere to play from that point.
+ * to change the start or end; tap or drag anywhere else to place the playhead
+ * (playback jumps there when the finger lifts).
  */
 export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs, onChange, onCommit, onSeek }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
   const drag = useRef<Drag | null>(null);
+  /** Where the playhead is being dragged to (shown instead of the playing position). */
+  const [scrubMs, setScrubMs] = useState<number | null>(null);
+  const shownPlayhead = scrubMs ?? playheadMs;
   const latest = useRef({ startMs, endMs });
   latest.current = { startMs, endMs };
 
@@ -98,11 +98,11 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
       g.fill();
     }
 
-    if (playheadMs != null) {
+    if (shownPlayhead != null) {
       g.fillStyle = "#f5f6f7";
-      g.fillRect(msToX(playheadMs) - 1, 0, 2, height);
+      g.fillRect(msToX(shownPlayhead) - 1, 0, 2, height);
     }
-  }, [peaks, width, durationMs, startMs, endMs, fadeMs, playheadMs]);
+  }, [peaks, width, durationMs, startMs, endMs, fadeMs, shownPlayhead]);
 
   function localX(e: PointerEvent) {
     return e.clientX - wrap.current!.getBoundingClientRect().left;
@@ -115,32 +115,26 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
     let kind: Drag["kind"];
     if (Math.abs(x - msToX(s)) <= HANDLE_HIT_PX && Math.abs(x - msToX(s)) <= Math.abs(x - msToX(en))) kind = "start";
     else if (Math.abs(x - msToX(en)) <= HANDLE_HIT_PX) kind = "end";
-    else kind = "tap"; // becomes "move" if it's a drag inside the clip
+    else kind = "seek";
     (e.target as Element).setPointerCapture(e.pointerId);
-    drag.current = { kind, grabMs: ms, grabX: x, startMs: s, endMs: en };
+    drag.current = { kind, grabMs: ms, startMs: s, endMs: en };
+    if (kind === "seek") setScrubMs(Math.round(ms));
   }
 
   function onMove(e: PointerEvent) {
     const d = drag.current;
     if (!d) return;
     const x = localX(e);
-    if (d.kind === "tap") {
-      // Still a tap until it moves; then a drag that started inside the clip moves the clip.
-      if (Math.abs(x - d.grabX) < TAP_SLOP_PX) return;
-      if (d.grabMs > d.startMs && d.grabMs < d.endMs) d.kind = "move";
-      else return;
-    }
     const ms = xToMs(x);
+    if (d.kind === "seek") {
+      setScrubMs(Math.round(ms)); // the playhead follows the finger
+      return;
+    }
     const { minLengthMs, maxLengthMs } = CLIP_LIMITS;
     let s = d.startMs;
     let en = d.endMs;
     if (d.kind === "start") s = Math.max(0, Math.max(en - maxLengthMs, Math.min(ms, en - minLengthMs)));
-    else if (d.kind === "end") en = Math.min(durationMs, Math.min(s + maxLengthMs, Math.max(ms, s + minLengthMs)));
-    else {
-      const len = d.endMs - d.startMs;
-      s = Math.max(0, Math.min(durationMs - len, d.startMs + (ms - d.grabMs)));
-      en = s + len;
-    }
+    else en = Math.min(durationMs, Math.min(s + maxLengthMs, Math.max(ms, s + minLengthMs)));
     onChange(Math.round(s), Math.round(en));
   }
 
@@ -148,8 +142,10 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
     const d = drag.current;
     if (!d) return;
     drag.current = null;
-    if (d.kind === "tap") {
-      onSeek?.(Math.round(d.grabMs));
+    if (d.kind === "seek") {
+      const ms = scrubMs ?? Math.round(d.grabMs);
+      setScrubMs(null);
+      onSeek?.(ms);
       return;
     }
     onCommit(latest.current.startMs, latest.current.endMs);

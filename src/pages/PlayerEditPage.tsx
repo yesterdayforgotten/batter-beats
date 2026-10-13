@@ -3,7 +3,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { loadClip, Playback, unlockAudio } from "../audio/engine.ts";
 import { PageHead } from "../components/PageHead.tsx";
-import { ClipEndIcon, ClipStartIcon, PlayIcon, SoundBars } from "../components/Icons.tsx";
+import {
+  ClipEndIcon,
+  ClipEndingPlayIcon,
+  ClipPlayIcon,
+  ClipStartIcon,
+  PlayIcon,
+  SongPlayIcon,
+  SoundBars,
+  StopIcon,
+} from "../components/Icons.tsx";
 import { SongPicker } from "../components/SongPicker.tsx";
 import { Waveform } from "../components/Waveform.tsx";
 import { ANNOUNCER, CLIP_LIMITS, type Clip, type Player, type RosterSummary, type Song } from "../../shared/types.ts";
@@ -38,9 +47,15 @@ export function PlayerEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playheadMs, setPlayheadMs] = useState<number | null>(null);
-  /** The whole song playing (to find a start or end point outside the current clip). */
-  const [wholeSong, setWholeSong] = useState(false);
+  /**
+   * Listening to the original song (not the game preview): the whole song, the
+   * clip from its start, or the clip's last 5 seconds. Used to set the start
+   * and end by ear.
+   */
+  const [listenMode, setListenMode] = useState<"song" | "clip" | "ending" | null>(null);
   const wholeAudio = useRef<HTMLAudioElement | null>(null);
+  /** Where that playback stops by itself (the clip's end), if anywhere. */
+  const stopAt = useRef<number | null>(null);
 
   // Clip changes not yet sent, and the request in flight.
   const unsent = useRef<ClipChanges>({});
@@ -239,7 +254,7 @@ export function PlayerEditPage() {
     previewToken.current++;
     wholeAudio.current?.pause();
     wholeAudio.current = null;
-    setWholeSong(false);
+    setListenMode(null);
     playback.current?.stop();
     playback.current = null;
     setPlaying(false);
@@ -291,16 +306,25 @@ export function PlayerEditPage() {
     }
   }
 
-  /** Plays the whole song from the top (or stops it), with the playhead moving across the waveform. */
-  function toggleWholeSong() {
-    if (wholeSong) return stopPreview();
-    playWholeSongFrom(0);
+  /** The three listen buttons: each starts its kind of playback, or stops it if it's the one playing. */
+  function toggleListen(mode: "song" | "clip" | "ending") {
+    if (!clip) return;
+    if (listenMode === mode) return stopPreview();
+    if (mode === "song") playSongFrom(0, "song", null);
+    else if (mode === "clip") playSongFrom(clip.startMs, "clip", clip.endMs);
+    else playSongFrom(Math.max(clip.startMs, clip.endMs - 5000), "ending", clip.endMs);
   }
 
-  /** Plays the whole song from a point (a tap on the waveform); if it's already playing, jumps there. */
-  function playWholeSongFrom(ms: number) {
+  /**
+   * Plays the original song from a point, with the playhead moving across the
+   * waveform; stops by itself at `until` if given. Already playing: jumps there.
+   * (A tap on the waveform plays the song from that point.)
+   */
+  function playSongFrom(ms: number, mode: "song" | "clip" | "ending" = "song", until: number | null = null) {
     if (!clip) return;
     unlockAudio();
+    stopAt.current = until;
+    setListenMode(mode);
     const playing = wholeAudio.current;
     if (playing) {
       playing.currentTime = ms / 1000;
@@ -308,13 +332,14 @@ export function PlayerEditPage() {
       return;
     }
     stopPreview();
+    setListenMode(mode);
+    stopAt.current = until;
     const a = new Audio(`/api/media/songs/${clip.song.id}.mp3`);
     a.currentTime = ms / 1000;
     // Safari can ignore a jump made before the song has loaded: make it again once it has.
     if (ms > 0) a.addEventListener("loadedmetadata", () => (a.currentTime = ms / 1000), { once: true });
     setPlayheadMs(ms);
     wholeAudio.current = a;
-    setWholeSong(true);
     a.onended = () => {
       if (wholeAudio.current === a) stopPreview();
     };
@@ -325,7 +350,9 @@ export function PlayerEditPage() {
     });
     const tick = () => {
       if (wholeAudio.current !== a) return;
-      setPlayheadMs(a.currentTime * 1000);
+      const now = a.currentTime * 1000;
+      if (stopAt.current !== null && now >= stopAt.current) return stopPreview();
+      setPlayheadMs(now);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -447,7 +474,7 @@ export function PlayerEditPage() {
                   playheadMs={playheadMs}
                   onChange={(startMs, endMs) => change({ startMs, endMs }, false)}
                   onCommit={(startMs, endMs) => change({ startMs, endMs }, true)}
-                  onSeek={playWholeSongFrom}
+                  onSeek={(ms) => playSongFrom(ms)}
                 />
               ) : (
                 <div className="waveform" />
@@ -492,16 +519,30 @@ export function PlayerEditPage() {
                 </div>
               </div>
               <div className="row clip-capture">
-                <button className="small-button" onClick={toggleWholeSong}>
-                  {wholeSong ? "Stop" : "Play whole song"}
-                </button>
+                {(
+                  [
+                    { mode: "song", label: "Play the whole song", icon: <SongPlayIcon /> },
+                    { mode: "clip", label: "Play the clip from its start", icon: <ClipPlayIcon /> },
+                    { mode: "ending", label: "Play the clip's last 5 seconds", icon: <ClipEndingPlayIcon /> },
+                  ] as const
+                ).map((b) => (
+                  <button
+                    key={b.mode}
+                    className={`icon-button${listenMode === b.mode ? " on" : ""}`}
+                    aria-label={listenMode === b.mode ? "Stop" : b.label}
+                    title={b.label}
+                    onClick={() => toggleListen(b.mode)}
+                  >
+                    {listenMode === b.mode ? <StopIcon /> : b.icon}
+                  </button>
+                ))}
                 <span className="grow" />
                 <span className="clip-length">{((clip.endMs - clip.startMs) / 1000).toFixed(1)} s clip</span>
               </div>
               <span className="muted small">
                 {playheadMs != null
                   ? `At ${formatTime(playheadMs)}: tap the left bracket to start the clip here, or the right one to end it here.`
-                  : "Tap the waveform (or Play whole song) to listen from there, then tap a bracket to set the start or end by ear."}
+                  : "Tap the waveform or a play button to listen, then tap a bracket to set the start or end by ear."}
               </span>
             </>
           )}

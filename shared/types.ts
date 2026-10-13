@@ -54,7 +54,8 @@ export const hasTags = (song: Song, tags: string[]) =>
 /** Limits shared by the player editor and the server. */
 export const CLIP_LIMITS = {
   minLengthMs: 1000,
-  maxLengthMs: 120_000,
+  /** No limit (owner's choice, 2026-10-13): a clip can run to the end of the song. */
+  maxLengthMs: Number.POSITIVE_INFINITY,
   defaultLengthMs: 30_000,
   defaultFadeMs: 1500,
   maxFadeMs: 15_000,
