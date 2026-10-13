@@ -173,6 +173,7 @@ These were not verified during planning. Test each one and tell the owner what y
 
 ## Status
 
+**Production: set up by the owner 2026-10-13** on the same server as dev (stack `batter-beats`, ElevenLabs only, no Kokoro; data copied from dev by backup and restore; the https address now points at production, dev is reached directly). Updates: Portainer "Update the stack" with "Re-pull image" (or pin a version tag, see Version numbers).
 **Phase 1 (server foundation): built.**
 **Phase 7 (admin extras): built 2026-10-12.** All seven phases are built; what's left is the owner's phone testing and listening to the real voice engine.
 **Phase 6 (between-innings playlist): built 2026-10-12, waiting for the owner to test on phones.**
@@ -364,4 +365,4 @@ Owner-approved conventions from a full review at iPhone 6s size:
 - README is now the setup guide (stack, https proxy, first sign-in, phones, updating, backups, settings).
 - Tested on a test server: backup download, bad file refused with nothing changed, restore brings back deleted data and files, regular users refused; Admin screen Listen/Use/download/restore in headless Chromium. Offline test re-run with announcements (stored and played offline).
 
-Next: owner tests on phones (iPhone 6s, newer iPhone, Pixel), including a full mock game in airplane mode; then the production stack is deployed.
+Next: owner tests on phones (iPhone 6s, newer iPhone, Pixel), including a full mock game in airplane mode (the production stack is deployed, 2026-10-13).
