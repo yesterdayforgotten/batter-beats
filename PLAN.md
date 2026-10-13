@@ -293,6 +293,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Waveform zoom (2026-10-13)
+Under the clip waveform: zoom out, a strip of the whole song (clip marked, playhead, and a box for the part shown: drag the box or tap the strip to move), the zoom level, zoom in. Each step halves what's shown, down to about 5 s (1×, 2×, 4×… up to 16× for a 2.5-minute song). Zooming in centres on the playhead, else on the clip (or its start if it doesn't fit); zooming out keeps the middle. Handles, tap-to-place-playhead and dragging all work zoomed; a handle dragged to the edge stops there (move the view to go further). Zoomed in, starting playback brings the playhead into view and the view moves on when it runs off the right. A new song resets to 1×. `viewStartMs`/`viewEndMs` on `Waveform`, `WaveOverview` in `src/components/Waveform.tsx`.
+
 ### Second code review fixes (2026-10-13)
 Review of everything after the first review (2cd2794..d08bc4b). Fixed:
 - Remake gives the new take a new file name (each announcement file is `<player>-<random 12 hex>.mp3`); before, phones kept playing the cached old take.

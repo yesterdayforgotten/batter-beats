@@ -14,6 +14,9 @@ interface Props {
   fadeMs: number;
   /** Position of the playing preview, in ms from the start of the song. */
   playheadMs?: number | null;
+  /** The part of the song shown (zoomed in); the whole song if left out. */
+  viewStartMs?: number;
+  viewEndMs?: number;
   /** Called continuously while dragging. */
   onChange(startMs: number, endMs: number): void;
   /** Called when a drag ends. */
@@ -26,11 +29,23 @@ interface Props {
 type Drag = { kind: "start" | "end" | "seek"; grabMs: number; startMs: number; endMs: number };
 
 /**
- * The whole song as a waveform, with the clip highlighted. Drag the handles
- * to change the start or end; tap or drag anywhere else to place the playhead
- * (playback jumps there when the finger lifts).
+ * The song as a waveform (all of it, or the part zoomed in on), with the clip
+ * highlighted. Drag the handles to change the start or end; tap or drag
+ * anywhere else to place the playhead (playback jumps there when the finger lifts).
  */
-export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs, onChange, onCommit, onSeek }: Props) {
+export function Waveform({
+  peaks,
+  durationMs,
+  startMs,
+  endMs,
+  fadeMs,
+  playheadMs,
+  viewStartMs = 0,
+  viewEndMs = durationMs,
+  onChange,
+  onCommit,
+  onSeek,
+}: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
@@ -50,8 +65,9 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
   }, []);
 
   const inner = Math.max(1, width - 2 * PAD);
-  const msToX = (ms: number) => PAD + (ms / durationMs) * inner;
-  const xToMs = (x: number) => Math.max(0, Math.min(durationMs, ((x - PAD) / inner) * durationMs));
+  const viewMs = Math.max(1, viewEndMs - viewStartMs);
+  const msToX = (ms: number) => PAD + ((ms - viewStartMs) / viewMs) * inner;
+  const xToMs = (x: number) => Math.max(viewStartMs, Math.min(viewEndMs, viewStartMs + ((x - PAD) / inner) * viewMs));
 
   useEffect(() => {
     const c = canvas.current;
@@ -70,15 +86,16 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
 
     // Bars: 2px wide with a 1px gap, each showing the loudest peak it covers.
     const bars = Math.floor(inner / 3);
-    const perBar = peaks.length / bars;
+    const perBar = ((viewMs / 1000) * PEAKS_PER_SECOND) / bars;
+    const first = (viewStartMs / 1000) * PEAKS_PER_SECOND;
     const mid = height / 2;
     for (let b = 0; b < bars; b++) {
       let max = 0;
-      const from = Math.floor(b * perBar);
-      const to = Math.max(from + 1, Math.floor((b + 1) * perBar));
+      const from = Math.floor(first + b * perBar);
+      const to = Math.max(from + 1, Math.floor(first + (b + 1) * perBar));
       for (let i = from; i < to && i < peaks.length; i++) max = Math.max(max, peaks[i]);
       const h = Math.max(2, (max / 255) * (height - 8));
-      const ms = ((b + 0.5) * perBar * 1000) / PEAKS_PER_SECOND;
+      const ms = ((first + (b + 0.5) * perBar) * 1000) / PEAKS_PER_SECOND;
       g.fillStyle = ms >= startMs && ms <= endMs ? accent : line;
       g.fillRect(PAD + b * 3, mid - h / 2, 2, h);
     }
@@ -102,7 +119,7 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
       g.fillStyle = "#f5f6f7";
       g.fillRect(msToX(shownPlayhead) - 1, 0, 2, height);
     }
-  }, [peaks, width, durationMs, startMs, endMs, fadeMs, shownPlayhead]);
+  }, [peaks, width, durationMs, startMs, endMs, fadeMs, shownPlayhead, viewStartMs, viewEndMs]);
 
   function localX(e: PointerEvent) {
     return e.clientX - wrap.current!.getBoundingClientRect().left;
@@ -163,6 +180,69 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
       aria-label="Song waveform with the clip highlighted"
     >
       <canvas ref={canvas} />
+    </div>
+  );
+}
+
+/**
+ * Under a zoomed waveform: the whole song as a slim strip, the clip marked on
+ * it, and a box for the part shown above. Drag the box (or tap the strip) to
+ * look at another part.
+ */
+export function WaveOverview({
+  durationMs,
+  startMs,
+  endMs,
+  viewStartMs,
+  viewEndMs,
+  playheadMs,
+  onPan,
+}: {
+  durationMs: number;
+  startMs: number;
+  endMs: number;
+  viewStartMs: number;
+  viewEndMs: number;
+  playheadMs?: number | null;
+  /** Asks for the view to start here (the caller keeps it inside the song). */
+  onPan(viewStartMs: number): void;
+}) {
+  const strip = useRef<HTMLDivElement>(null);
+  const grab = useRef<number | null>(null); // where in the box the finger is, in ms
+  const pct = (ms: number) => `${(ms / durationMs) * 100}%`;
+  const msAt = (e: PointerEvent) => {
+    const r = strip.current!.getBoundingClientRect();
+    return ((e.clientX - r.left) / r.width) * durationMs;
+  };
+  const viewMs = viewEndMs - viewStartMs;
+  return (
+    <div
+      ref={strip}
+      className="wave-overview"
+      onPointerDown={(e) => {
+        const ms = msAt(e);
+        (e.target as Element).setPointerCapture(e.pointerId);
+        // On the box: drag it from where it was grabbed. Elsewhere: centre it there.
+        grab.current = ms >= viewStartMs && ms <= viewEndMs ? ms - viewStartMs : viewMs / 2;
+        onPan(ms - grab.current);
+      }}
+      onPointerMove={(e) => grab.current !== null && onPan(msAt(e) - grab.current)}
+      onPointerUp={() => (grab.current = null)}
+      onPointerCancel={() => (grab.current = null)}
+      role="slider"
+      aria-label="Part of the song shown"
+      aria-valuemin={0}
+      aria-valuemax={Math.round((durationMs - viewMs) / 1000)}
+      aria-valuenow={Math.round(viewStartMs / 1000)}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") onPan(viewStartMs - viewMs / 4);
+        if (e.key === "ArrowRight") onPan(viewStartMs + viewMs / 4);
+      }}
+    >
+      <span className="wave-overview-clip" style={{ left: pct(startMs), width: pct(endMs - startMs) }} />
+      {playheadMs != null && <span className="wave-overview-playhead" style={{ left: pct(playheadMs) }} />}
+      <span className="wave-overview-view" style={{ left: pct(viewStartMs), width: pct(viewMs) }} />
     </div>
   );
 }

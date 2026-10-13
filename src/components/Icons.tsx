@@ -105,6 +105,16 @@ export const MegaphoneIcon = () => (
   </svg>
 );
 
+/** A magnifier with − or +, for zooming the waveform. */
+export const ZoomIcon = ({ out = false }: { out?: boolean }) => (
+  <svg {...common} width={20} height={20}>
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="M15.5 15.5 21 21" />
+    <path d="M7.5 10.5h6" />
+    {!out && <path d="M10.5 7.5v6" />}
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <path d="M7 4l13 8-13 8Z" fill="currentColor" />

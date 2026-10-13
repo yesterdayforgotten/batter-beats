@@ -2176,3 +2176,59 @@ label,
     animation: none;
   }
 }
+
+/* Waveform zoom: − [whole song strip, with the part shown boxed] 4× + */
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.zoom-row .icon-button {
+  width: 36px;
+  height: 36px;
+  flex: none;
+}
+.zoom-level {
+  min-width: 28px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.wave-overview {
+  position: relative;
+  flex: 1;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--bg);
+  touch-action: none;
+  cursor: grab;
+}
+.wave-overview-clip {
+  position: absolute;
+  top: 8px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+.wave-overview-playhead {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  margin-left: -1px;
+  background: #f5f6f7;
+}
+.wave-overview-view {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 6px;
+  border: 2px solid var(--accent-soft);
+  border-radius: 6px;
+  box-sizing: border-box;
+  pointer-events: none;
+}

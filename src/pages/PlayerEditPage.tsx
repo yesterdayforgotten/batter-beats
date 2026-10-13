@@ -13,9 +13,10 @@ import {
   SongPlayIcon,
   SoundBars,
   StopIcon,
+  ZoomIcon,
 } from "../components/Icons.tsx";
 import { SongPicker } from "../components/SongPicker.tsx";
-import { Waveform } from "../components/Waveform.tsx";
+import { WaveOverview, Waveform } from "../components/Waveform.tsx";
 import { ANNOUNCER, CLIP_LIMITS, type Clip, type Player, type RosterSummary, type Song } from "../../shared/types.ts";
 import { teamStyle } from "../teamColors.ts";
 
@@ -24,6 +25,8 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 
 const SAVE_DELAY_MS = 400;
 const NUDGE_MS = 100;
+/** Zooming the waveform stops when it would show less than this much of the song. */
+const MIN_VIEW_MS = 5000;
 
 const formatTime = (ms: number) => {
   const s = ms / 1000;
@@ -56,6 +59,9 @@ function PlayerEditor() {
   const [previewFading, setPreviewFading] = useState(false);
   const previewStoppedAt = useRef(-Infinity);
   const [playheadMs, setPlayheadMs] = useState<number | null>(null);
+  /** Waveform zoom (1 = the whole song, 2 = half of it…) and where the part shown starts. */
+  const [zoom, setZoom] = useState(1);
+  const [viewStartMs, setViewStartMs] = useState(0);
   /**
    * Listening to the original song (not the game preview): the whole song, the
    * clip from its start, or the clip's last 5 seconds. Used to set the start
@@ -148,6 +154,28 @@ function PlayerEditor() {
     },
     [send],
   );
+
+  // A different song: back to seeing all of it.
+  const zoomSongId = clip?.song.id;
+  useEffect(() => {
+    setZoom(1);
+    setViewStartMs(0);
+  }, [zoomSongId]);
+
+  // Zoomed in: playing starts with the playhead in view, and when it runs off
+  // the right of the part shown, the view moves on (looking elsewhere meanwhile is left alone).
+  const lastPlayhead = useRef<number | null>(null);
+  useEffect(() => {
+    const before = lastPlayhead.current;
+    lastPlayhead.current = playheadMs;
+    if (!clip || zoom === 1 || playheadMs == null) return;
+    const viewMs = clip.song.durationMs / zoom;
+    const end = viewStartMs + viewMs;
+    const started = before == null && (playheadMs < viewStartMs || playheadMs > end);
+    if (started || (before != null && before <= end && playheadMs > end)) {
+      setViewStartMs(Math.max(0, Math.min(clip.song.durationMs - viewMs, playheadMs - viewMs * 0.1)));
+    }
+  }, [playheadMs, zoom, viewStartMs, clip]);
 
   function change(changes: ClipChanges, saveNow = false) {
     setClip((c) => (c ? { ...c, ...changes } : c));
@@ -398,6 +426,34 @@ function PlayerEditor() {
     requestAnimationFrame(tick);
   }
 
+  /** The most the waveform zooms: halving the view each time, down to about MIN_VIEW_MS. */
+  const maxZoom = clip ? 2 ** Math.max(0, Math.floor(Math.log2(clip.song.durationMs / MIN_VIEW_MS))) : 1;
+
+  /** Moves the part shown to start at `ms`, kept inside the song. */
+  function pan(ms: number, z = zoom) {
+    if (!clip) return;
+    const viewMs = clip.song.durationMs / z;
+    setViewStartMs(Math.round(Math.max(0, Math.min(clip.song.durationMs - viewMs, ms))));
+  }
+
+  /**
+   * Zooms in or out. Zooming in looks at the playhead if there is one, else at
+   * the clip (all of it if it fits, else its start); zooming out keeps the middle.
+   */
+  function zoomTo(z: number) {
+    if (!clip) return;
+    const next = Math.max(1, Math.min(maxZoom, z));
+    const viewMs = clip.song.durationMs / next;
+    let centre = viewStartMs + clip.song.durationMs / zoom / 2;
+    if (next > zoom) {
+      if (playheadMs != null) centre = playheadMs;
+      else if (clip.endMs - clip.startMs <= viewMs * 0.8) centre = (clip.startMs + clip.endMs) / 2;
+      else centre = clip.startMs + viewMs * 0.3;
+    }
+    setZoom(next);
+    pan(centre - viewMs / 2, next);
+  }
+
   /** Sets the clip's start, kept inside the song and at least a second before the end. */
   function setStart(ms: number) {
     if (!clip) return;
@@ -513,6 +569,8 @@ function PlayerEditor() {
                   endMs={clip.endMs}
                   fadeMs={clip.fadeMs}
                   playheadMs={playheadMs}
+                  viewStartMs={viewStartMs}
+                  viewEndMs={viewStartMs + clip.song.durationMs / zoom}
                   onChange={(startMs, endMs) => change({ startMs, endMs }, false)}
                   onCommit={(startMs, endMs) => change({ startMs, endMs }, true)}
                   onSeek={(ms) => playSongFrom(ms)}
@@ -520,6 +578,32 @@ function PlayerEditor() {
               ) : (
                 <div className="waveform" />
               )}
+              <div className="zoom-row">
+                <button className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= 1} onClick={() => zoomTo(zoom / 2)}>
+                  <ZoomIcon out />
+                </button>
+                <WaveOverview
+                  durationMs={clip.song.durationMs}
+                  startMs={clip.startMs}
+                  endMs={clip.endMs}
+                  viewStartMs={viewStartMs}
+                  viewEndMs={viewStartMs + clip.song.durationMs / zoom}
+                  playheadMs={playheadMs}
+                  onPan={(ms) => pan(ms)}
+                />
+                <span className="zoom-level" aria-live="polite">
+                  {zoom}×
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label="Zoom in"
+                  title="Zoom in"
+                  disabled={zoom >= maxZoom}
+                  onClick={() => zoomTo(zoom * 2)}
+                >
+                  <ZoomIcon />
+                </button>
+              </div>
               {/* [ and ] set the start or end where the playhead is; −.1 / +.1 fine-tune; the times can be typed. */}
               <div className="nudge">
                 <div>
