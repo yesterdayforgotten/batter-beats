@@ -8,7 +8,8 @@ import { editBack } from "../editReturn.ts";
 import { AnnouncerSettings } from "../components/AnnouncerSettings.tsx";
 import { TEAM_COLORS, teamColor, type AnnouncerStyle, type Player, type Roster } from "../../shared/types.ts";
 import { teamStyle } from "../teamColors.ts";
-import { CheckIcon } from "../components/Icons.tsx";
+import { CheckIcon, MegaphoneIcon } from "../components/Icons.tsx";
+import { AnnounceAllBar, useAnnounceAll } from "../components/AnnounceAll.tsx";
 
 export function RosterEditPage() {
   const { id } = useParams();
@@ -24,6 +25,10 @@ export function RosterEditPage() {
   const location = useLocation();
   const [deleted, setDeleted] = useState<{ id: number; name: string } | null>(
     () => (location.state as { deleted?: { id: number; name: string } } | null)?.deleted ?? null,
+  );
+
+  const announceAll = useAnnounceAll(roster?.players ?? [], (p) =>
+    setRoster((cur) => (cur ? { ...cur, players: cur.players.map((x) => (x.id === p.id ? p : x)) } : cur)),
   );
 
   async function undoDelete() {
@@ -264,6 +269,15 @@ export function RosterEditPage() {
 
           <div className="row" style={{ marginTop: 8 }}>
             <span className="section-title grow">{sorting ? "Drag to set batting order" : "Players"}</span>
+            {!sorting && roster.announce && roster.players.some((p) => p.announcement) && (
+              <button
+                className="link-button announce-all"
+                aria-label={announceAll.playing ? "Stop the announcements" : "Play all announcements"}
+                onClick={() => (announceAll.playing ? announceAll.stop() : announceAll.start())}
+              >
+                <MegaphoneIcon /> {announceAll.playing ? "Stop" : "Play all"}
+              </button>
+            )}
             {roster.players.length > 1 && (
               <button
                 className="link-button"
@@ -274,6 +288,7 @@ export function RosterEditPage() {
               </button>
             )}
           </div>
+          <AnnounceAllBar run={announceAll} />
           {roster.players.length === 0 && <p className="empty">No players yet.</p>}
           <SortableList items={roster.players} keyOf={(p) => p.id} sorting={sorting} compact onReorder={saveOrder}>
             {(p) => {
@@ -290,7 +305,7 @@ export function RosterEditPage() {
               return sorting ? (
                 <div className="player-row">{content}</div>
               ) : (
-                <Link to={`/players/${p.id}`}>
+                <Link to={`/players/${p.id}`} className={announceAll.current?.id === p.id ? "speaking" : undefined}>
                   {content}
                   <span className="muted">
                     <ChevronIcon />

@@ -97,6 +97,14 @@ export const ClipEndingPlayIcon = () => (
   </svg>
 );
 
+/** A megaphone, for the announcer. */
+export const MegaphoneIcon = () => (
+  <svg {...common} width={18} height={18} strokeWidth={2}>
+    <path d="M3 10v4a1 1 0 0 0 1 1h3l8 5V4L7 9H4a1 1 0 0 0-1 1Z" />
+    <path d="M18.5 8.5a5 5 0 0 1 0 7" />
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <path d="M7 4l13 8-13 8Z" fill="currentColor" />

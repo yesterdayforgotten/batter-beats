@@ -291,6 +291,12 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Play all announcements (2026-10-13)
+Edit team's Players header has "Play all" (when the announcer is on and at least one announcement is ready): every announcement in batting order with a short gap, the speaking player's row outlined. A bar shows "#7 Ben · 2 of 12" with Remake (a fresh take for that player, played straight away, then the rest continue) and Stop. Players without an announcement are skipped and counted ("1 not ready"). Leaving the screen stops it. `src/components/AnnounceAll.tsx`.
+
+### Offline sync bar (2026-10-13)
+A thin bar across the very top of every screen while clips or songs download for offline use (`src/components/SyncBar.tsx`, mounted in `App`). It shows one overall figure for everything started since it appeared: several playlists and teams, switched on from different screens, all count; a finished team stays counted as done; adding more work lowers the percentage rather than restarting it. Full for a moment at the end, then gone. Routine refreshes that find nothing missing don't show it. Fixed alongside: switching on a second playlist while the first was downloading didn't download the second until the next refresh (the sync now goes round again, `syncKeptSongs` in `src/playlist.ts`).
+
 ### Previous / next player (2026-10-13)
 Under the player editor's header: "‹ #7 Ben · 2 of 12 · #12 Cal ›", the neighbours in batting order. Each player gets a fresh editor (keyed by id), so moving saves anything pending and stops any preview, as leaving does.
 

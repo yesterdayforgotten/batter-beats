@@ -136,9 +136,13 @@ export function setJukeboxSettings(changes: Partial<JukeboxSettings>) {
 export const keptPlaylistIds = (): number[] => read<number[]>(KEEP_KEY, []);
 export const keepsPlaylist = (id: number) => keptPlaylistIds().includes(id);
 
-let downloading: { playlistId: number | null; done: number; total: number } | null = null;
+let downloading: { playlistId: number; done: number; total: number } | null = null;
 /** Progress while songs download for a playlist, or null. */
 export const songDownloadProgress = (playlistId: number) => (downloading?.playlistId === playlistId ? downloading : null);
+
+/** All songs being downloaded, over every kept playlist (each song counted once), for the sync bar. */
+let songsOverall: { done: number; total: number } | null = null;
+export const songDownloads = () => (songsOverall ? [{ key: "songs", ...songsOverall }] : []);
 
 /** Which of the songs are on the phone. */
 export async function storedSongIds(songs: PlaylistSong[]): Promise<Set<number>> {
@@ -148,33 +152,64 @@ export async function storedSongIds(songs: PlaylistSong[]): Promise<Set<number>>
   return new Set(present.filter((id): id is number => id !== null));
 }
 
+let syncing: Promise<void> | null = null;
+/** Set when the kept playlists change during a sync, so it goes round again. */
+let syncAgain = false;
+
 /**
  * Makes the phone hold exactly the songs of the playlists it keeps: downloads
- * what's missing, removes what no kept playlist has any more.
+ * what's missing, removes what no kept playlist has any more. A playlist kept
+ * while songs are already downloading is picked up before it finishes.
  */
-async function syncKeptSongs() {
-  if (!hasCaches() || downloading) return;
+function syncKeptSongs(): Promise<void> {
+  if (!hasCaches()) return Promise.resolve();
+  syncAgain = true;
+  if (syncing) return syncing;
+  syncing = (async () => {
+    while (syncAgain) {
+      syncAgain = false;
+      await syncOnce();
+    }
+  })().finally(() => {
+    syncing = null;
+    downloading = null;
+    songsOverall = null;
+    notify();
+  });
+  return syncing;
+}
+
+async function syncOnce() {
   const kept = savedPlaylists().filter((p) => keepsPlaylist(p.id));
   const cache = await caches.open(SONG_CACHE);
   const wanted = new Set(kept.flatMap((p) => p.songs.map((s) => new URL(s.url, location.href).href)));
   for (const req of await cache.keys()) if (!wanted.has(req.url)) await cache.delete(req);
+  const allUrls = [...new Set(kept.flatMap((p) => p.songs.map((s) => s.url)))];
+  const present = await Promise.all(allUrls.map((u) => cache.match(u)));
+  const missing = allUrls.filter((_, i) => !present[i]).length;
+  // Nothing to fetch: no progress shown, so a routine refresh doesn't flash the sync bar.
+  if (missing === 0) return;
+  const done = songsOverall?.done ?? 0;
+  songsOverall = { done, total: done + missing };
   for (const playlist of kept) {
-    downloading = { playlistId: playlist.id, done: 0, total: playlist.songs.length };
+    const stored = await storedSongIds(playlist.songs);
+    if (stored.size === playlist.songs.length) continue;
+    downloading = { playlistId: playlist.id, done: stored.size, total: playlist.songs.length };
     notify();
-    try {
-      for (const s of playlist.songs) {
-        if (!(await cache.match(s.url))) {
-          const res = await fetch(s.url, { credentials: "same-origin" });
-          if (!res.ok) throw new Error(`A song didn't download (${res.status}).`);
-          await cache.put(s.url, res);
-        }
-        downloading.done++;
-        notify();
+    for (const s of playlist.songs) {
+      if (stored.has(s.id)) continue;
+      // Another playlist may have fetched the same song meanwhile.
+      if (!(await cache.match(s.url))) {
+        const res = await fetch(s.url, { credentials: "same-origin" });
+        if (!res.ok) throw new Error(`A song didn't download (${res.status}).`);
+        await cache.put(s.url, res);
+        songsOverall.done++;
       }
-    } finally {
-      downloading = null;
+      downloading.done++;
       notify();
     }
+    downloading = null;
+    notify();
   }
 }
 

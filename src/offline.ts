@@ -85,21 +85,26 @@ const downloading = new Map<number, { done: number; total: number }>();
 /** Progress of a download in progress, or null. */
 export const downloadProgress = (id: number) => downloading.get(id) ?? null;
 
+/** Every team download in progress, for the sync bar. */
+export const teamDownloads = () => [...downloading.entries()].map(([id, p]) => ({ key: `team-${id}`, ...p }));
+
 /** Downloads any of the roster's clips the phone doesn't have yet. */
 async function downloadClips(roster: Roster) {
   if (!hasCaches()) throw new Error("This browser can't store clips. Use the https address.");
   const cache = await caches.open(CLIP_CACHE);
   const urls = clipUrls(roster);
-  const progress = { done: 0, total: urls.length };
+  const present = await Promise.all(urls.map((u) => cache.match(u)));
+  const missing = urls.filter((_, i) => !present[i]);
+  // Nothing to fetch: no progress shown, so a routine refresh doesn't flash the sync bar.
+  if (missing.length === 0) return;
+  const progress = { done: urls.length - missing.length, total: urls.length };
   downloading.set(roster.id, progress);
   notify();
   try {
-    for (const url of urls) {
-      if (!(await cache.match(url))) {
-        const res = await fetch(url, { credentials: "same-origin" });
-        if (!res.ok) throw new Error(`A clip didn't download (${res.status}).`);
-        await cache.put(url, res);
-      }
+    for (const url of missing) {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (!res.ok) throw new Error(`A clip didn't download (${res.status}).`);
+      await cache.put(url, res);
       progress.done++;
       notify();
     }
