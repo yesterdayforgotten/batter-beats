@@ -258,14 +258,19 @@ const SPEECH_CACHE_FILES = 500;
 // before the first finished) waits for it instead of paying for it twice.
 const inFlight = new Map<string, Promise<string>>();
 
-async function rawSpeech(engine: Engine, text: string, voice: string, style: AnnouncerStyle): Promise<string> {
-  // Everything except what's done afterwards in ffmpeg.
+/** Where the voice engine's raw recording of this text is kept (everything except what's done afterwards in ffmpeg). */
+function speechCacheFile(engine: Engine, text: string, voice: string, style: AnnouncerStyle): string {
   const { reverb: _reverb, reverbSize: _reverbSize, ...speech } = style;
   const spoken: Partial<AnnouncerStyle> = { ...speech };
   if (engine.speed !== "native") delete spoken.speed;
   if (engine.pitch !== "native") delete spoken.pitch;
   const key = crypto.createHash("sha1").update(JSON.stringify([engine.id, voice, text, spoken])).digest("hex");
-  const file = path.join(dirs.speech, key);
+  return path.join(dirs.speech, key);
+}
+
+async function rawSpeech(engine: Engine, text: string, voice: string, style: AnnouncerStyle): Promise<string> {
+  const file = speechCacheFile(engine, text, voice, style);
+  const key = path.basename(file);
   if (fs.existsSync(file)) {
     const now = new Date();
     await fs.promises.utimes(file, now, now).catch(() => {}); // recently used: keep it
@@ -440,6 +445,23 @@ export function refreshAnnouncements(playerIds: number[]): Promise<void> {
   ).then(() => {});
   void work();
   return done;
+}
+
+/**
+ * Makes a fresh take of a player's announcement with the same settings (the
+ * expressive voices vary from take to take: a stray laugh or breath can be
+ * rolled again). Throws away the kept recording so the engine is asked anew.
+ */
+export async function remakeAnnouncement(playerId: number) {
+  const p = playerRow(playerId);
+  const engine = activeEngine();
+  const w = p && wanted(p);
+  if (!p || !engine || !w) return;
+  // Waited for: the recording must be gone before the remake looks for it.
+  await fs.promises.rm(speechCacheFile(engine, withEnergy(w.text, w.style.energy), w.voice, w.style), { force: true });
+  // No longer up to date, so it's made again (the old one keeps playing until the new one is ready).
+  db.prepare("UPDATE players SET announce_key = NULL WHERE id = ?").run(playerId);
+  await refreshAnnouncements([playerId]);
 }
 
 export function refreshRosterAnnouncements(rosterId: number) {

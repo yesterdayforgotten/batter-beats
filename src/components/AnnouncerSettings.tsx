@@ -304,7 +304,7 @@ export function AnnouncerSettings(props: {
               {playing === current ? "…" : "Listen"}
             </button>
             <button className="compact-button primary" onClick={() => setChoosing(true)}>
-              Change voice
+              Change
             </button>
           </div>
         </>

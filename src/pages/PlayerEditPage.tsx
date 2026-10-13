@@ -174,13 +174,18 @@ export function PlayerEditPage() {
     return r.player;
   }
 
-  async function listen() {
+  /** Plays the player's announcement; with `remake`, a new take is made first (each take differs a little). */
+  async function listen(remake = false) {
     unlockAudio(); // must happen inside the tap
     stopPreview();
     const token = previewToken.current;
     setListening(true);
     try {
-      const p = await freshAnnouncement();
+      let p = await freshAnnouncement();
+      if (remake && p && p.announcementStatus !== "off") {
+        p = (await api<{ player: Player }>(`/players/${p.id}/announcement/remake`, { method: "POST", body: {} })).player;
+        setPlayer(p);
+      }
       if (!p?.announcement) {
         throw new Error(p?.announcementError ?? "The announcer is off for this player or this team.");
       }
@@ -488,7 +493,8 @@ export function PlayerEditPage() {
           onSave={() => void savePlayer()}
           onToggle={(announce) => void savePlayer({ announce })}
           listening={listening}
-          onListen={listen}
+          onListen={() => listen()}
+          onRemake={() => listen(true)}
         />
 
         <button className="danger" style={{ marginTop: 20, alignSelf: "center" }} onClick={deletePlayer}>
@@ -526,6 +532,7 @@ function AnnouncerCard(props: {
   onToggle(announce: boolean): void;
   listening: boolean;
   onListen(): void;
+  onRemake(): void;
 }) {
   const { player } = props;
   const voiceMs = player.announcement?.durationMs ?? null;
@@ -572,6 +579,16 @@ function AnnouncerCard(props: {
             Only the announcer uses this; the lineup still shows the name. Spell it how it sounds (for example
             "Kay-den"). For exact sounds, use phonetic symbols like [Siobhan](/ʃɪvˈɔːn/).
           </p>
+          {player.announcement && (
+            <div className="row" style={{ gap: 10 }}>
+              <span className="muted small grow">
+                Each take comes out a little different. A stray laugh or noise in this one? Make a new take (uses a few credits).
+              </span>
+              <button className="small-button" onClick={props.onRemake} disabled={props.listening}>
+                Remake
+              </button>
+            </div>
+          )}
           {player.announcementStatus === "error" && (
             <p className="error" role="alert" style={{ margin: 0 }}>
               {player.announcementError}

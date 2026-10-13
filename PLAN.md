@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Remake an announcement (2026-10-13)
+ElevenLabs' expressive model varies from take to take (a stray laugh, breath or "woosh", more likely with several cues before the first word). The player editor has **Remake** under "Say it like this": it discards that player's kept raw recording (`speechCacheFile` in `server/announcer.ts`) and makes a new take with the same settings, then plays it (`POST /api/players/:id/announcement/remake`; uses credits). Listen keeps reusing the kept take. The voice button in Edit team reads "Change".
+
 ### Announcer defaults (2026-10-13)
 New teams start with the wording "[fast-paced]Now batting number {number}, [drawn out with emphasis]{name}!" (Hyped: "…number 12! [drawn out with emphasis]Ava!"; Kokoro drops the cues), Hyped energy and the cues [dramatic] [booming] [excited] (set on the team when it's created; the rest of the delivery follows the app-wide settings). Existing teams keep their own settings, so nothing is remade.
 

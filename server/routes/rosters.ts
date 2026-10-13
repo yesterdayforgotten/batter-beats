@@ -3,7 +3,7 @@ import { db } from "../db.ts";
 import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
 import { announcementPath, clipPath } from "../storage.ts";
-import { cleanStyle, currentStyle, refreshAnnouncements, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
+import { cleanStyle, currentStyle, refreshAnnouncements, remakeAnnouncement, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
 import { ANNOUNCER, DEFAULT_STYLE, TEAM_COLORS } from "../../shared/types.ts";
 import {
   getPlayer,
@@ -222,6 +222,14 @@ rostersRouter.post("/players/:id/announcement", editor, async (req, res) => {
   const player = getPlayer(Number(req.params.id));
   if (!player) return res.status(404).json({ error: "Player not found." });
   await refreshAnnouncements([player.id]);
+  res.json({ player: getPlayer(player.id) });
+});
+
+// A new take of the player's announcement with the same settings (uses voice-engine credits).
+rostersRouter.post("/players/:id/announcement/remake", editor, async (req, res) => {
+  const player = getPlayer(Number(req.params.id));
+  if (!player) return res.status(404).json({ error: "Player not found." });
+  await remakeAnnouncement(player.id);
   res.json({ player: getPlayer(player.id) });
 });
 
