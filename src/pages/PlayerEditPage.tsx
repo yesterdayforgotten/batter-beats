@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { loadClip, Playback, unlockAudio } from "../audio/engine.ts";
 import { PageHead } from "../components/PageHead.tsx";
-import { PlayIcon, SoundBars } from "../components/Icons.tsx";
+import { ClipEndIcon, ClipStartIcon, PlayIcon, SoundBars } from "../components/Icons.tsx";
 import { SongPicker } from "../components/SongPicker.tsx";
 import { Waveform } from "../components/Waveform.tsx";
 import { ANNOUNCER, CLIP_LIMITS, type Clip, type Player, type RosterSummary, type Song } from "../../shared/types.ts";
@@ -38,6 +38,9 @@ export function PlayerEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playheadMs, setPlayheadMs] = useState<number | null>(null);
+  /** The whole song playing (to find a start or end point outside the current clip). */
+  const [wholeSong, setWholeSong] = useState(false);
+  const wholeAudio = useRef<HTMLAudioElement | null>(null);
 
   // Clip changes not yet sent, and the request in flight.
   const unsent = useRef<ClipChanges>({});
@@ -106,6 +109,7 @@ export function PlayerEditPage() {
       void send();
       previewToken.current++;
       playback.current?.stop();
+      wholeAudio.current?.pause();
     },
     [send],
   );
@@ -233,6 +237,9 @@ export function PlayerEditPage() {
 
   function stopPreview() {
     previewToken.current++;
+    wholeAudio.current?.pause();
+    wholeAudio.current = null;
+    setWholeSong(false);
     playback.current?.stop();
     playback.current = null;
     setPlaying(false);
@@ -282,6 +289,64 @@ export function PlayerEditPage() {
       setError((err as Error).message);
       setPlaying(false);
     }
+  }
+
+  /** Plays the whole song from the top (or stops it), with the playhead moving across the waveform. */
+  function toggleWholeSong() {
+    if (!clip) return;
+    if (wholeSong) return stopPreview();
+    stopPreview();
+    const a = new Audio(`/api/media/songs/${clip.song.id}.mp3`);
+    wholeAudio.current = a;
+    setWholeSong(true);
+    a.onended = () => {
+      if (wholeAudio.current === a) stopPreview();
+    };
+    a.play().catch((err) => {
+      if (wholeAudio.current !== a || (err as Error).name === "AbortError") return;
+      stopPreview();
+      setError(`The song didn't play. ${(err as Error).message}`);
+    });
+    const tick = () => {
+      if (wholeAudio.current !== a) return;
+      setPlayheadMs(a.currentTime * 1000);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  /** Sets the clip's start, kept inside the song and at least a second before the end. */
+  function setStart(ms: number) {
+    if (!clip) return;
+    const start = Math.round(Math.max(0, Math.min(ms, clip.endMs - CLIP_LIMITS.minLengthMs, clip.song.durationMs)));
+    change({ startMs: start, endMs: Math.min(clip.endMs, start + CLIP_LIMITS.maxLengthMs) });
+  }
+
+  /** Sets the clip's end, kept inside the song and at least a second after the start. */
+  function setEnd(ms: number) {
+    if (!clip) return;
+    const end = Math.round(Math.min(clip.song.durationMs, Math.max(ms, clip.startMs + CLIP_LIMITS.minLengthMs)));
+    change({ endMs: end, startMs: Math.max(clip.startMs, end - CLIP_LIMITS.maxLengthMs) });
+  }
+
+  /** Moves the clip's start to where the playhead is (keeping the clip's length if the end would come first). */
+  function startHere() {
+    if (!clip || playheadMs == null) return;
+    const start = Math.round(Math.max(0, Math.min(playheadMs, clip.song.durationMs - CLIP_LIMITS.minLengthMs)));
+    let end = clip.endMs;
+    if (end - start < CLIP_LIMITS.minLengthMs) end = Math.min(clip.song.durationMs, start + (clip.endMs - clip.startMs));
+    end = Math.min(end, start + CLIP_LIMITS.maxLengthMs);
+    change({ startMs: start, endMs: end }, true);
+  }
+
+  /** Moves the clip's end to where the playhead is (keeping the clip's length if the start would come after it). */
+  function endHere() {
+    if (!clip || playheadMs == null) return;
+    const end = Math.round(Math.min(clip.song.durationMs, Math.max(playheadMs, CLIP_LIMITS.minLengthMs)));
+    let start = clip.startMs;
+    if (end - start < CLIP_LIMITS.minLengthMs) start = Math.max(0, end - (clip.endMs - clip.startMs));
+    start = Math.max(start, end - CLIP_LIMITS.maxLengthMs);
+    change({ startMs: start, endMs: end }, true);
   }
 
   // ── Layout ───────────────────────────────────────────────────────────
@@ -370,33 +435,57 @@ export function PlayerEditPage() {
               ) : (
                 <div className="waveform" />
               )}
+              {/* [ and ] set the start or end where the playhead is; −.1 / +.1 fine-tune; the times can be typed. */}
               <div className="nudge">
                 <div>
-                  <button aria-label="Start earlier" onClick={() => change({ startMs: Math.max(0, clip.startMs - NUDGE_MS) })}>
+                  <button
+                    className="bracket-button"
+                    aria-label="Start here"
+                    title="Start here"
+                    disabled={playheadMs == null}
+                    onClick={startHere}
+                  >
+                    <ClipStartIcon />
+                  </button>
+                  <button aria-label="Start earlier" onClick={() => setStart(clip.startMs - NUDGE_MS)}>
                     −.1
                   </button>
-                  <span className="time">{formatTime(clip.startMs)}</span>
-                  <button
-                    aria-label="Start later"
-                    onClick={() => change({ startMs: Math.min(clip.endMs - CLIP_LIMITS.minLengthMs, clip.startMs + NUDGE_MS) })}
-                  >
+                  <TimeBox label="Clip start" ms={clip.startMs} onCommit={setStart} />
+                  <button aria-label="Start later" onClick={() => setStart(clip.startMs + NUDGE_MS)}>
                     +.1
                   </button>
                 </div>
-                <span style={{ color: "var(--accent)", fontWeight: 800 }}>{((clip.endMs - clip.startMs) / 1000).toFixed(1)} s</span>
                 <div>
-                  <button
-                    aria-label="End earlier"
-                    onClick={() => change({ endMs: Math.max(clip.startMs + CLIP_LIMITS.minLengthMs, clip.endMs - NUDGE_MS) })}
-                  >
+                  <button aria-label="End earlier" onClick={() => setEnd(clip.endMs - NUDGE_MS)}>
                     −.1
                   </button>
-                  <span className="time">{formatTime(clip.endMs)}</span>
-                  <button aria-label="End later" onClick={() => change({ endMs: Math.min(clip.song.durationMs, clip.endMs + NUDGE_MS) })}>
+                  <TimeBox label="Clip end" ms={clip.endMs} onCommit={setEnd} />
+                  <button aria-label="End later" onClick={() => setEnd(clip.endMs + NUDGE_MS)}>
                     +.1
+                  </button>
+                  <button
+                    className="bracket-button"
+                    aria-label="End here"
+                    title="End here"
+                    disabled={playheadMs == null}
+                    onClick={endHere}
+                  >
+                    <ClipEndIcon />
                   </button>
                 </div>
               </div>
+              <div className="row clip-capture">
+                <button className="small-button" onClick={toggleWholeSong}>
+                  {wholeSong ? "Stop" : "Play whole song"}
+                </button>
+                <span className="grow" />
+                <span className="clip-length">{((clip.endMs - clip.startMs) / 1000).toFixed(1)} s clip</span>
+              </div>
+              <span className="muted small">
+                {playheadMs != null
+                  ? `At ${formatTime(playheadMs)}: tap the left bracket to start the clip here, or the right one to end it here.`
+                  : "Play the whole song (or the preview), then tap a bracket to set the start or end by ear."}
+              </span>
             </>
           )}
         </div>
@@ -615,5 +704,44 @@ function AnnouncerCard(props: {
         </>
       )}
     </div>
+  );
+}
+
+/** "1:23.4" or "83.4" (seconds) → milliseconds; null if it isn't a time. */
+function parseTime(text: string): number | null {
+  const m = /^\s*(?:(\d+):)?(\d+(?:\.\d*)?)\s*$/.exec(text);
+  if (!m) return null;
+  return Math.round(((m[1] ? Number(m[1]) * 60 : 0) + Number(m[2])) * 1000);
+}
+
+/** A clip time you can also type ("1:23.4" or seconds); applied on Enter or leaving the box. */
+function TimeBox({ label, ms, onCommit }: { label: string; ms: number; onCommit(ms: number): void }) {
+  const [text, setText] = useState<string | null>(null); // null: not being edited, show the clip's time
+  const commit = () => {
+    if (text === null) return;
+    const value = parseTime(text);
+    if (value !== null && value !== ms) onCommit(value);
+    setText(null);
+  };
+  return (
+    <input
+      className="time"
+      aria-label={label}
+      inputMode="decimal"
+      value={text ?? formatTime(ms)}
+      onFocus={(e) => {
+        setText(formatTime(ms));
+        e.target.select();
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setText(null);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }

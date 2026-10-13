@@ -57,6 +57,22 @@ export const MusicIcon = () => (
   </svg>
 );
 
+/** A bracket opening on the right, with a dot where the clip will start: "start the clip here". */
+export const ClipStartIcon = () => (
+  <svg {...common} width={20} height={20} strokeWidth={2.4}>
+    <path d="M11 4.5H7v15h4" />
+    <circle cx="15.5" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/** The mirror image: "end the clip here". */
+export const ClipEndIcon = () => (
+  <svg {...common} width={20} height={20} strokeWidth={2.4}>
+    <path d="M13 4.5h4v15h-4" />
+    <circle cx="8.5" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const PlayIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
     <path d="M7 4l13 8-13 8Z" fill="currentColor" />

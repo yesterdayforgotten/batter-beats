@@ -509,7 +509,7 @@ label,
 
 .nudge {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 6px;
   font-size: 13px;
@@ -528,7 +528,7 @@ label,
 }
 
 .nudge button {
-  width: 40px;
+  width: 30px;
   min-height: 36px;
   height: 36px;
   padding: 0;
@@ -539,10 +539,22 @@ label,
 }
 
 .nudge .time {
-  min-width: 52px;
+  width: 58px;
+  min-width: 0;
+  min-height: 36px;
+  height: 36px;
+  padding: 0 2px;
+  border-radius: 10px;
   text-align: center;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+.clip-length {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
 }
 
 .preview {
@@ -2009,4 +2021,18 @@ label,
   display: inline-flex;
   align-items: center;
   min-height: 24px;
+}
+.clip-capture {
+  gap: 8px;
+  margin-top: 4px;
+}
+/* Bracket buttons: set the clip's start or end where the playhead is */
+.nudge .bracket-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+.nudge .bracket-button:disabled {
+  color: var(--faint);
 }
