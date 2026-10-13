@@ -1340,10 +1340,17 @@ label,
   border-radius: 12px;
   padding: 0;
 }
-.list.compact .player-row {
+.list.compact .player-row,
+.list.compact .list-item > a {
   min-height: 46px;
   padding: 4px 6px 4px 10px;
   gap: 10px;
+}
+/* Edit team's player rows: name and song on two short lines */
+.list.compact .list-item > a .small,
+.list.compact .player-row .small {
+  font-size: 12px;
+  line-height: 1.25;
 }
 .list.compact .jersey {
   font-size: 22px;
