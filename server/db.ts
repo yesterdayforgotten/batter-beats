@@ -154,6 +154,16 @@ const migrations: string[] = [
   ALTER TABLE songs ADD COLUMN audio_hash TEXT;
   CREATE INDEX songs_audio_hash ON songs(audio_hash);
   `,
+  `
+  -- Players deleted in the last few minutes, so a delete can be undone: their
+  -- row and clip settings as JSON (their files are kept until it's purged).
+  CREATE TABLE deleted_players (
+    id         INTEGER PRIMARY KEY,
+    roster_id  INTEGER NOT NULL,
+    data       TEXT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */

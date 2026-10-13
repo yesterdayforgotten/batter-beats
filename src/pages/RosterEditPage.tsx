@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import { ChevronIcon } from "../components/Icons.tsx";
@@ -20,6 +20,25 @@ export function RosterEditPage() {
   /** The Announcer section starts closed; its header opens it. */
   const [announcerOpen, setAnnouncerOpen] = useState(false);
   const [template, setTemplate] = useState("");
+  /** A player just deleted (from their page), offered back with Undo. */
+  const location = useLocation();
+  const [deleted, setDeleted] = useState<{ id: number; name: string } | null>(
+    () => (location.state as { deleted?: { id: number; name: string } } | null)?.deleted ?? null,
+  );
+
+  async function undoDelete() {
+    if (!deleted) return;
+    try {
+      const r = await api<{ player: Player }>(`/players/${deleted.id}/restore`, { body: {} });
+      setRoster((cur) =>
+        cur ? { ...cur, players: [...cur.players, r.player].sort((a, b) => a.lineupPosition - b.lineupPosition || a.id - b.id) } : cur,
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setDeleted(null);
+    navigate(location.pathname, { replace: true, state: null }); // a reload shouldn't offer it again
+  }
 
   useEffect(() => {
     api<{ roster: Roster }>(`/rosters/${id}`)
@@ -130,6 +149,14 @@ export function RosterEditPage() {
         }
       />
       {error && <p className="error" role="alert">{error}</p>}
+      {deleted && (
+        <div className="notice undo-bar" role="status">
+          <span className="grow">Deleted {deleted.name}.</span>
+          <button className="link-button" onClick={undoDelete}>
+            Undo
+          </button>
+        </div>
+      )}
       {roster && (
         <div className="stack" style={{ gap: 12 }}>
           <label>

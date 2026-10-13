@@ -9,7 +9,7 @@ import { loadUser } from "./auth.ts";
 import { ensureFirstAdmin } from "./users.ts";
 import { authRouter } from "./routes/auth.ts";
 import { usersRouter } from "./routes/users.ts";
-import { rostersRouter } from "./routes/rosters.ts";
+import { purgeDeletedPlayers, rostersRouter } from "./routes/rosters.ts";
 import { songsRouter } from "./routes/songs.ts";
 import { announcerRouter } from "./routes/announcer.ts";
 import { playlistRouter } from "./routes/playlist.ts";
@@ -23,6 +23,15 @@ import { dirs } from "./storage.ts";
 await ensureFirstAdmin();
 await ensureTools();
 void fingerprintOldSongs().catch((err) => console.error("Fingerprinting songs failed:", err));
+// Deleted players can be brought back for a few minutes; then they're cleared out with their files.
+purgeDeletedPlayers();
+setInterval(() => {
+  try {
+    if (!isPaused()) purgeDeletedPlayers();
+  } catch (err) {
+    console.error("Clearing deleted players failed:", err);
+  }
+}, 5 * 60_000).unref();
 
 // Leftovers from a crash or restart (half-made uploads, clips, backups) are
 // thrown away; the data replaced by the last restore is kept.

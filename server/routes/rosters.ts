@@ -252,13 +252,83 @@ rostersRouter.put("/players/:id/available", (req, res) => {
   res.json({ player: getPlayer(player.id), applied: true });
 });
 
+// ── Deleting a player, with a few minutes to undo it ─────────────────────
+
+/** How long a deleted player can be brought back. */
+const UNDO_MINUTES = 15;
+
+type Row = Record<string, unknown>;
+interface DeletedPlayer {
+  player: Row;
+  songs: Row[];
+}
+
+/** Clears out players deleted longer ago than UNDO_MINUTES, with their files. */
+export function purgeDeletedPlayers() {
+  const old = db
+    .prepare(`SELECT id, data FROM deleted_players WHERE deleted_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)`)
+    .all(`-${UNDO_MINUTES} minutes`) as { id: number; data: string }[];
+  for (const { id, data } of old) {
+    try {
+      const d = JSON.parse(data) as DeletedPlayer;
+      for (const ps of d.songs) if (typeof ps.clip_file === "string") removeQuietly(clipPath(ps.clip_file));
+      if (typeof d.player.announce_file === "string") removeQuietly(announcementPath(d.player.announce_file));
+    } catch {
+      // A broken snapshot: just drop it.
+    }
+    db.prepare("DELETE FROM deleted_players WHERE id = ?").run(id);
+  }
+}
+
 rostersRouter.delete("/players/:id", editor, (req, res) => {
   const player = getPlayer(Number(req.params.id));
   if (!player) return res.status(404).json({ error: "Player not found." });
-  removeClipFiles("p.id", player.id);
-  db.prepare("DELETE FROM players WHERE id = ?").run(player.id);
+  // Keep a copy (and the files) for a while, so the delete can be undone.
+  const snapshot: DeletedPlayer = {
+    player: db.prepare("SELECT * FROM players WHERE id = ?").get(player.id) as Row,
+    songs: db.prepare("SELECT * FROM player_songs WHERE player_id = ?").all(player.id) as Row[],
+  };
+  db.transaction(() => {
+    db.prepare("INSERT OR REPLACE INTO deleted_players (id, roster_id, data) VALUES (?, ?, ?)").run(
+      player.id,
+      player.rosterId,
+      JSON.stringify(snapshot),
+    );
+    db.prepare("DELETE FROM players WHERE id = ?").run(player.id);
+  })();
   touchRoster(player.rosterId);
-  res.json({ ok: true });
+  purgeDeletedPlayers();
+  res.json({ ok: true, undoMinutes: UNDO_MINUTES });
+});
+
+/** Brings back a player deleted in the last few minutes, exactly as they were. */
+rostersRouter.post("/players/:id/restore", editor, (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT data FROM deleted_players WHERE id = ?").get(id) as { data: string } | undefined;
+  if (!row) return res.status(404).json({ error: "It's too late to undo that." });
+  const d = JSON.parse(row.data) as DeletedPlayer;
+  if (!db.prepare("SELECT 1 FROM rosters WHERE id = ?").get(d.player.roster_id)) {
+    return res.status(409).json({ error: "That player's team has been deleted." });
+  }
+  const insert = (table: string, r: Row) => {
+    const cols = Object.keys(r);
+    db.prepare(`INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`).run(
+      ...cols.map((c) => r[c] as string | number | null),
+    );
+  };
+  try {
+    db.transaction(() => {
+      insert("players", d.player);
+      // A song deleted from the library meanwhile can't come back with them.
+      for (const ps of d.songs) if (db.prepare("SELECT 1 FROM songs WHERE id = ?").get(ps.song_id)) insert("player_songs", ps);
+      db.prepare("DELETE FROM deleted_players WHERE id = ?").run(id);
+    })();
+  } catch {
+    return res.status(409).json({ error: "That player couldn't be brought back." });
+  }
+  touchRoster(d.player.roster_id as number);
+  void refreshAnnouncements([id]);
+  res.json({ player: getPlayer(id) });
 });
 
 rostersRouter.put(

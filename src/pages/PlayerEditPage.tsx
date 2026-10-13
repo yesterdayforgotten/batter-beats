@@ -250,7 +250,8 @@ export function PlayerEditPage() {
     stopPreview();
     try {
       await api(`/players/${player.id}`, { method: "DELETE" });
-      navigate(`/rosters/${player.rosterId}/edit`, { replace: true });
+      // Edit team offers Undo for a few minutes.
+      navigate(`/rosters/${player.rosterId}/edit`, { replace: true, state: { deleted: { id: player.id, name: player.name } } });
     } catch (err) {
       setError((err as Error).message);
     }

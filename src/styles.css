@@ -2074,3 +2074,15 @@ label,
   color: var(--faint);
   opacity: 0.6;
 }
+/* "Deleted Ava. Undo" after deleting a player */
+.undo-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+.undo-bar .link-button {
+  color: var(--accent);
+  font-weight: 800;
+  padding: 4px 0;
+}

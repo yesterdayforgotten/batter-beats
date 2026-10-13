@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Undo deleting a player (2026-10-13)
+Deleting a player keeps a snapshot (their row and clip settings as JSON in `deleted_players`) and their clip/announcement files for 15 minutes; Edit team shows "Deleted Ava. Undo" (`POST /api/players/:id/restore` puts them back exactly, same id and batting position). Snapshots older than 15 minutes are purged with their files (at startup, every 5 minutes, and on each delete).
+
 ### Preview button taps (2026-10-13)
 "Preview as in game" works like game mode: tap to play, tap again to fade out ("Fading out · tap to stop"), tap during the fade to stop at once; a tap within 0.8 s of that stop is ignored.
 
