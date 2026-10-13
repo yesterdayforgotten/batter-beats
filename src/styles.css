@@ -629,9 +629,9 @@ label,
   width: 100%;
   max-width: 640px;
   max-height: 85vh;
-  /* The visible height: phones' plain vh includes the area behind the browser's toolbars,
-     which hid the bottom of long lists. */
-  max-height: 85dvh;
+  /* The visible height, measured by the app (see main.tsx): iOS 15 has no dvh,
+     and its vh includes the area behind Safari's toolbars. */
+  max-height: calc(var(--app-h, 100vh) * 0.85);
   background: var(--card);
   border-radius: 20px 20px 0 0;
   padding: 14px 12px calc(env(safe-area-inset-bottom) + 14px);
@@ -646,6 +646,7 @@ label,
 }
 .sheet-list {
   overflow-y: auto;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   /* Swipes scroll the list only, never the page behind the sheet. */
   overscroll-behavior: contain;

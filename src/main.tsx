@@ -11,6 +11,16 @@ import "@fontsource/big-shoulders-display/latin-800";
 import "@fontsource/big-shoulders-display/latin-900";
 import "./styles.css";
 
+// The visible height of the screen, for sheets: iOS 15 has no "dvh", and its
+// plain "vh" includes the area behind Safari's toolbars, which hid the bottom
+// of long sheets. Measured here instead, and kept up to date.
+function setAppHeight() {
+  document.documentElement.style.setProperty("--app-h", `${window.innerHeight}px`);
+}
+setAppHeight();
+window.addEventListener("resize", setAppHeight);
+window.addEventListener("orientationchange", setAppHeight);
+
 // The service worker lets the app open without a connection. Browsers only
 // allow it on https (and on the server's own address).
 if ("serviceWorker" in navigator && window.isSecureContext) {
