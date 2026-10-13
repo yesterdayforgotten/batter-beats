@@ -292,7 +292,7 @@ A four-part review (server security, server media/announcer, game day, editing s
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
 ### Announcer defaults (2026-10-13)
-New teams start with the wording "Now batting number {number}, {name}!" and Hyped energy (set on the team when it's created; the rest of the delivery follows the app-wide settings). Existing teams keep their own settings, so nothing is remade.
+New teams start with the wording "Now batting number {number}, {name}!", Hyped energy and the cues [dramatic] [booming] [excited] (set on the team when it's created; the rest of the delivery follows the app-wide settings). Existing teams keep their own settings, so nothing is remade.
 
 ### Favourite voices (2026-10-13)
 In the voice sheet (Edit team → Announcer → Change voice) each voice has a ☆; starred voices (★) that match the filters are listed first under "Favorites"; the rest under "Other voices". Until anyone changes the stars, ElevenLabs' Roger, Adam, Matilda and Brian are starred (owner's picks). Shared by everyone, per engine: settings key `voice_favorites_<engine>`, `PUT /api/announcer/favorites {voice, favorite}`; `GET /api/announcer` includes `favorites`.

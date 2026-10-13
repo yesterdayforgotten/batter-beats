@@ -193,7 +193,7 @@ export const DEFAULT_STYLE: AnnouncerStyle = {
   reverb: 0,
   reverbSize: 0.6,
   excitement: 1,
-  elevenTag: "[shouting] [excited]",
+  elevenTag: "[dramatic] [booming] [excited]",
 };
 export const STYLE_LIMITS = {
   minSpeed: 0.8,
