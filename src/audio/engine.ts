@@ -20,7 +20,12 @@ export interface PlaybackSettings {
   trebleDb: number;
 }
 
-const BASS_HZ = 150;
+/**
+ * Where the Bass slider works: a shelf at 120 Hz boosts or cuts the kick drum
+ * and bass guitar (about 50–120 Hz) without muddying voices, which suits the
+ * party speaker used at games. (Phone speakers barely reproduce this range.)
+ */
+const BASS_HZ = 120;
 const TREBLE_HZ = 3500;
 /** A tiny fade-in so a clip that starts mid-note doesn't click. */
 const FADE_IN_SEC = 0.015;
