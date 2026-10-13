@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
-import { loadClip, Playback, unlockAudio } from "../audio/engine.ts";
+import { context, loadClip, Playback, toneChain, unlockAudio } from "../audio/engine.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import {
   ClipEndIcon,
@@ -56,6 +56,8 @@ export function PlayerEditPage() {
   const wholeAudio = useRef<HTMLAudioElement | null>(null);
   /** Where that playback stops by itself (the clip's end), if anywhere. */
   const stopAt = useRef<number | null>(null);
+  /** Its bass, treble and volume (the clip's settings, applied live as the sliders move). */
+  const listenTone = useRef<ReturnType<typeof toneChain> | null>(null);
 
   // Clip changes not yet sent, and the request in flight.
   const unsent = useRef<ClipChanges>({});
@@ -133,6 +135,10 @@ export function PlayerEditPage() {
     setClip((c) => (c ? { ...c, ...changes } : c));
     unsent.current = { ...unsent.current, ...changes };
     playback.current?.update(changes);
+    if (listenTone.current && clip) {
+      const next = { ...clip, ...changes };
+      listenTone.current.set({ volume: next.volume, gainDb: next.gainDb, bassDb: next.bassDb, trebleDb: next.trebleDb });
+    }
     window.clearTimeout(timer.current);
     if (saveNow) void send();
     else timer.current = window.setTimeout(send, SAVE_DELAY_MS);
@@ -254,6 +260,8 @@ export function PlayerEditPage() {
     previewToken.current++;
     wholeAudio.current?.pause();
     wholeAudio.current = null;
+    listenTone.current?.disconnect();
+    listenTone.current = null;
     setListenMode(null);
     playback.current?.stop();
     playback.current = null;
@@ -335,6 +343,10 @@ export function PlayerEditPage() {
     setListenMode(mode);
     stopAt.current = until;
     const a = new Audio(`/api/media/songs/${clip.song.id}.mp3`);
+    // Through the same bass, treble, volume and gain as the clip, so the sliders are heard here too.
+    const tone = toneChain({ volume: clip.volume, gainDb: clip.gainDb, bassDb: clip.bassDb, trebleDb: clip.trebleDb });
+    context().createMediaElementSource(a).connect(tone.input);
+    listenTone.current = tone;
     a.currentTime = ms / 1000;
     // Safari can ignore a jump made before the song has loaded: make it again once it has.
     if (ms > 0) a.addEventListener("loadedmetadata", () => (a.currentTime = ms / 1000), { once: true });
@@ -499,6 +511,10 @@ export function PlayerEditPage() {
                     +.1
                   </button>
                 </div>
+                {/* Where the playhead is (while something plays): what the brackets would use. */}
+                <span className={`playhead-box${playheadMs == null ? " idle" : ""}`} aria-label="Playhead position" role="status">
+                  {playheadMs == null ? "–:––.–" : formatTime(playheadMs)}
+                </span>
                 <div>
                   <button aria-label="End earlier" onClick={() => setEnd(clip.endMs - NUDGE_MS)}>
                     −.1
@@ -539,11 +555,6 @@ export function PlayerEditPage() {
                 <span className="grow" />
                 <span className="clip-length">{((clip.endMs - clip.startMs) / 1000).toFixed(1)} s clip</span>
               </div>
-              <span className="muted small">
-                {playheadMs != null
-                  ? `At ${formatTime(playheadMs)}: tap the left bracket to start the clip here, or the right one to end it here.`
-                  : "Tap the waveform or a play button to listen, then tap a bracket to set the start or end by ear."}
-              </span>
             </>
           )}
         </div>

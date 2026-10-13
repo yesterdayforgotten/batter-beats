@@ -509,9 +509,9 @@ label,
 
 .nudge {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 13px;
   font-weight: 700;
   color: var(--muted);
@@ -520,7 +520,7 @@ label,
 .nudge > div {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .nudge > div:last-child {
@@ -528,7 +528,7 @@ label,
 }
 
 .nudge button {
-  width: 30px;
+  width: 27px;
   min-height: 36px;
   height: 36px;
   padding: 0;
@@ -539,7 +539,7 @@ label,
 }
 
 .nudge .time {
-  width: 58px;
+  width: 49px;
   min-width: 0;
   min-height: 36px;
   height: 36px;
@@ -2054,4 +2054,22 @@ label,
 .icon-button.on {
   background: var(--accent);
   color: var(--accent-ink);
+}
+/* The playhead's position, between the start and end controls */
+.playhead-box {
+  min-width: 48px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.playhead-box.idle {
+  border-color: var(--line);
+  color: var(--faint);
 }

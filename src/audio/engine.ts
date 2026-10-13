@@ -76,6 +76,48 @@ export function output(): AudioNode {
   return out.input;
 }
 
+export interface ToneSettings {
+  volume: number;
+  /** Gain in dB on top of the sound fed in. */
+  gainDb: number;
+  bassDb: number;
+  trebleDb: number;
+}
+
+/**
+ * The same bass, treble and volume as walkups, for other sound fed in (the
+ * player editor's whole-song listening): input → bass → treble → level → output.
+ */
+export function toneChain(initial: ToneSettings) {
+  const c = context();
+  const bass = c.createBiquadFilter();
+  bass.type = "lowshelf";
+  bass.frequency.value = BASS_HZ;
+  const treble = c.createBiquadFilter();
+  treble.type = "highshelf";
+  treble.frequency.value = TREBLE_HZ;
+  const level = c.createGain();
+  // Connected one by one: chained connect() calls are not reliable on iOS 15.
+  bass.connect(treble);
+  treble.connect(level);
+  level.connect(output());
+  const set = (s: ToneSettings, immediate = false) => {
+    const t = c.currentTime;
+    const to = (p: AudioParam, v: number) => (immediate ? (p.value = v) : p.setTargetAtTime(v, t, 0.03));
+    to(level.gain, s.volume * dbToGain(s.gainDb));
+    to(bass.gain, s.bassDb);
+    to(treble.gain, s.trebleDb);
+  };
+  set(initial, true);
+  return {
+    input: bass as AudioNode,
+    set,
+    disconnect() {
+      level.disconnect();
+    },
+  };
+}
+
 /** The measuring tap on the output, once any sound has been set up. */
 export const outputAnalyser = (): AnalyserNode | null => out?.analyser ?? null;
 
