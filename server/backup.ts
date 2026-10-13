@@ -77,18 +77,69 @@ export async function sendBackup(res: Response) {
   }
 }
 
+/** What may be inside a backup: these names at the top, and in each folder only files the app itself names. */
+const ALLOWED_FILES: Record<(typeof FOLDERS)[number], RegExp> = {
+  songs: /^\d+\.mp3$/,
+  peaks: /^\d+\.json$/,
+  clips: /^\d+-\d+\.mp3$/,
+  announcements: /^\d+-[0-9a-f]+\.mp3$/,
+};
+const NOT_A_BACKUP = "That file isn't a Batter Beats backup.";
+
+/** Is this archive path one a backup could contain? (Folders, then files inside them.) */
+function allowedPath(entry: string): boolean {
+  const parts = entry.replace(/^\.\//, "").replace(/\/$/, "").split("/");
+  if (parts.length === 1) return parts[0] === MANIFEST || parts[0] === DB_NAME || (FOLDERS as readonly string[]).includes(parts[0]);
+  if (parts.length === 2 && parts[0] in ALLOWED_FILES) return ALLOWED_FILES[parts[0] as (typeof FOLDERS)[number]].test(parts[1]);
+  return false;
+}
+
+/**
+ * Checks a backup before anything is unpacked: only ordinary files and folders,
+ * with the expected names. A link inside a backup could otherwise make the app
+ * serve, overwrite or delete files outside its data folder (even while unpacking).
+ */
+async function checkContents(file: string) {
+  const child = tar(["-tvf", file], 10 * 60_000);
+  let listing = "";
+  child.stdout!.on("data", (d: Buffer) => (listing += d.toString()));
+  try {
+    await waitFor(child);
+  } catch {
+    throw new Error(NOT_A_BACKUP);
+  }
+  for (const line of listing.split("\n").filter(Boolean)) {
+    // GNU tar's verbose list: type and permissions, owner, size, date, time, name.
+    const m = /^(\S)\S*\s+\S+\s+\d+\s+\S+\s+\S+\s+(.+)$/.exec(line);
+    if (!m) throw new Error(NOT_A_BACKUP);
+    const [, type, name] = m;
+    if (type !== "-" && type !== "d") throw new Error(`${NOT_A_BACKUP} (It contains a link or special file.)`);
+    if (!allowedPath(name)) throw new Error(`${NOT_A_BACKUP} (It contains something unexpected: ${name.slice(0, 80)}.)`);
+  }
+}
+
+/** After unpacking, the same check on disk: nothing but ordinary files and folders. */
+async function checkUnpacked(dir: string) {
+  for (const entry of await fs.promises.readdir(dir, { recursive: true })) {
+    const st = await fs.promises.lstat(path.join(dir, entry));
+    if (!(st.isFile() || st.isDirectory()) || !allowedPath(entry)) throw new Error(`${NOT_A_BACKUP} (It contains a link or special file.)`);
+  }
+}
+
 /** Replaces all data with what's in a backup file. Throws (changing nothing) if the file isn't a usable backup. */
 export async function restoreBackup(file: string) {
   const unpacked = path.join(dirs.tmp, `restore-${crypto.randomUUID()}`);
   await fs.promises.mkdir(unpacked);
   try {
+    await checkContents(file);
     try {
-      await waitFor(tar(["-xf", file, "-C", unpacked, "--no-same-owner"], 60 * 60_000));
+      await waitFor(tar(["-xf", file, "-C", unpacked, "--no-same-owner", "--no-same-permissions"], 60 * 60_000));
     } catch {
-      throw new Error("That file isn't a Batter Beats backup.");
+      throw new Error(NOT_A_BACKUP);
     }
+    await checkUnpacked(unpacked);
     if (!fs.existsSync(path.join(unpacked, MANIFEST)) || !fs.existsSync(path.join(unpacked, DB_NAME))) {
-      throw new Error("That file isn't a Batter Beats backup.");
+      throw new Error(NOT_A_BACKUP);
     }
     // Check the database opens, upgrade it if it's from an older version, and that someone can sign in.
     const check = openDatabase(path.join(unpacked, DB_NAME));
