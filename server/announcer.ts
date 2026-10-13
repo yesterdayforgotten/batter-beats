@@ -62,9 +62,15 @@ export function setSetting(key: string, value: string) {
 
 /** The engine making announcements: the one an admin chose, else the first available. Null when none is set up. */
 /** Voices starred in the voice list (shared by everyone), per engine since voice ids differ. */
-/** Starred to begin with, until someone changes the stars: ElevenLabs' Roger, Adam, Matilda and Brian (owner's picks). */
+/** Starred to begin with, until someone changes the stars: ElevenLabs' Roger, Adam, Matilda, Brian and Bill (owner's picks). */
 const DEFAULT_FAVORITES: Partial<Record<string, string[]>> = {
-  elevenlabs: ["CwhRBWXzGAHq8TQ4Fs17", "pNInz6obpgDQGcFmaJgB", "XrExE9yKIg1WjnnlVkGX", "nPczCjzI2devNBz1zQrb"],
+  elevenlabs: [
+    "CwhRBWXzGAHq8TQ4Fs17", // Roger
+    "pNInz6obpgDQGcFmaJgB", // Adam
+    "XrExE9yKIg1WjnnlVkGX", // Matilda
+    "nPczCjzI2devNBz1zQrb", // Brian
+    "pqHfZKP75CvOlQylNhV4", // Bill
+  ],
 };
 
 export function favoriteVoices(): string[] {
