@@ -61,6 +61,27 @@ export function setSetting(key: string, value: string) {
 }
 
 /** The engine making announcements: the one an admin chose, else the first available. Null when none is set up. */
+/** Voices starred in the voice list (shared by everyone), per engine since voice ids differ. */
+export function favoriteVoices(): string[] {
+  const engine = activeEngine();
+  if (!engine) return [];
+  try {
+    const list = JSON.parse(getSetting(`voice_favorites_${engine.id}`) ?? "[]");
+    return Array.isArray(list) ? list.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setFavoriteVoice(voice: string, favorite: boolean): string[] {
+  const engine = activeEngine();
+  if (!engine) return [];
+  const others = favoriteVoices().filter((v) => v !== voice);
+  const next = (favorite ? [...others, voice] : others).slice(-100);
+  setSetting(`voice_favorites_${engine.id}`, JSON.stringify(next));
+  return next;
+}
+
 export function activeEngine(): Engine | null {
   const chosen = getSetting("announcer_engine");
   return engines.find((e) => e.id === chosen) ?? engines[0] ?? null;

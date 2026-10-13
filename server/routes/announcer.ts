@@ -7,10 +7,12 @@ import {
   cleanStyle,
   currentStyle,
   currentVoice,
+  favoriteVoices,
   listVoices,
   refreshAllAnnouncements,
   sample,
   setEngine,
+  setFavoriteVoice,
 } from "../announcer.ts";
 import { ANNOUNCER, type AnnouncerVoice } from "../../shared/types.ts";
 
@@ -21,7 +23,7 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
   const engine = activeEngine();
   let voices: AnnouncerVoice[] = [];
   let error: string | null = null;
-  if (!engine) error = "No announcer voice engine is set up on the server (TTS_URL or MURF_API_KEY).";
+  if (!engine) error = "No announcer voice engine is set up on the server (ELEVENLABS_API_KEY or TTS_URL).";
   else {
     try {
       voices = await listVoices();
@@ -41,8 +43,16 @@ announcerRouter.get("/announcer", requireRole("editor"), async (_req, res) => {
     voice: currentVoice(),
     style: currentStyle(),
     voices,
+    favorites: favoriteVoices(),
     error,
   });
+});
+
+// Star or unstar a voice in the voice list.
+announcerRouter.put("/announcer/favorites", requireRole("editor"), (req, res) => {
+  const voice = typeof req.body?.voice === "string" ? req.body.voice.slice(0, 100) : "";
+  if (!voice) return res.status(400).json({ error: "Which voice?" });
+  res.json({ favorites: setFavoriteVoice(voice, !!req.body?.favorite) });
 });
 
 // This month's credits left with the voice service; null when the engine is free or the

@@ -1968,3 +1968,31 @@ label,
   color: var(--text);
   border: 1px solid var(--accent);
 }
+
+/* Voice list: a star to favourite a voice (favourites are listed first) */
+.star-button {
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  margin-left: -6px;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.star-button.on {
+  color: var(--accent);
+}
+.voice-row {
+  flex-wrap: wrap;
+}
+.voice-group {
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--faint);
+  padding-top: 4px;
+}

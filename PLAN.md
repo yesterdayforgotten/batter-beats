@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Favourite voices (2026-10-13)
+In the voice sheet (Edit team → Announcer → Change voice) each voice has a ☆; starred voices (★) are listed first under "Favorites" (within the current filters), the rest under "Other voices". Shared by everyone, per engine: settings key `voice_favorites_<engine>`, `PUT /api/announcer/favorites {voice, favorite}`; `GET /api/announcer` includes `favorites`.
+
 ### Credits note (2026-10-12)
 Under the Delivery Listen button in Edit team → Announcer: "28,360 of 30,000 ElevenLabs credits left · resets Nov 3" (red under 10%). `GET /api/announcer/credits` asks ElevenLabs' `/v1/user/subscription` (free; needs the key's user-read permission, otherwise the note is just left out; null for Kokoro). Refreshed after each Listen and shortly after saving. The owner chose not to remember whether the Announcer section was left open.
 

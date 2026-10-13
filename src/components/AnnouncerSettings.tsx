@@ -22,6 +22,8 @@ export interface AnnouncerEngineInfo {
   /** Which delivery settings the engine can use. */
   controls: { speed: boolean; pitch: boolean };
   voices: Voice[];
+  /** Starred voice ids, listed first. */
+  favorites?: string[];
   error: string | null;
 }
 
@@ -158,7 +160,22 @@ export function AnnouncerSettings(props: {
     ((!filters.gender || v.gender === filters.gender) &&
       (!filters.accent || v.accent === filters.accent) &&
       (!filters.age || v.age === filters.age));
-  const shown = voices.filter(matches);
+  const favorites = new Set(info?.favorites ?? []);
+  // Starred voices first, then the rest (each in the usual order).
+  const shown = voices.filter(matches).sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)));
+  const starredShown = shown.filter((v) => favorites.has(v.id)).length;
+
+  async function toggleFavorite(voice: string) {
+    const favorite = !favorites.has(voice);
+    // Shown at once; put right if the server says otherwise.
+    setInfo((i) => i && { ...i, favorites: favorite ? [...(i.favorites ?? []), voice] : (i.favorites ?? []).filter((v) => v !== voice) });
+    try {
+      const r = await api<{ favorites: string[] }>("/announcer/favorites", { method: "PUT", body: { voice, favorite } });
+      setInfo((i) => i && { ...i, favorites: r.favorites });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
   const optionsFor = (key: keyof Filters) =>
     [...new Set(voices.map((v) => v[key]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
 
@@ -314,8 +331,20 @@ export function AnnouncerSettings(props: {
             <div className="sheet-list">
               {/* Compact rows: name and details on one line, small buttons, dividers instead of cards. */}
               <ul className="voice-list">
-                {shown.map(({ id, name, detail }) => (
+                {shown.map(({ id, name, detail }, i) => (
                   <li key={id} className={`voice-row${id === current ? " in-use" : ""}`}>
+                    {/* Group labels: starred voices first, then the rest. */}
+                    {starredShown > 0 && (i === 0 || i === starredShown) && (
+                      <span className="voice-group">{i === 0 ? "Favorites" : "Other voices"}</span>
+                    )}
+                    <button
+                      className={`star-button${favorites.has(id) ? " on" : ""}`}
+                      aria-pressed={favorites.has(id)}
+                      aria-label={favorites.has(id) ? `Unstar ${name}` : `Star ${name}`}
+                      onClick={() => toggleFavorite(id)}
+                    >
+                      {favorites.has(id) ? "★" : "☆"}
+                    </button>
                     <span className="voice-text">
                       <span className="voice-name">{name}</span>
                       <span className="voice-detail">{detail}</span>
