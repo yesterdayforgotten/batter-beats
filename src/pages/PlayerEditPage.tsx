@@ -753,7 +753,7 @@ function AnnouncerCard(props: {
             </p>
           )}
           <div className="editor-row" style={{ borderBottom: "none" }}>
-            <span className="label">Song in</span>
+            <span className="label">Song Offset</span>
             <input
               type="range"
               className="grow"
@@ -762,7 +762,7 @@ function AnnouncerCard(props: {
               step={250}
               value={Math.min(props.songDelayMs, maxDelay)}
               onChange={(e) => props.onDelay(Number(e.target.value))}
-              aria-label="When the song comes in"
+              aria-label="Song offset: when the song comes in after the voice starts"
             />
             <span className="value">{(props.songDelayMs / 1000).toFixed(props.songDelayMs % 1000 === 0 ? 0 : 2).replace(/(\.\d)0$/, "$1")} s</span>
           </div>

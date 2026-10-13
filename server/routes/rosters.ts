@@ -183,8 +183,8 @@ rostersRouter.post("/rosters/:id/players", editor, (req, res) => {
     .get(rosterId) as { next: number };
   const id = Number(
     db
-      .prepare("INSERT INTO players (roster_id, name, number, lineup_position) VALUES (?, ?, ?, ?)")
-      .run(rosterId, name, number, next).lastInsertRowid,
+      .prepare("INSERT INTO players (roster_id, name, number, lineup_position, song_delay_ms) VALUES (?, ?, ?, ?, ?)")
+      .run(rosterId, name, number, next, ANNOUNCER.defaultSongDelayMs).lastInsertRowid,
   );
   touchRoster(rosterId);
   void refreshAnnouncements([id]);

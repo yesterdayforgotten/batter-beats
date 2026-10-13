@@ -229,6 +229,8 @@ export interface VoiceFilters {
 export const ANNOUNCER = {
   defaultTemplate: "[fast-paced]Now batting number {number}, [drawn out with emphasis]{name}!",
   maxSongDelayMs: 10_000,
+  /** New players' Song offset: the song comes in 2 s after the voice starts (owner's choice). */
+  defaultSongDelayMs: 2000,
   /** How loud the song is while the voice speaks over it. */
   duckGain: 0.25,
   /** How long the song takes to come up to full volume after the voice. */

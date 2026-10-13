@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Song offset (2026-10-13)
+The announcer section's "Song in" slider is now labelled "Song Offset" (when the song comes in after the voice starts). New players start at 2 s (`ANNOUNCER.defaultSongDelayMs`); existing players keep theirs.
+
 ### Setting the clip by ear (2026-10-13)
 In the player editor's clip card, three icon buttons play the original song: the whole song from the top (bar + ▶), the clip from its start ([ + ▶, stops at the clip's end) and the clip's last 5 seconds (▶ + ], stops at the end); the one playing shows ■. Tapping or dragging on the waveform places the playhead (playback jumps there when the finger lifts); only the start/end handles change the clip. While anything plays, the bracket buttons at either end of the fine-tune row set the clip's start or end at the playhead, whose position shows in a box between the start and end controls ("–:––.–" when nothing plays). The three play buttons go through the same bass, treble, volume and gain as the clip (`toneChain` in `src/audio/engine.ts`), so the sliders are heard there too (measured: treble ±12 dB and bass ±12 dB clearly change the output; the bass shelf is at 120 Hz since 2026-10-13, chosen for the party speaker used at games; it's barely audible on phone speakers). The start and end times are editable boxes ("1:23.4" or seconds). Bass, treble, volume and gain apply live to a playing preview; clip start/end and fade-out from the next preview. **No clip length limit** since 2026-10-13 (`CLIP_LIMITS.maxLengthMs` is Infinity; owner isn't concerned about long clips' memory on the 6s).
 
