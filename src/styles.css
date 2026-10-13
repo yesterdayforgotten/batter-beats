@@ -2070,3 +2070,7 @@ label,
 .playhead-box.idle {
   color: var(--faint);
 }
+.icon-button:disabled {
+  color: var(--faint);
+  opacity: 0.6;
+}

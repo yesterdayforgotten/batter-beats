@@ -314,10 +314,9 @@ export function PlayerEditPage() {
     }
   }
 
-  /** The three listen buttons: each starts its kind of playback, or stops it if it's the one playing. */
-  function toggleListen(mode: "song" | "clip" | "ending") {
+  /** The three listen buttons: each starts its kind of playback (again from its point if it's already playing). */
+  function startListen(mode: "song" | "clip" | "ending") {
     if (!clip) return;
-    if (listenMode === mode) return stopPreview();
     if (mode === "song") playSongFrom(0, "song", null);
     else if (mode === "clip") playSongFrom(clip.startMs, "clip", clip.endMs);
     else playSongFrom(Math.max(clip.startMs, clip.endMs - 5000), "ending", clip.endMs);
@@ -545,13 +544,17 @@ export function PlayerEditPage() {
                   <button
                     key={b.mode}
                     className={`icon-button${listenMode === b.mode ? " on" : ""}`}
-                    aria-label={listenMode === b.mode ? "Stop" : b.label}
+                    aria-label={b.label}
+                    aria-pressed={listenMode === b.mode}
                     title={b.label}
-                    onClick={() => toggleListen(b.mode)}
+                    onClick={() => startListen(b.mode)}
                   >
-                    {listenMode === b.mode ? <StopIcon /> : b.icon}
+                    {b.icon}
                   </button>
                 ))}
+                <button className="icon-button" aria-label="Stop" title="Stop" disabled={listenMode === null} onClick={stopPreview}>
+                  <StopIcon />
+                </button>
                 <span className="grow" />
                 <span className="clip-length">{((clip.endMs - clip.startMs) / 1000).toFixed(1)} s clip</span>
               </div>
