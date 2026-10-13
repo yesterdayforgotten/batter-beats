@@ -1,6 +1,6 @@
 {
   "name": "batter-beats",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Walkup music for baseball and softball games",
   "scripts": {
     "dev": "tsx watch --clear-screen=false --ignore ./src --ignore ./data server/index.ts",
