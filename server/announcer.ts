@@ -12,6 +12,7 @@ import path from "node:path";
 import { db } from "./db.ts";
 import { durationMs, normalizeVoice, removeQuietly } from "./audio.ts";
 import { announcementPath, dirs } from "./storage.ts";
+import { isPaused } from "./maintenance.ts";
 import { engines, type Engine } from "./voiceEngines.ts";
 import {
   ANNOUNCER,
@@ -238,8 +239,13 @@ async function rawSpeech(engine: Engine, text: string, voice: string, style: Ann
   if (pending) return pending;
   const job = (async () => {
     const tmp = path.join(dirs.tmp, `${crypto.randomUUID()}-raw`);
-    await fs.promises.writeFile(tmp, await engine.speak(text, voice, style));
-    await fs.promises.rename(tmp, file);
+    try {
+      await fs.promises.writeFile(tmp, await engine.speak(text, voice, style));
+      await fs.promises.rename(tmp, file);
+    } catch (err) {
+      removeQuietly(tmp);
+      throw err;
+    }
     void pruneSpeechCache();
     return file;
   })();
@@ -251,14 +257,33 @@ async function rawSpeech(engine: Engine, text: string, voice: string, style: Ann
   }
 }
 
+let pruning = false;
+
+/** Keeps the speech cache to its size. Never throws: it runs in the background, where an error would stop the server. */
 async function pruneSpeechCache() {
-  const names = await fs.promises.readdir(dirs.speech).catch(() => [] as string[]);
-  if (names.length <= SPEECH_CACHE_FILES) return;
-  const files = await Promise.all(
-    names.map(async (n) => ({ n, t: (await fs.promises.stat(path.join(dirs.speech, n))).mtimeMs })),
-  );
-  files.sort((a, b) => a.t - b.t);
-  for (const f of files.slice(0, files.length - SPEECH_CACHE_FILES)) removeQuietly(path.join(dirs.speech, f.n));
+  if (pruning) return;
+  pruning = true;
+  try {
+    const names = await fs.promises.readdir(dirs.speech).catch(() => [] as string[]);
+    if (names.length <= SPEECH_CACHE_FILES) return;
+    // A file can disappear between listing and checking it; skip those.
+    const files = (
+      await Promise.all(
+        names.map((n) =>
+          fs.promises
+            .stat(path.join(dirs.speech, n))
+            .then((st) => ({ n, t: st.mtimeMs }))
+            .catch(() => null),
+        ),
+      )
+    ).filter((f): f is { n: string; t: number } => f !== null);
+    files.sort((a, b) => a.t - b.t);
+    for (const f of files.slice(0, files.length - SPEECH_CACHE_FILES)) removeQuietly(path.join(dirs.speech, f.n));
+  } catch {
+    // Trimming the cache can wait for next time.
+  } finally {
+    pruning = false;
+  }
 }
 
 async function makeAnnouncementFile(text: string, voice: string, style: AnnouncerStyle): Promise<string> {
@@ -269,7 +294,12 @@ async function makeAnnouncementFile(text: string, voice: string, style: Announce
   // Only what the engine can't do itself is done here, afterwards.
   const tempo = engine.speed === "after" ? style.speed : 1;
   const pitch = engine.pitch === "after" ? style.pitch : 0;
-  await normalizeVoice(raw, out, { pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize });
+  try {
+    await normalizeVoice(raw, out, { pitch, tempo, reverb: style.reverb, reverbSize: style.reverbSize });
+  } catch (err) {
+    removeQuietly(out); // ffmpeg may have written part of it
+    throw err;
+  }
   return out;
 }
 
@@ -301,7 +331,10 @@ async function update(playerId: number): Promise<"done" | "changed"> {
   try {
     const tmp = await makeAnnouncementFile(w.text, w.voice, w.style);
     const file = `${p.id}-${w.key}.mp3`;
-    await fs.promises.rename(tmp, announcementPath(file));
+    await fs.promises.rename(tmp, announcementPath(file)).catch((err) => {
+      removeQuietly(tmp);
+      throw err;
+    });
     const ms = await durationMs(announcementPath(file));
     // The player may have changed again meanwhile; only keep this if it still matches.
     const now = playerRow(playerId);
@@ -326,19 +359,34 @@ const waiters = new Map<number, (() => void)[]>();
 let running = false;
 
 async function work() {
-  if (running) return;
+  // While a backup is being restored the database is closed; the queue is
+  // picked up again afterwards (the restore remakes every announcement).
+  if (running || isPaused()) return;
   running = true;
   try {
     for (const id of queued) {
+      if (isPaused()) break;
       queued.delete(id);
-      // If something changed while it was being made, make it again (a few times at most), so
-      // anyone waiting (the Listen button) gets the up-to-date announcement.
-      for (let tries = 0; tries < 3 && (await update(id)) === "changed"; tries++);
+      try {
+        // If something changed while it was being made, make it again (a few times at most), so
+        // anyone waiting (the Listen button) gets the up-to-date announcement.
+        for (let tries = 0; tries < 3 && (await update(id)) === "changed"; tries++);
+      } catch (err) {
+        // Never let one player stop the others (or, unhandled, the server).
+        console.error(`Announcement for player ${id} failed:`, err);
+      }
       for (const done of waiters.get(id) ?? []) done();
       waiters.delete(id);
     }
   } finally {
     running = false;
+  }
+}
+
+/** Resolves once no announcement is being made (a restore waits for this). */
+export async function announcerIdle(maxMs = 120_000) {
+  for (const start = Date.now(); running && Date.now() - start < maxMs; ) {
+    await new Promise((r) => setTimeout(r, 100));
   }
 }
 
@@ -389,5 +437,12 @@ const RETRY_EVERY_MS = 30_000;
 /** At server start: bring every announcement up to date, then keep retrying any that fail. */
 export function startAnnouncer() {
   void refreshAllAnnouncements();
-  setInterval(() => void retryFailedAnnouncements(), RETRY_EVERY_MS).unref();
+  setInterval(() => {
+    if (isPaused()) return;
+    try {
+      void retryFailedAnnouncements();
+    } catch (err) {
+      console.error("Retrying announcements failed:", err);
+    }
+  }, RETRY_EVERY_MS).unref();
 }

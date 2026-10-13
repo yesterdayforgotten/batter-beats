@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import { spawn } from "node:child_process";
 
+/** How long ffmpeg, ffprobe or mp3gain may take before being stopped (a stuck one would block that player's clips, or every announcement). */
+const TOOL_TIMEOUT_MS = 3 * 60_000;
+
 /** Runs a command and returns its standard output as a Buffer. */
 function run(cmd: string, args: string[]): Promise<Buffer> {
   return runFull(cmd, args).then((r) => r.out);
@@ -9,14 +12,15 @@ function run(cmd: string, args: string[]): Promise<Buffer> {
 /** Runs a command and returns both what it printed and its messages (ffmpeg reports measurements there). */
 function runFull(cmd: string, args: string[]): Promise<{ out: Buffer; err: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], timeout: TOOL_TIMEOUT_MS, killSignal: "SIGKILL" });
     const out: Buffer[] = [];
     let err = "";
     child.stdout.on("data", (d: Buffer) => out.push(d));
     child.stderr.on("data", (d: Buffer) => (err += d.toString()));
     child.on("error", reject);
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       if (code === 0) resolve({ out: Buffer.concat(out), err });
+      else if (signal === "SIGKILL") reject(new Error(`${cmd} took too long and was stopped.`));
       else reject(new Error(`${cmd} failed (${code}): ${err.slice(-500)}`));
     });
   });

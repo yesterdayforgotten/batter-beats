@@ -16,9 +16,17 @@ import { playlistRouter } from "./routes/playlist.ts";
 import { adminRouter } from "./routes/admin.ts";
 import { startAnnouncer } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
+import { isPaused } from "./maintenance.ts";
+import { dirs } from "./storage.ts";
 
 await ensureFirstAdmin();
 await ensureTools();
+
+// Leftovers from a crash or restart (half-made uploads, clips, backups) are
+// thrown away; the data replaced by the last restore is kept.
+for (const entry of await fs.promises.readdir(dirs.tmp)) {
+  if (!entry.startsWith("before-restore-")) await fs.promises.rm(path.join(dirs.tmp, entry), { recursive: true, force: true });
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -40,6 +48,11 @@ app.use("/api", (req, res, next) => {
   if (req.is("application/json")) return next();
   if (req.is("multipart/form-data") && req.get("x-batter-beats") === "1") return next();
   res.status(415).json({ error: "Requests must be JSON." });
+});
+// While a backup is being restored the database is closed for a moment.
+app.use("/api", (_req, res, next) => {
+  if (!isPaused()) return next();
+  res.status(503).json({ error: "A backup is being restored. Try again in a minute." });
 });
 app.use("/api", loadUser);
 app.use("/api/auth", authRouter);

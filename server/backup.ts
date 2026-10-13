@@ -13,23 +13,29 @@ import type { Response } from "express";
 import { config } from "./config.ts";
 import { DB_FILE, db, openDatabase, reopenDatabase } from "./db.ts";
 import { dirs } from "./storage.ts";
-import { refreshAllAnnouncements } from "./announcer.ts";
+import { announcerIdle, refreshAllAnnouncements } from "./announcer.ts";
+import { recutsIdle } from "./library.ts";
+import { setPaused } from "./maintenance.ts";
 
 /** Folders in the data folder that a backup holds (everything except tmp). */
 const FOLDERS = ["songs", "peaks", "clips", "announcements"] as const;
 const DB_NAME = path.basename(DB_FILE);
 const MANIFEST = "batter-beats-backup.json";
 
-function tar(args: string[], cwd?: string) {
-  return spawn("tar", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+/** Runs tar; it's stopped if it takes longer than `timeoutMs` (a stuck tar would otherwise hang the request). */
+function tar(args: string[], timeoutMs: number, cwd?: string) {
+  return spawn("tar", args, { cwd, stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, killSignal: "SIGKILL" });
 }
 
-function waitFor(child: ReturnType<typeof spawn>): Promise<void> {
+/** Waits for tar to finish. `okCodes`: exit codes that count as success. */
+function waitFor(child: ReturnType<typeof spawn>, okCodes = [0]): Promise<void> {
   return new Promise((resolve, reject) => {
     let err = "";
     child.stderr?.on("data", (d: Buffer) => (err += d.toString()));
     child.on("error", reject);
-    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`tar failed: ${err.slice(-300)}`))));
+    child.on("close", (code) =>
+      code !== null && okCodes.includes(code) ? resolve() : reject(new Error(`tar failed: ${err.slice(-300)}`)),
+    );
   });
 }
 
@@ -50,9 +56,22 @@ export async function sendBackup(res: Response) {
       "Content-Disposition": `attachment; filename="batter-beats-backup-${date}.tar"`,
       "Cache-Control": "no-store",
     });
-    const child = tar(["-cf", "-", "-C", config.dataDir, ...FOLDERS, "-C", staging, MANIFEST, DB_NAME]);
+    // Files can be replaced while the backup runs (a clip re-cut, an announcement remade): tar
+    // skips those quietly (exit code 1 means "some files changed") instead of failing.
+    const child = tar(
+      [
+        "-cf", "-",
+        "--ignore-failed-read", "--warning=no-file-changed", "--warning=no-file-removed",
+        "-C", config.dataDir, ...FOLDERS, "-C", staging, MANIFEST, DB_NAME,
+      ],
+      6 * 60 * 60_000,
+    );
+    // The download was cancelled: stop tar, or it would wait forever with nowhere to write.
+    res.on("close", () => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    });
     child.stdout!.pipe(res);
-    await waitFor(child);
+    await waitFor(child, [0, 1]);
   } finally {
     await fs.promises.rm(staging, { recursive: true, force: true });
   }
@@ -64,7 +83,7 @@ export async function restoreBackup(file: string) {
   await fs.promises.mkdir(unpacked);
   try {
     try {
-      await waitFor(tar(["-xf", file, "-C", unpacked, "--no-same-owner"]));
+      await waitFor(tar(["-xf", file, "-C", unpacked, "--no-same-owner"], 60 * 60_000));
     } catch {
       throw new Error("That file isn't a Batter Beats backup.");
     }
@@ -81,30 +100,39 @@ export async function restoreBackup(file: string) {
     const aside = path.join(dirs.tmp, `before-restore-${new Date().toISOString().replace(/[:.]/g, "-")}`);
     await fs.promises.mkdir(aside);
     const names = [...FOLDERS, DB_NAME];
-    db.close();
+    // Pause everything that uses the database or the data folders (requests get "try again
+    // in a minute"), and let announcements and clip cuts already under way finish first.
+    setPaused(true);
     try {
-      for (const name of names) {
-        const from = path.join(config.dataDir, name);
-        if (fs.existsSync(from)) await fs.promises.rename(from, path.join(aside, name));
-      }
-      for (const extra of ["-wal", "-shm"]) await fs.promises.rm(DB_FILE + extra, { force: true });
-      for (const name of names) {
-        const from = path.join(unpacked, name);
-        if (fs.existsSync(from)) await fs.promises.rename(from, path.join(config.dataDir, name));
-        else if (name !== DB_NAME) await fs.promises.mkdir(path.join(config.dataDir, name), { recursive: true });
-      }
-      reopenDatabase();
-    } catch (err) {
-      // Put everything back as it was.
-      for (const name of names) {
-        const kept = path.join(aside, name);
-        if (fs.existsSync(kept)) {
-          await fs.promises.rm(path.join(config.dataDir, name), { recursive: true, force: true });
-          await fs.promises.rename(kept, path.join(config.dataDir, name));
+      await announcerIdle();
+      await recutsIdle();
+      db.close();
+      try {
+        for (const name of names) {
+          const from = path.join(config.dataDir, name);
+          if (fs.existsSync(from)) await fs.promises.rename(from, path.join(aside, name));
         }
+        for (const extra of ["-wal", "-shm"]) await fs.promises.rm(DB_FILE + extra, { force: true });
+        for (const name of names) {
+          const from = path.join(unpacked, name);
+          if (fs.existsSync(from)) await fs.promises.rename(from, path.join(config.dataDir, name));
+          else if (name !== DB_NAME) await fs.promises.mkdir(path.join(config.dataDir, name), { recursive: true });
+        }
+        reopenDatabase();
+      } catch (err) {
+        // Put everything back as it was.
+        for (const name of names) {
+          const kept = path.join(aside, name);
+          if (fs.existsSync(kept)) {
+            await fs.promises.rm(path.join(config.dataDir, name), { recursive: true, force: true });
+            await fs.promises.rename(kept, path.join(config.dataDir, name));
+          }
+        }
+        reopenDatabase();
+        throw err;
       }
-      reopenDatabase();
-      throw err;
+    } finally {
+      setPaused(false);
     }
 
     // Keep only the newest set of replaced data.

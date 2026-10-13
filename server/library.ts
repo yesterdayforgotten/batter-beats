@@ -409,6 +409,11 @@ function rosterOf(playerId: number): number {
 // One clip job at a time per player, so quick edits can't overlap.
 const queues = new Map<number, Promise<unknown>>();
 
+/** Resolves once every clip being cut has finished (a restore waits for this). */
+export async function recutsIdle() {
+  await Promise.allSettled([...queues.values()]);
+}
+
 function recut(playerId: number, remeasure: boolean): Promise<Clip> {
   const prev = queues.get(playerId) ?? Promise.resolve();
   const job = prev.catch(() => {}).then(() => doRecut(playerId, remeasure));
