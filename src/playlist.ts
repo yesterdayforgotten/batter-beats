@@ -243,7 +243,11 @@ class Jukebox {
     const source = c.createMediaElementSource(this.audio);
     source.connect(this.gain);
     this.gain.connect(output());
-    this.audio.addEventListener("ended", () => void this.next());
+    this.audio.addEventListener("ended", () => {
+      // Ending during a fade-out (a batter was tapped, or Stop) means stop, not "next song".
+      if (this.state.status === "fading") this.stop();
+      else void this.next();
+    });
     this.audio.addEventListener("error", () => {
       if (this.state.status === "playing" || this.state.status === "loading") void this.next(true);
     });
@@ -330,9 +334,10 @@ class Jukebox {
     // A copy kept on the phone plays without a connection.
     const kept = hasCaches() ? await (await caches.open(SONG_CACHE)).match(song.url) : undefined;
     if (id !== this.playId) return; // another song was chosen meanwhile
-    if (kept) this.blobUrl = URL.createObjectURL(await kept.blob());
+    const blob = kept ? await kept.blob() : null;
+    if (id !== this.playId) return; // another song was chosen meanwhile (made no URL to leak)
+    if (blob) this.blobUrl = URL.createObjectURL(blob);
     else if (!navigator.onLine) return void this.next(true); // can't reach it; try the next one
-    if (id !== this.playId) return;
     audio.src = this.blobUrl ?? song.url;
     const g = this.gain!.gain;
     const now = context().currentTime;

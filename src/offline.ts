@@ -158,7 +158,8 @@ export async function refreshKept() {
   for (const id of keptIds()) {
     try {
       const { roster } = await api<{ roster: Roster }>(`/rosters/${id}`, { timeoutMs: 8000 });
-      write(rosterKey(id), roster);
+      // Changes that still couldn't be sent stay applied in the phone's copy.
+      write(rosterKey(id), withPendingChanges(roster));
       await downloadClips(roster);
     } catch (err) {
       if (isNetworkError(err)) return;

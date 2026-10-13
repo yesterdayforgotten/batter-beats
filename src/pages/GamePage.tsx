@@ -2,12 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, isNetworkError } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
-import { fetchClip, loadClip, onAudioInterrupted, Playback, unlockAudio } from "../audio/engine.ts";
+import { fetchClip, forgetClipFiles, loadClip, onAudioInterrupted, Playback, unlockAudio } from "../audio/engine.ts";
 import { EditIcon, MusicIcon, PlayIcon, ReorderIcon, SkipIcon, SoundBars, StopIcon } from "../components/Icons.tsx";
 import { PageHead } from "../components/PageHead.tsx";
 import { SortableList } from "../components/SortableList.tsx";
 import { AppVersion } from "../components/AppVersion.tsx";
-import { changeLineup, onOfflineChange, savedRoster, saveIfKept, stuckChanges, withPendingChanges } from "../offline.ts";
+import {
+  changeLineup,
+  flushQueue,
+  onOfflineChange,
+  pendingChanges,
+  savedRoster,
+  saveIfKept,
+  stuckChanges,
+  withPendingChanges,
+} from "../offline.ts";
 import { cameFromGame } from "../editReturn.ts";
 import { teamStyle } from "../teamColors.ts";
 import { allowSleep, keepAwake, keepAwakeEarly } from "../wakeLock.ts";
@@ -111,6 +120,8 @@ export function GamePage() {
   };
   const [atBatId, setAtBatId] = useState<number | null>(() => readAtBat(id));
   const [sound, setSound] = useState<{ playerId: number; state: "loading" | "playing" | "fading" } | null>(null);
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
   /** Shown for a moment: Back was pressed while music plays, or a call took the sound away. */
   const [heads, setHeads] = useState<string | null>(null);
   const playback = useRef<Playback | null>(null);
@@ -126,7 +137,9 @@ export function GamePage() {
         for (const url of [p.clip?.url, p.announcement?.url]) if (url) void fetchClip(url).catch(() => {});
       }
     };
-    api<{ roster: Roster }>(`/rosters/${id}`, { timeoutMs: 5000 })
+    // Lineup changes still waiting are sent first, so the copy fetched can't be older than them.
+    (pendingChanges() > 0 ? flushQueue() : Promise.resolve())
+      .then(() => api<{ roster: Roster }>(`/rosters/${id}`, { timeoutMs: 5000 }))
       .then((r) => {
         const roster = withPendingChanges(r.roster);
         saveIfKept(roster);
@@ -134,7 +147,8 @@ export function GamePage() {
         show(roster);
       })
       .catch((err) => {
-        const saved = isNetworkError(err) ? savedRoster(Number(id)) : null;
+        const kept = isNetworkError(err) ? savedRoster(Number(id)) : null;
+        const saved = kept && withPendingChanges(kept);
         if (saved) {
           setFromPhone(true);
           show(saved);
@@ -183,7 +197,9 @@ export function GamePage() {
   useEffect(
     () =>
       onAudioInterrupted(() => {
-        if (!playback.current && jukebox.state.status === "stopped") return;
+        // Nothing playing or loading: nothing to reset.
+        if (!soundRef.current && !playback.current && jukebox.state.status === "stopped") return;
+        tapCount.current++; // a walkup still loading would otherwise start on the silenced phone
         playback.current?.stop();
         playback.current = null;
         setSound(null);
@@ -200,22 +216,33 @@ export function GamePage() {
   const guarded = navState?.guard === true;
   const wasGuarded = useRef(guarded);
   const [backWarned, setBackWarned] = useState(false);
+  /** Set while we step back over the extra entry ourselves, so that isn't taken for the user's Back. */
+  const removingGuard = useRef(false);
   useEffect(() => {
-    if (wasGuarded.current && !guarded && playingAny && !editing) {
-      // Back was pressed while playing: warn, and arm again after a few seconds.
+    const userWentBack = wasGuarded.current && !guarded && !removingGuard.current;
+    wasGuarded.current = guarded;
+    if (!guarded) removingGuard.current = false;
+    if (userWentBack && playingAny && !editing) {
+      // Back was pressed while playing: warn; the guard is armed again a few seconds later.
       setBackWarned(true);
       setHeads("Music is playing. Press Back again to leave game mode (the music will stop).");
-      const t = window.setTimeout(() => setBackWarned(false), 3000);
-      wasGuarded.current = guarded;
-      return () => window.clearTimeout(t);
+      return;
     }
-    wasGuarded.current = guarded;
     if (playingAny && !guarded && !backWarned && !editing) {
       navigate(location.pathname, { state: { ...(navState ?? {}), guard: true } });
     } else if (!playingAny && guarded && !editing && location.key !== "default") {
+      removingGuard.current = true;
       navigate(-1); // music stopped: take the extra entry away again
     }
   }, [playingAny, guarded, backWarned, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A few seconds after a warned Back, the guard comes back (in its own effect, so
+  // the guard effect running again can't cancel this timer).
+  useEffect(() => {
+    if (!backWarned) return;
+    const t = window.setTimeout(() => setBackWarned(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [backWarned]);
 
   // The heads-up notice goes away by itself.
   useEffect(() => {
@@ -224,12 +251,14 @@ export function GamePage() {
     return () => window.clearTimeout(t);
   }, [heads]);
 
-  // Leaving game mode: stop the music and let the screen sleep.
+  // Leaving game mode: stop the music (and any walkup still loading) and let the screen sleep.
   useEffect(
     () => () => {
+      tapCount.current++;
       playback.current?.stop();
       jukebox.stop();
       allowSleep();
+      forgetClipFiles();
     },
     [],
   );
@@ -252,7 +281,8 @@ export function GamePage() {
   function playJukebox(p: Playlist, songId?: number) {
     unlockAudio(); // must start inside the tap
     keepAwake();
-    // A walkup still playing gets out of the way.
+    // A walkup still playing (or still loading) gets out of the way.
+    tapCount.current++;
     playback.current?.fadeOut(SWITCH_FADE_SEC);
     playback.current = null;
     setSound(null);
@@ -272,11 +302,11 @@ export function GamePage() {
   async function tap(player: Player) {
     unlockAudio(); // both of these must start inside the tap
     keepAwake();
+    // A tap that arrives just after this batter's song stopped was meant to stop it: ignore it
+    // (before anything else happens, so it doesn't fade the jukebox either).
+    if (lastStop.current?.playerId === player.id && performance.now() - lastStop.current.at < RESTART_GUARD_MS) return;
     jukebox.fadeOut(BATTER_FADE_SEC); // the jukebox fades out for the batter
     const current = playback.current;
-
-    // A tap that arrives just after this batter's song stopped was meant to stop it: ignore it.
-    if (lastStop.current?.playerId === player.id && performance.now() - lastStop.current.at < RESTART_GUARD_MS) return;
 
     // Tapping the batter whose song is playing fades it out; tapping again while it fades stops it at once.
     if (player.id === sound?.playerId && current?.playing) {
@@ -292,7 +322,9 @@ export function GamePage() {
       return;
     }
 
-    current?.fadeOut(SWITCH_FADE_SEC);
+    // The song playing gets out of the way quickly (at once if it's already in a long fade-out).
+    if (current?.fading) current.stop();
+    else current?.fadeOut(SWITCH_FADE_SEC);
     playback.current = null;
     const tapId = ++tapCount.current;
     setAtBatId(player.id);
@@ -312,7 +344,13 @@ export function GamePage() {
         // A missing announcement shouldn't stop the song.
         announcement ? loadClip(announcement.url).catch(() => null) : null,
       ]);
-      if (tapId !== tapCount.current) return; // another batter was tapped meanwhile
+      if (tapId !== tapCount.current) return; // another batter was tapped (or the jukebox started) meanwhile
+      if (!buffer && !voice) {
+        // Only an announcement, and it didn't load.
+        setSound(null);
+        setError(`${player.name}'s announcement didn't load.`);
+        return;
+      }
       const p = new Playback(buffer, clip, voice && { buffer: voice, songDelayMs: player.songDelayMs });
       playback.current = p;
       setSound({ playerId: player.id, state: "playing" });

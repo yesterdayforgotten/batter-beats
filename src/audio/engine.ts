@@ -134,6 +134,11 @@ export function unlockAudio() {
 // and only the last few used are kept decoded, ready to play instantly.
 const MAX_DECODED = 6; // about 4 songs plus announcements, which are small
 const files = new Map<string, Promise<ArrayBuffer>>();
+
+/** Lets go of the clip files kept in memory (leaving game mode), so switching teams doesn't keep them all. */
+export function forgetClipFiles() {
+  files.clear();
+}
 const decoded = new Map<string, Promise<AudioBuffer>>(); // oldest first
 
 /** Downloads a clip file once and keeps it, without decoding it. */
@@ -257,7 +262,8 @@ export class Playback {
         Math.min((settings.endMs - settings.startMs) / 1000, settings.playMs / 1000, buffer.duration - offset),
       );
       // The end fade can't overlap the fade-in (Web Audio refuses overlapping curves).
-      const fade = Math.min(settings.fadeMs / 1000, this.lengthSec - FADE_IN_SEC);
+      // Ends just after the fade-in ramp: a curve starting exactly where the ramp ends can be refused.
+      const fade = Math.min(settings.fadeMs / 1000, this.lengthSec - FADE_IN_SEC - 0.001);
       const g = this.envelope.gain;
       g.setValueAtTime(0, songStart);
       g.linearRampToValueAtTime(1, songStart + FADE_IN_SEC);
