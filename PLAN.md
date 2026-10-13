@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Previous / next player (2026-10-13)
+Under the player editor's header: "‹ #7 Ben · 2 of 12 · #12 Cal ›", the neighbours in batting order. Each player gets a fresh editor (keyed by id), so moving saves anything pending and stops any preview, as leaving does.
+
 ### Undo deleting a player (2026-10-13)
 Deleting a player keeps a snapshot (their row and clip settings as JSON in `deleted_players`) and their clip/announcement files for 15 minutes; Edit team shows "Deleted Ava. Undo" (`POST /api/players/:id/restore` puts them back exactly, same id and batting position). Snapshots older than 15 minutes are purged with their files (at startup, every 5 minutes, and on each delete).
 

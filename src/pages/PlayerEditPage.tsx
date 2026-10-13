@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { context, loadClip, Playback, toneChain, unlockAudio } from "../audio/engine.ts";
 import { PageHead } from "../components/PageHead.tsx";
 import {
+  ChevronIcon,
   ClipEndIcon,
   ClipEndingPlayIcon,
   ClipPlayIcon,
@@ -30,7 +31,13 @@ const formatTime = (ms: number) => {
 };
 const formatDb = (db: number) => `${db > 0 ? "+" : db < 0 ? "−" : ""}${Math.abs(db).toFixed(1)} dB`;
 
+/** One editor per player: moving to the next player saves and resets everything, as if opened fresh. */
 export function PlayerEditPage() {
+  const { id } = useParams();
+  return <PlayerEditor key={id} />;
+}
+
+function PlayerEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [player, setPlayer] = useState<Player | null>(null);
@@ -71,6 +78,14 @@ export function PlayerEditPage() {
 
   /** The player's team colour, so this screen matches the team's other screens. */
   const [teamColor, setTeamColor] = useState<string | undefined>(undefined);
+  /** The team's players in batting order, for the previous / next buttons. */
+  const [teammates, setTeammates] = useState<Pick<Player, "id" | "name" | "number">[]>([]);
+  useEffect(() => {
+    if (!player) return;
+    api<{ roster: { players: Player[] } }>(`/rosters/${player.rosterId}`)
+      .then((r) => setTeammates(r.roster.players.map(({ id, name, number }) => ({ id, name, number }))))
+      .catch(() => {});
+  }, [player?.rosterId]);
   useEffect(() => {
     if (!player) return;
     api<{ rosters: RosterSummary[] }>("/rosters")
@@ -443,6 +458,7 @@ export function PlayerEditPage() {
         }
         right={<span className="save-state" style={saveState === "error" ? { color: "var(--danger)" } : undefined}>{saveLabel}</span>}
       />
+      <PrevNext teammates={teammates} current={player.id} />
       <div className="stack">
         <div className="row">
           <input
@@ -828,5 +844,39 @@ function TimeBox({ label, ms, onCommit }: { label: string; ms: number; onCommit(
         }
       }}
     />
+  );
+}
+
+/** "‹ #7 Ben" and "#12 Cal ›": the previous and next player in batting order. */
+function PrevNext({ teammates, current }: { teammates: Pick<Player, "id" | "name" | "number">[]; current: number }) {
+  const i = teammates.findIndex((t) => t.id === current);
+  if (i < 0 || teammates.length < 2) return null;
+  const prev = teammates[i - 1];
+  const next = teammates[i + 1];
+  const label = (t: Pick<Player, "name" | "number">) => `${t.number ? `#${t.number} ` : ""}${t.name}`;
+  return (
+    <nav className="prev-next" aria-label="Other players">
+      {prev ? (
+        <Link to={`/players/${prev.id}`} replace className="prev-next-link" aria-label={`Previous player: ${label(prev)}`}>
+          <span className="flip">
+            <ChevronIcon />
+          </span>
+          <span className="truncate">{label(prev)}</span>
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="muted small">
+        {i + 1} of {teammates.length}
+      </span>
+      {next ? (
+        <Link to={`/players/${next.id}`} replace className="prev-next-link next" aria-label={`Next player: ${label(next)}`}>
+          <span className="truncate">{label(next)}</span>
+          <ChevronIcon />
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }

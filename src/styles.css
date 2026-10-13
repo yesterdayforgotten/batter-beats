@@ -2086,3 +2086,29 @@ label,
   font-weight: 800;
   padding: 4px 0;
 }
+/* Player editor: previous / next player in batting order */
+.prev-next {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 10px;
+}
+.prev-next-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 36px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.prev-next-link.next {
+  justify-content: flex-end;
+}
+.prev-next .flip {
+  display: flex;
+  transform: scaleX(-1);
+}
