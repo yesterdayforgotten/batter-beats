@@ -1,9 +1,9 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { db } from "../db.ts";
+import { db, freshId } from "../db.ts";
 import { requireRole } from "../auth.ts";
 import { removeQuietly } from "../audio.ts";
 import { announcementPath, clipPath } from "../storage.ts";
-import { cleanStyle, currentStyle, refreshAnnouncements, remakeAnnouncement, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
+import { refreshAnnouncements, remakeAnnouncement, refreshRosterAnnouncements, setTeamAnnouncer } from "../announcer.ts";
 import { ANNOUNCER, DEFAULT_STYLE, TEAM_COLORS } from "../../shared/types.ts";
 import {
   getPlayer,
@@ -65,7 +65,7 @@ rostersRouter.post("/rosters", editor, (req, res) => {
   const id = Number(
     db
       .prepare("INSERT INTO rosters (name, announce_template, announcer_style) VALUES (?, ?, ?)")
-      .run(name, ANNOUNCER.defaultTemplate, JSON.stringify(cleanStyle({ ...currentStyle(), energy: DEFAULT_STYLE.energy, elevenTag: DEFAULT_STYLE.elevenTag })))
+      .run(name, ANNOUNCER.defaultTemplate, JSON.stringify({ energy: DEFAULT_STYLE.energy, elevenTag: DEFAULT_STYLE.elevenTag }))
       .lastInsertRowid,
   );
   res.status(201).json({ roster: getRoster(id) });
@@ -181,11 +181,10 @@ rostersRouter.post("/rosters/:id/players", editor, (req, res) => {
   const { next } = db
     .prepare("SELECT COALESCE(MAX(lineup_position), -1) + 1 AS next FROM players WHERE roster_id = ?")
     .get(rosterId) as { next: number };
-  const id = Number(
-    db
-      .prepare("INSERT INTO players (roster_id, name, number, lineup_position, song_delay_ms) VALUES (?, ?, ?, ?, ?)")
-      .run(rosterId, name, number, next, ANNOUNCER.defaultSongDelayMs).lastInsertRowid,
-  );
+  const id = freshId("players");
+  db.prepare(
+    "INSERT INTO players (id, roster_id, name, number, lineup_position, song_delay_ms) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(id, rosterId, name, number, next, ANNOUNCER.defaultSongDelayMs);
   touchRoster(rosterId);
   void refreshAnnouncements([id]);
   res.status(201).json({ player: getPlayer(id) });

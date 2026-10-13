@@ -173,6 +173,10 @@ export function AnnouncerSettings(props: {
       const r = await api<{ favorites: string[] }>("/announcer/favorites", { method: "PUT", body: { voice, favorite } });
       setInfo((i) => i && { ...i, favorites: r.favorites });
     } catch (err) {
+      // Not saved: put the star back as it was.
+      setInfo(
+        (i) => i && { ...i, favorites: favorite ? (i.favorites ?? []).filter((v) => v !== voice) : [...(i.favorites ?? []), voice] },
+      );
       setError((err as Error).message);
     }
   }

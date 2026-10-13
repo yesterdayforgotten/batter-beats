@@ -152,6 +152,13 @@ export async function storedSongIds(songs: PlaylistSong[]): Promise<Set<number>>
   return new Set(present.filter((id): id is number => id !== null));
 }
 
+/** Songs that couldn't be downloaded in a sync (by URL). */
+class SongsNotDownloaded extends Error {
+  constructor(readonly urls: Set<string>) {
+    super("Some songs didn't download.");
+  }
+}
+
 let syncing: Promise<void> | null = null;
 /** Set when the kept playlists change during a sync, so it goes round again. */
 let syncAgain = false;
@@ -166,10 +173,13 @@ function syncKeptSongs(): Promise<void> {
   syncAgain = true;
   if (syncing) return syncing;
   syncing = (async () => {
+    const failed = new Set<string>();
     while (syncAgain) {
       syncAgain = false;
-      await syncOnce();
+      await syncOnce(failed);
     }
+    // Reported once everything else has been tried, so one bad song doesn't hold up the rest.
+    if (failed.size > 0) throw new SongsNotDownloaded(failed);
   })().finally(() => {
     syncing = null;
     downloading = null;
@@ -179,33 +189,40 @@ function syncKeptSongs(): Promise<void> {
   return syncing;
 }
 
-async function syncOnce() {
+/** One pass: clears unwanted songs, then fetches missing ones, skipping (and noting) any that fail. */
+async function syncOnce(failed: Set<string>) {
   const kept = savedPlaylists().filter((p) => keepsPlaylist(p.id));
   const cache = await caches.open(SONG_CACHE);
   const wanted = new Set(kept.flatMap((p) => p.songs.map((s) => new URL(s.url, location.href).href)));
   for (const req of await cache.keys()) if (!wanted.has(req.url)) await cache.delete(req);
   const allUrls = [...new Set(kept.flatMap((p) => p.songs.map((s) => s.url)))];
-  const present = await Promise.all(allUrls.map((u) => cache.match(u)));
-  const missing = allUrls.filter((_, i) => !present[i]).length;
+  const found = await Promise.all(allUrls.map((u) => cache.match(u)));
+  const stored = new Set(allUrls.filter((_, i) => found[i]));
+  const missing = allUrls.length - stored.size;
   // Nothing to fetch: no progress shown, so a routine refresh doesn't flash the sync bar.
   if (missing === 0) return;
   const done = songsOverall?.done ?? 0;
   songsOverall = { done, total: done + missing };
   for (const playlist of kept) {
-    const stored = await storedSongIds(playlist.songs);
-    if (stored.size === playlist.songs.length) continue;
-    downloading = { playlistId: playlist.id, done: stored.size, total: playlist.songs.length };
+    const have = playlist.songs.filter((s) => stored.has(s.url)).length;
+    if (have === playlist.songs.length) continue;
+    downloading = { playlistId: playlist.id, done: have, total: playlist.songs.length };
     notify();
     for (const s of playlist.songs) {
-      if (stored.has(s.id)) continue;
-      // Another playlist may have fetched the same song meanwhile.
-      if (!(await cache.match(s.url))) {
+      // Switched off meanwhile: stop here; the next pass clears what it no longer needs.
+      if (!keepsPlaylist(playlist.id)) break;
+      if (stored.has(s.url)) continue;
+      try {
         const res = await fetch(s.url, { credentials: "same-origin" });
-        if (!res.ok) throw new Error(`A song didn't download (${res.status}).`);
+        if (!res.ok) throw new Error(String(res.status));
         await cache.put(s.url, res);
-        songsOverall.done++;
+        stored.add(s.url);
+        failed.delete(s.url);
+        downloading.done++;
+      } catch {
+        failed.add(s.url);
       }
-      downloading.done++;
+      songsOverall.done++;
       notify();
     }
     downloading = null;
@@ -219,7 +236,17 @@ export async function setKeepPlaylist(id: number, keep: boolean) {
   write(KEEP_KEY, keep ? [...new Set([...keptPlaylistIds(), id])] : keptPlaylistIds().filter((k) => k !== id));
   notify();
   if (keep) void navigator.storage?.persist?.().catch(() => false);
-  await syncKeptSongs();
+  try {
+    await syncKeptSongs();
+  } catch (err) {
+    if (!(err instanceof SongsNotDownloaded)) throw err;
+    // Only this playlist's own missing songs are its problem (several may be syncing together).
+    const playlist = savedPlaylists().find((p) => p.id === id);
+    const missed = keep ? (playlist?.songs.filter((s) => err.urls.has(s.url)).length ?? 0) : 0;
+    if (missed > 0) {
+      throw new Error(`${missed === 1 ? "A song" : `${missed} songs`} didn't download. Turn it off and on to try again.`);
+    }
+  }
 }
 
 /** Everything playlist-related on the phone; cleared when signing out. */

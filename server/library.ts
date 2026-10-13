@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { db } from "./db.ts";
+import { db, freshId } from "./db.ts";
 import { scanMp3, cutClip, type Mp3Info } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
@@ -368,8 +368,8 @@ export async function setPlayerSong(playerId: number, songId: number): Promise<C
     ).run(songId, endMs, fadeMs, existing.id);
   } else {
     db.prepare(
-      "INSERT INTO player_songs (player_id, song_id, position, start_ms, end_ms, fade_ms) VALUES (?, ?, 0, 0, ?, ?)",
-    ).run(playerId, songId, endMs, fadeMs);
+      "INSERT INTO player_songs (id, player_id, song_id, position, start_ms, end_ms, fade_ms) VALUES (?, ?, ?, 0, 0, ?, ?)",
+    ).run(freshId("player_songs"), playerId, songId, endMs, fadeMs);
   }
   return recut(playerId, true);
 }

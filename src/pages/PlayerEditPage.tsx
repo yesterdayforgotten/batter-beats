@@ -144,6 +144,7 @@ function PlayerEditor() {
       previewToken.current++;
       playback.current?.stop();
       wholeAudio.current?.pause();
+      wholeAudio.current = null; // also ends the playhead's animation loop
     },
     [send],
   );
@@ -818,7 +819,14 @@ function parseTime(text: string): number | null {
 /** A clip time you can also type ("1:23.4" or seconds); applied on Enter or leaving the box. */
 function TimeBox({ label, ms, onCommit }: { label: string; ms: number; onCommit(ms: number): void }) {
   const [text, setText] = useState<string | null>(null); // null: not being edited, show the clip's time
+  // Escape blurs the box; the blur must not then apply what was typed (state isn't updated yet at that point).
+  const cancelled = useRef(false);
   const commit = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      setText(null);
+      return;
+    }
     if (text === null) return;
     const value = parseTime(text);
     if (value !== null && value !== ms) onCommit(value);
@@ -839,7 +847,7 @@ function TimeBox({ label, ms, onCommit }: { label: string; ms: number; onCommit(
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         if (e.key === "Escape") {
-          setText(null);
+          cancelled.current = true;
           (e.target as HTMLInputElement).blur();
         }
       }}

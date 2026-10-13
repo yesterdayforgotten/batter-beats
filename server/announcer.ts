@@ -199,10 +199,10 @@ function voiceOf(r: AnnouncerRosterRow | undefined, engine: Engine): string {
   return parse<Record<string, string>>(r?.announcer_voices ?? null)?.[engine.id] ?? currentVoice();
 }
 
-/** A team's delivery settings. */
+/** A team's delivery settings: what the team saved, the app-wide settings for the rest. */
 function styleOf(r: AnnouncerRosterRow | undefined): AnnouncerStyle {
-  const saved = parse<unknown>(r?.announcer_style ?? null);
-  return saved ? cleanStyle(saved) : currentStyle();
+  const saved = parse<object>(r?.announcer_style ?? null);
+  return saved && typeof saved === "object" ? cleanStyle({ ...currentStyle(), ...saved }) : currentStyle();
 }
 
 /** The voice and delivery a team's announcements use. */
@@ -371,7 +371,9 @@ async function update(playerId: number): Promise<"done" | "changed"> {
   }
   try {
     const tmp = await makeAnnouncementFile(w.text, w.voice, w.style);
-    const file = `${p.id}-${w.key}.mp3`;
+    // A new name for every take: phones keep an announcement URL for good, so a
+    // remake under the same name would keep playing the old take.
+    const file = `${p.id}-${crypto.randomBytes(6).toString("hex")}.mp3`;
     await fs.promises.rename(tmp, announcementPath(file)).catch((err) => {
       removeQuietly(tmp);
       throw err;

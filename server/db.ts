@@ -164,6 +164,21 @@ const migrations: string[] = [
     deleted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
   `,
+  `
+  -- The announcer's built-in defaults changed (Hyped energy and new cues, for
+  -- new teams). Delivery settings saved before then, and the app-wide ones if
+  -- never saved, keep the earlier defaults, so existing announcements stay as
+  -- they are (and aren't all remade, spending voice credits).
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('announcer_style', '{"speed":1,"energy":"lively","pitch":0,"reverb":0,"reverbSize":0.6,"excitement":1,"elevenTag":"[shouting] [excited]"}');
+  UPDATE settings SET value = json_set(value,
+      '$.energy', coalesce(json_extract(value, '$.energy'), 'lively'),
+      '$.elevenTag', coalesce(json_extract(value, '$.elevenTag'), '[shouting] [excited]'))
+    WHERE key = 'announcer_style' AND json_valid(value);
+  UPDATE rosters SET announcer_style = json_set(announcer_style,
+      '$.energy', coalesce(json_extract(announcer_style, '$.energy'), 'lively'),
+      '$.elevenTag', coalesce(json_extract(announcer_style, '$.elevenTag'), '[shouting] [excited]'))
+    WHERE announcer_style IS NOT NULL AND json_valid(announcer_style);
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */
@@ -188,6 +203,21 @@ export function openDatabase(file: string): Database.Database {
 // `let`, so a restore can swap in a different database; modules that import
 // `db` always see the current one.
 export let db = openDatabase(DB_FILE);
+
+/**
+ * An id for a new player or player-song row. SQLite would reuse the highest id
+ * when that row was just deleted, but a deleted player can still be brought
+ * back for a few minutes, and their files (named after these ids) are only
+ * cleared later; so ids in those snapshots are skipped too.
+ */
+export function freshId(table: "players" | "player_songs"): number {
+  const max = (sql: string) => ((db.prepare(sql).get() as { m: number | null }).m ?? 0);
+  const deleted =
+    table === "players"
+      ? max("SELECT max(id) AS m FROM deleted_players")
+      : max("SELECT max(json_extract(s.value, '$.id')) AS m FROM deleted_players d, json_each(d.data, '$.songs') s");
+  return Math.max(max(`SELECT max(id) AS m FROM ${table}`), deleted) + 1;
+}
 
 /** Reopens the database file (after a restore has replaced it). */
 export function reopenDatabase() {

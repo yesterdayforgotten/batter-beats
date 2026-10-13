@@ -291,6 +291,15 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Second code review fixes (2026-10-13)
+Review of everything after the first review (2cd2794..d08bc4b). Fixed:
+- Remake gives the new take a new file name (each announcement file is `<player>-<random 12 hex>.mp3`); before, phones kept playing the cached old take.
+- New players and player songs never reuse the id of a player deleted in the last 15 minutes (`freshId` in `server/db.ts`). Before, the undo cleanup could delete a re-added player's files, and Undo failed.
+- Changing the built-in announcer defaults no longer changes teams set up earlier: a migration writes the old defaults (Lively, "[shouting] [excited]") into the app-wide delivery setting if it was never saved, and into team styles missing those fields. New teams save only their Hyped energy and cues; the rest of their delivery follows the app-wide settings (`styleOf` merges).
+- Escape in the clip time boxes cancels. Leaving the player editor ends the playhead loop. A favourite star that fails to save goes back.
+- Playlist downloads: one failed song no longer stops the others; it is reported only on its own playlist ("Turn it off and on to try again"). A playlist switched off mid-download stops at once. Each song is checked in the cache once per pass.
+- Left as is (owner's call): the sync bar can dip further than it should if a new download starts in the second after one finishes.
+
 ### Play all announcements (2026-10-13)
 Edit team's Players header has "Play all" (when the announcer is on and at least one announcement is ready): every announcement in batting order with a short gap, the speaking player's row outlined. A bar shows "#7 Ben · 2 of 12" with Remake (a fresh take for that player, played straight away, then the rest continue) and Stop. Players without an announcement are skipped and counted ("1 not ready"). Leaving the screen stops it. `src/components/AnnounceAll.tsx`.
 
