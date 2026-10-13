@@ -53,8 +53,8 @@ export function AnnouncerSettings(props: {
   /** Delivery settings being tried out; saved with "Use these settings". */
   const [style, setStyle] = useState<AnnouncerStyle>(props.style);
   const [savedNote, setSavedNote] = useState(false);
-  // Male voices first, since they suit a stadium announcer; change the filters to see others.
-  const [filters, setFilters] = useState<Filters>({ gender: "Male" });
+  // Every voice to begin with; the filters narrow it down.
+  const [filters, setFilters] = useState<Filters>({});
   /** The full voice list opens in a sheet; the page shows only the voice in use. */
   const [choosing, setChoosing] = useState(false);
   /** This month's voice-service credits (ElevenLabs only), shown under Listen. */
