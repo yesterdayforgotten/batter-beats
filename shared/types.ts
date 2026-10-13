@@ -226,7 +226,7 @@ export interface VoiceFilters {
 }
 
 export const ANNOUNCER = {
-  defaultTemplate: "Now batting number {number}, {name}!",
+  defaultTemplate: "[fast-paced]Now batting number {number}, [drawn out with emphasis]{name}!",
   maxSongDelayMs: 10_000,
   /** How loud the song is while the voice speaks over it. */
   duckGain: 0.25,
