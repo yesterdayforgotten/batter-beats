@@ -1996,3 +1996,17 @@ label,
   color: var(--faint);
   padding-top: 4px;
 }
+/* Voice rows: the Use button and the "In use" tag take the same width, so every Listen lines up */
+.voice-row .compact-button.primary,
+.voice-row .tag {
+  width: 64px;
+  justify-content: center;
+  text-align: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.voice-row .tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}

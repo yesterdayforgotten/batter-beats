@@ -349,11 +349,13 @@ export function AnnouncerSettings(props: {
                       <span className="voice-name">{name}</span>
                       <span className="voice-detail">{detail}</span>
                     </span>
-                    {id === current && <span className="tag on-deck-tag">In use</span>}
                     <button className="compact-button" onClick={() => listen(id)} disabled={playing === id}>
                       {playing === id ? "…" : "Listen"}
                     </button>
-                    {id !== current && (
+                    {/* "In use" sits where the other rows have their Use button. */}
+                    {id === current ? (
+                      <span className="tag on-deck-tag">In use</span>
+                    ) : (
                       <button className="compact-button primary" onClick={() => choose(id)}>
                         Use
                       </button>
