@@ -293,10 +293,26 @@ export function PlayerEditPage() {
 
   /** Plays the whole song from the top (or stops it), with the playhead moving across the waveform. */
   function toggleWholeSong() {
-    if (!clip) return;
     if (wholeSong) return stopPreview();
+    playWholeSongFrom(0);
+  }
+
+  /** Plays the whole song from a point (a tap on the waveform); if it's already playing, jumps there. */
+  function playWholeSongFrom(ms: number) {
+    if (!clip) return;
+    unlockAudio();
+    const playing = wholeAudio.current;
+    if (playing) {
+      playing.currentTime = ms / 1000;
+      setPlayheadMs(ms);
+      return;
+    }
     stopPreview();
     const a = new Audio(`/api/media/songs/${clip.song.id}.mp3`);
+    a.currentTime = ms / 1000;
+    // Safari can ignore a jump made before the song has loaded: make it again once it has.
+    if (ms > 0) a.addEventListener("loadedmetadata", () => (a.currentTime = ms / 1000), { once: true });
+    setPlayheadMs(ms);
     wholeAudio.current = a;
     setWholeSong(true);
     a.onended = () => {
@@ -431,6 +447,7 @@ export function PlayerEditPage() {
                   playheadMs={playheadMs}
                   onChange={(startMs, endMs) => change({ startMs, endMs }, false)}
                   onCommit={(startMs, endMs) => change({ startMs, endMs }, true)}
+                  onSeek={playWholeSongFrom}
                 />
               ) : (
                 <div className="waveform" />
@@ -484,7 +501,7 @@ export function PlayerEditPage() {
               <span className="muted small">
                 {playheadMs != null
                   ? `At ${formatTime(playheadMs)}: tap the left bracket to start the clip here, or the right one to end it here.`
-                  : "Play the whole song (or the preview), then tap a bracket to set the start or end by ear."}
+                  : "Tap the waveform (or Play whole song) to listen from there, then tap a bracket to set the start or end by ear."}
               </span>
             </>
           )}

@@ -18,16 +18,22 @@ interface Props {
   onChange(startMs: number, endMs: number): void;
   /** Called when a drag ends. */
   onCommit(startMs: number, endMs: number): void;
+  /** A tap (not a drag) on the waveform: play from this point. */
+  onSeek?(ms: number): void;
 }
 
-type Drag = { kind: "start" | "end" | "move"; grabMs: number; startMs: number; endMs: number };
+/** "tap" until the finger has moved far enough to count as dragging the clip. */
+type Drag = { kind: "start" | "end" | "move" | "tap"; grabMs: number; grabX: number; startMs: number; endMs: number };
+
+/** How far a finger may move and still count as a tap. */
+const TAP_SLOP_PX = 8;
 
 /**
  * The whole song as a waveform, with the clip highlighted. Drag the handles
  * to change the start or end, drag the middle to move the clip, or tap
- * outside it to move the clip there.
+ * anywhere to play from that point.
  */
-export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs, onChange, onCommit }: Props) {
+export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs, onChange, onCommit, onSeek }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
@@ -109,23 +115,22 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
     let kind: Drag["kind"];
     if (Math.abs(x - msToX(s)) <= HANDLE_HIT_PX && Math.abs(x - msToX(s)) <= Math.abs(x - msToX(en))) kind = "start";
     else if (Math.abs(x - msToX(en)) <= HANDLE_HIT_PX) kind = "end";
-    else if (ms > s && ms < en) kind = "move";
-    else {
-      // Tap outside the clip: move the clip so it starts here.
-      const len = en - s;
-      const ns = Math.min(Math.round(ms), durationMs - len);
-      onChange(ns, ns + len);
-      onCommit(ns, ns + len);
-      return;
-    }
+    else kind = "tap"; // becomes "move" if it's a drag inside the clip
     (e.target as Element).setPointerCapture(e.pointerId);
-    drag.current = { kind, grabMs: ms, startMs: s, endMs: en };
+    drag.current = { kind, grabMs: ms, grabX: x, startMs: s, endMs: en };
   }
 
   function onMove(e: PointerEvent) {
     const d = drag.current;
     if (!d) return;
-    const ms = xToMs(localX(e));
+    const x = localX(e);
+    if (d.kind === "tap") {
+      // Still a tap until it moves; then a drag that started inside the clip moves the clip.
+      if (Math.abs(x - d.grabX) < TAP_SLOP_PX) return;
+      if (d.grabMs > d.startMs && d.grabMs < d.endMs) d.kind = "move";
+      else return;
+    }
+    const ms = xToMs(x);
     const { minLengthMs, maxLengthMs } = CLIP_LIMITS;
     let s = d.startMs;
     let en = d.endMs;
@@ -140,8 +145,13 @@ export function Waveform({ peaks, durationMs, startMs, endMs, fadeMs, playheadMs
   }
 
   function onUp() {
-    if (!drag.current) return;
+    const d = drag.current;
+    if (!d) return;
     drag.current = null;
+    if (d.kind === "tap") {
+      onSeek?.(Math.round(d.grabMs));
+      return;
+    }
     onCommit(latest.current.startMs, latest.current.endMs);
   }
 
