@@ -43,17 +43,24 @@ export function RosterEditPage() {
     }
   }
 
+  /** Counts colour taps, so only the latest one's reply (or failure) is applied. */
+  const colorSeq = useRef(0);
+  /** The colour the server last confirmed, to go back to if a change fails. */
+  const savedColor = useRef<string | null>(null);
+
   /** Changes the team colour at once (put back if the server refuses). */
   async function saveColor(color: string) {
     if (!roster || color === roster.color) return;
-    const before = roster;
-    setRoster({ ...roster, color });
+    savedColor.current ??= roster.color;
+    const seq = ++colorSeq.current;
+    setRoster((r) => (r ? { ...r, color } : r));
     try {
       const r = await api<{ roster: Roster }>(`/rosters/${roster.id}`, { method: "PATCH", body: { color } });
-      setRoster(r.roster);
+      savedColor.current = r.roster.color;
+      if (seq === colorSeq.current) setRoster((cur) => (cur ? { ...cur, color: r.roster.color } : cur));
     } catch (err) {
-      setRoster(before);
       setError((err as Error).message);
+      if (seq === colorSeq.current) setRoster((cur) => (cur ? { ...cur, color: savedColor.current ?? cur.color } : cur));
     }
   }
 
@@ -100,8 +107,12 @@ export function RosterEditPage() {
   async function deleteRoster() {
     if (!roster) return;
     if (!confirm(`Delete ${roster.name} and all its players? Songs stay in the library.`)) return;
-    await api(`/rosters/${roster.id}`, { method: "DELETE" });
-    navigate("/");
+    try {
+      await api(`/rosters/${roster.id}`, { method: "DELETE" });
+      navigate("/");
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
 
   return (
@@ -261,7 +272,7 @@ export function RosterEditPage() {
               );
             }}
           </SortableList>
-          {!sorting && <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster({ ...roster, players: [...roster.players, p] })} />}
+          {!sorting && <AddPlayer rosterId={roster.id} onAdded={(p) => setRoster((r) => (r ? { ...r, players: [...r.players, p] } : r))} />}
 
           <button className="danger" style={{ marginTop: 24, alignSelf: "center" }} onClick={deleteRoster}>
             Delete team
@@ -280,8 +291,12 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
   const numberInput = useRef<HTMLInputElement>(null);
 
   // Stays open after each add so a whole team can be typed in one go; songs are chosen later in the player editor.
+  const [busy, setBusy] = useState(false);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (busy) return; // a double tap (or Enter twice) mustn't add the player twice
+    setBusy(true);
     try {
       const r = await api<{ player: Player }>(`/rosters/${rosterId}/players`, { body: { name, number } });
       onAdded(r.player);
@@ -291,6 +306,8 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
       numberInput.current?.focus();
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -319,7 +336,9 @@ function AddPlayer({ rosterId, onAdded }: { rosterId: number; onAdded(p: Player)
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
-        <button className="primary">Add player</button>
+        <button className="primary" disabled={busy}>
+          {busy ? "Adding…" : "Add player"}
+        </button>
         <button type="button" onClick={() => setOpen(false)}>
           Done
         </button>

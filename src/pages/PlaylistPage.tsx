@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.ts";
 import { hasRole, useAuth } from "../auth.tsx";
@@ -137,13 +137,41 @@ export function PlaylistEditPage() {
       .catch((err) => setError(err.message));
   }, [id]);
 
-  async function save(songIds: number[]) {
+  // The song list as the user last left it. Changes show at once; saves go one at a
+  // time, each sending the latest list, so quick taps can't undo each other and a
+  // late reply can't overwrite newer changes.
+  const [wantedIds, setWantedIds] = useState<number[] | null>(null);
+  const wanted = useRef<number[] | null>(null);
+  const saveSeq = useRef(0);
+  const saveChain = useRef(Promise.resolve());
+  const ids = wantedIds ?? playlist?.songs.map((s) => s.id) ?? [];
+  /** The songs to show: the playlist in the wanted order (songs just added appear once saved). */
+  const shownSongs = playlist ? ids.flatMap((sid) => playlist.songs.find((x) => x.id === sid) ?? []) : [];
+
+  function save(songIds: number[]) {
     if (!playlist) return;
-    try {
-      setPlaylist(await setPlaylistSongs(playlist.id, songIds));
-    } catch (err) {
-      setError((err as Error).message);
-    }
+    wanted.current = songIds;
+    setWantedIds(songIds);
+    const seq = ++saveSeq.current;
+    saveChain.current = saveChain.current.then(async () => {
+      if (seq !== saveSeq.current) return; // a newer change will send the latest list
+      try {
+        const saved = await setPlaylistSongs(playlist.id, wanted.current ?? songIds);
+        if (seq === saveSeq.current) {
+          setPlaylist(saved);
+          setWantedIds(null);
+        }
+      } catch (err) {
+        setError((err as Error).message);
+        if (seq === saveSeq.current) {
+          // Show what the server really has.
+          const r = await loadPlaylists().catch(() => null);
+          const fresh = r?.playlists.find((x) => x.id === playlist.id);
+          if (fresh) setPlaylist(fresh);
+          setWantedIds(null);
+        }
+      }
+    });
   }
 
   async function saveName() {
@@ -199,17 +227,16 @@ export function PlaylistEditPage() {
 
           <div className="row" style={{ marginTop: 6 }}>
             <span className="section-title">Songs</span>
-            <span className="muted small grow">{summary(playlist)}</span>
+            <span className="muted small grow">{summary({ ...playlist, songs: shownSongs })}</span>
           </div>
-          {playlist.songs.length === 0 && <p className="empty">{canEdit ? "No songs yet. Add some below." : "No songs yet."}</p>}
+          {shownSongs.length === 0 && <p className="empty">{canEdit ? "No songs yet. Add some below." : "No songs yet."}</p>}
           <SortableList
-            items={playlist.songs}
+            items={shownSongs}
             keyOf={(s) => s.id}
-            sorting={canEdit && playlist.songs.length > 1}
+            sorting={canEdit && shownSongs.length > 1}
             compact
             onReorder={(songs) => {
-              setPlaylist({ ...playlist, songs });
-              void save(songs.map((s) => s.id));
+              save(songs.map((s) => s.id));
             }}
           >
             {(s, i) => (
@@ -226,7 +253,7 @@ export function PlaylistEditPage() {
                   <button
                     className="row-remove"
                     aria-label={`Remove ${s.title}`}
-                    onClick={() => save(playlist.songs.filter((x) => x.id !== s.id).map((x) => x.id))}
+                    onClick={() => save(ids.filter((x) => x !== s.id))}
                   >
                     ×
                   </button>
@@ -249,7 +276,7 @@ export function PlaylistEditPage() {
       )}
       {adding && playlist && (
         <AddSongsSheet
-          inPlaylist={playlist.songs.map((s) => s.id)}
+          inPlaylist={ids}
           onChange={(ids) => save(ids)}
           onClose={() => setAdding(false)}
         />

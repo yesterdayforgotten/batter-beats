@@ -148,6 +148,12 @@ const migrations: string[] = [
     SELECT user_id, song_id, position FROM playlist_songs;
   DROP TABLE playlist_songs;
   `,
+  `
+  -- A fingerprint of each song's audio frames (not its tags), to recognise the
+  -- same recording uploaded again. Filled in at startup for songs from before.
+  ALTER TABLE songs ADD COLUMN audio_hash TEXT;
+  CREATE INDEX songs_audio_hash ON songs(audio_hash);
+  `,
 ];
 
 /** Opens a database file and brings it up to the current version. */

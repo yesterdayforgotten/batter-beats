@@ -16,11 +16,13 @@ import { playlistRouter } from "./routes/playlist.ts";
 import { adminRouter } from "./routes/admin.ts";
 import { startAnnouncer } from "./announcer.ts";
 import { ensureTools } from "./audio.ts";
+import { fingerprintOldSongs } from "./library.ts";
 import { isPaused } from "./maintenance.ts";
 import { dirs } from "./storage.ts";
 
 await ensureFirstAdmin();
 await ensureTools();
+void fingerprintOldSongs().catch((err) => console.error("Fingerprinting songs failed:", err));
 
 // Leftovers from a crash or restart (half-made uploads, clips, backups) are
 // thrown away; the data replaced by the last restore is kept.

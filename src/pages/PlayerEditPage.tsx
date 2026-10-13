@@ -44,6 +44,8 @@ export function PlayerEditPage() {
   const timer = useRef<number | undefined>(undefined);
   const inFlight = useRef<Promise<void>>(Promise.resolve());
   const playback = useRef<Playback | null>(null);
+  /** Bumped whenever a preview or Listen is stopped or replaced, so one still loading knows not to start. */
+  const previewToken = useRef(0);
 
   /** The player's team colour, so this screen matches the team's other screens. */
   const [teamColor, setTeamColor] = useState<string | undefined>(undefined);
@@ -89,6 +91,8 @@ export function PlayerEditPage() {
         setClip(r.player.clip && { ...r.player.clip, ...unsent.current });
         setSaveState(Object.keys(unsent.current).length ? "saving" : "saved");
       } catch (err) {
+        // Not lost: these go again with the next change, or when leaving the screen (newer edits win).
+        unsent.current = { ...changes, ...unsent.current };
         setSaveState("error");
         setError((err as Error).message);
       }
@@ -98,8 +102,9 @@ export function PlayerEditPage() {
 
   useEffect(
     () => () => {
-      // Leaving the screen: save anything pending and stop the preview.
+      // Leaving the screen: save anything pending and stop the preview (or one still loading).
       void send();
+      previewToken.current++;
       playback.current?.stop();
     },
     [send],
@@ -114,25 +119,36 @@ export function PlayerEditPage() {
     else timer.current = window.setTimeout(send, SAVE_DELAY_MS);
   }
 
-  /** Saves name, number and announcer settings; returns the updated player. */
+  // The latest typed values, for saves that finish after more typing.
+  const latest = useRef({ name, number, pronunciation });
+  latest.current = { name, number, pronunciation };
+
+  /**
+   * Saves name, number and announcer settings; returns the updated player.
+   * Only fields that changed are sent, and the reply only replaces a box the
+   * user hasn't typed in since (so a slow save can't wipe newer typing).
+   */
   async function savePlayer(extra: Partial<Pick<Player, "announce" | "songDelayMs">> = {}): Promise<Player | null> {
     if (!player) return null;
-    const unchanged =
-      name.trim() === player.name &&
-      number.trim() === player.number &&
-      pronunciation.trim() === player.pronunciation &&
-      Object.keys(extra).length === 0;
-    if (unchanged) return player;
+    const sent = { name: name.trim(), number: number.trim(), pronunciation: pronunciation.trim() };
+    if (!sent.name) {
+      // A player needs a name: put it back rather than blocking every other save.
+      setName(player.name);
+      sent.name = player.name;
+    }
+    const body: Record<string, unknown> = { ...extra };
+    if (sent.name !== player.name) body.name = sent.name;
+    if (sent.number !== player.number) body.number = sent.number;
+    if (sent.pronunciation !== player.pronunciation) body.pronunciation = sent.pronunciation;
+    if (Object.keys(body).length === 0) return player;
     try {
       setSaveState("saving");
-      const r = await api<{ player: Player }>(`/players/${player.id}`, {
-        method: "PATCH",
-        body: { name, number, pronunciation, ...extra },
-      });
+      const r = await api<{ player: Player }>(`/players/${player.id}`, { method: "PATCH", body });
       setPlayer(r.player);
-      setName(r.player.name);
-      setNumber(r.player.number);
-      setPronunciation(r.player.pronunciation);
+      const now = latest.current;
+      if (now.name.trim() === sent.name) setName(r.player.name);
+      if (now.number.trim() === sent.number) setNumber(r.player.number);
+      if (now.pronunciation.trim() === sent.pronunciation) setPronunciation(r.player.pronunciation);
       setSaveState("saved");
       return r.player;
     } catch (err) {
@@ -161,6 +177,7 @@ export function PlayerEditPage() {
   async function listen() {
     unlockAudio(); // must happen inside the tap
     stopPreview();
+    const token = previewToken.current;
     setListening(true);
     try {
       const p = await freshAnnouncement();
@@ -168,6 +185,7 @@ export function PlayerEditPage() {
         throw new Error(p?.announcementError ?? "The announcer is off for this player or this team.");
       }
       const voice = await loadClip(p.announcement.url);
+      if (token !== previewToken.current) return; // stopped, left, or something else started meanwhile
       const pb = new Playback(null, null, { buffer: voice, songDelayMs: 0 });
       playback.current = pb;
       pb.onEnded = () => {
@@ -198,13 +216,18 @@ export function PlayerEditPage() {
   async function deletePlayer() {
     if (!player || !confirm(`Delete ${player.name} from the team? Their song stays in the library.`)) return;
     stopPreview();
-    await api(`/players/${player.id}`, { method: "DELETE" });
-    navigate(`/rosters/${player.rosterId}/edit`, { replace: true });
+    try {
+      await api(`/players/${player.id}`, { method: "DELETE" });
+      navigate(`/rosters/${player.rosterId}/edit`, { replace: true });
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
 
   // ── Preview ──────────────────────────────────────────────────────────
 
   function stopPreview() {
+    previewToken.current++;
     playback.current?.stop();
     playback.current = null;
     setPlaying(false);
@@ -217,6 +240,13 @@ export function PlayerEditPage() {
       playback.current.fadeOut();
       return;
     }
+    if (playing) {
+      // Tapped again while it's still getting ready: cancel instead of starting a second one.
+      stopPreview();
+      return;
+    }
+    stopPreview();
+    const token = previewToken.current;
     setPlaying(true);
     try {
       await send();
@@ -230,6 +260,7 @@ export function PlayerEditPage() {
         loadClip(current.url),
         fresh?.announcement ? loadClip(fresh.announcement.url).catch(() => null) : null,
       ]);
+      if (token !== previewToken.current) return; // stopped, left the screen, or tapped again meanwhile
       const p = new Playback(buffer, current, voice && { buffer: voice, songDelayMs });
       playback.current = p;
       p.onEnded = () => {
@@ -242,6 +273,7 @@ export function PlayerEditPage() {
       };
       requestAnimationFrame(tick);
     } catch (err) {
+      if (token !== previewToken.current) return;
       setError((err as Error).message);
       setPlaying(false);
     }

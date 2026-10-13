@@ -69,7 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await api("/auth/logout", { body: {} });
+    // Without a connection the server can't be told, but this phone still signs out
+    // (the session there simply goes unused).
+    await api("/auth/logout", { body: {} }).catch(() => {});
     remember(null);
     await clearAll();
     await clearPlaylistData();

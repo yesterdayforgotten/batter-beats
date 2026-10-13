@@ -86,6 +86,8 @@ export function MusicPage() {
     const a = new Audio(s.url);
     a.onended = () => setPlayingId((id) => (id === s.id ? null : id));
     a.play().catch((err) => {
+      // Switching to another song interrupts this one's start; that's not a failure.
+      if (audio.current !== a || (err as Error).name === "AbortError") return;
       setPlayingId(null);
       setError(`Couldn't play it. ${(err as Error).message}`);
     });
@@ -105,15 +107,26 @@ export function MusicPage() {
     }
   }
 
+  /** Per song: how many tag saves were started, and the tags the server last confirmed. */
+  const tagSeq = useRef(new Map<number, number>());
+  const savedTags = useRef(new Map<number, string[]>());
+
   async function saveTags(s: LibrarySong, tags: string[]) {
+    // Only the latest save's reply (or failure) for a song is applied, so quick edits can't be undone by a late reply.
+    const seq = (tagSeq.current.get(s.id) ?? 0) + 1;
+    tagSeq.current.set(s.id, seq);
+    if (!savedTags.current.has(s.id)) savedTags.current.set(s.id, s.tags);
+    const latest = () => tagSeq.current.get(s.id) === seq;
     setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags } : x)) ?? null);
     try {
       const r = await api<{ song: Song }>(`/songs/${s.id}/tags`, { method: "PUT", body: { tags } });
-      setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags: r.song.tags } : x)) ?? null);
+      savedTags.current.set(s.id, r.song.tags);
       setSuggestions((sg) => ({ ...sg, used: [...new Set([...sg.used, ...r.song.tags])] }));
+      if (latest()) setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags: r.song.tags } : x)) ?? null);
     } catch (err) {
-      setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags: s.tags } : x)) ?? null);
       setError((err as Error).message);
+      const back = savedTags.current.get(s.id) ?? s.tags;
+      if (latest()) setSongs((list) => list?.map((x) => (x.id === s.id ? { ...x, tags: back } : x)) ?? null);
     }
   }
 

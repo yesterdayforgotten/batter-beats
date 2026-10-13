@@ -14,7 +14,7 @@ import { config } from "./config.ts";
 import { DB_FILE, db, openDatabase, reopenDatabase } from "./db.ts";
 import { dirs } from "./storage.ts";
 import { announcerIdle, refreshAllAnnouncements } from "./announcer.ts";
-import { recutsIdle } from "./library.ts";
+import { fingerprintOldSongs, recutsIdle } from "./library.ts";
 import { setPaused } from "./maintenance.ts";
 
 /** Folders in the data folder that a backup holds (everything except tmp). */
@@ -141,6 +141,7 @@ export async function restoreBackup(file: string) {
       if (entry.startsWith("before-restore-") && full !== aside) await fs.promises.rm(full, { recursive: true, force: true });
     }
     void refreshAllAnnouncements();
+    void fingerprintOldSongs().catch(() => {}); // songs in an older backup have no fingerprint yet
   } finally {
     await fs.promises.rm(unpacked, { recursive: true, force: true });
   }

@@ -1,7 +1,8 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db.ts";
-import { scanMp3, cutClip } from "./mp3.ts";
+import { scanMp3, cutClip, type Mp3Info } from "./mp3.ts";
 import { applyFrameGain, computePeaks, measurePeak, readTags, removeQuietly } from "./audio.ts";
 import { clipPath, dirs, peaksPath, songPath } from "./storage.ts";
 import { teamAnnouncer, wanted, type AnnouncerPlayerRow } from "./announcer.ts";
@@ -148,6 +149,26 @@ export function deleteSong(id: number) {
   removeQuietly(peaksPath(id));
 }
 
+/** A fingerprint of an MP3's audio frames only, so re-tagging a file doesn't change it. */
+function audioHash(buf: Buffer, info: Mp3Info): string {
+  const h = crypto.createHash("sha1");
+  for (const f of info.frames) h.update(buf.subarray(f.offset, f.offset + f.length));
+  return h.digest("hex");
+}
+
+/** Fingerprints songs uploaded before fingerprints existed (once, at startup). */
+export async function fingerprintOldSongs() {
+  const rows = db.prepare("SELECT id FROM songs WHERE audio_hash IS NULL").all() as { id: number }[];
+  for (const { id } of rows) {
+    try {
+      const buf = await fs.promises.readFile(songPath(id));
+      db.prepare("UPDATE songs SET audio_hash = ? WHERE id = ?").run(audioHash(buf, scanMp3(buf)), id);
+    } catch {
+      // Missing or unreadable file: left without a fingerprint.
+    }
+  }
+}
+
 /** Checks an uploaded file, stores it in the library and builds its waveform. */
 export async function addSong(tmpFile: string, originalName: string, userId: number): Promise<{ song: Song; existing: boolean }> {
   try {
@@ -155,24 +176,33 @@ export async function addSong(tmpFile: string, originalName: string, userId: num
     const info = scanMp3(buf); // throws for anything that is not a usable MP3
     const tags = await readTags(tmpFile);
     const fallbackTitle = path.basename(originalName).replace(/\.mp3$/i, "").slice(0, 200) || "Untitled";
-    // The same song uploaded again (same title, artist and length to within a second)
-    // isn't stored twice: the copy already in the library is used instead.
-    const same = db
-      .prepare(
-        `SELECT id FROM songs WHERE title = ? COLLATE NOCASE AND artist = ? COLLATE NOCASE
-         AND ABS(duration_ms - ?) < 1000 ORDER BY id LIMIT 1`,
-      )
-      .get(tags.title ?? fallbackTitle, tags.artist ?? "", Math.round(info.durationSec * 1000)) as { id: number } | undefined;
+    // The same recording uploaded again (identical audio, whatever its tags say) isn't
+    // stored twice: the copy already in the library is used instead. A different version
+    // (a clean edit, another master) has different audio, so it's kept as its own song.
+    const hash = audioHash(buf, info);
+    const findSame = () =>
+      db.prepare("SELECT id FROM songs WHERE audio_hash = ? ORDER BY id LIMIT 1").get(hash) as { id: number } | undefined;
+    const same = findSame();
     if (same) return { song: getSong(same.id)!, existing: true };
     const peaks = await computePeaks(tmpFile);
+    // Checked again: the same file may have finished uploading meanwhile (two at once).
+    const sameNow = findSame();
+    if (sameNow) return { song: getSong(sameNow.id)!, existing: true };
     const id = Number(
       db
-        .prepare("INSERT INTO songs (title, artist, original_name, duration_ms, uploaded_by) VALUES (?, ?, ?, ?, ?)")
-        .run(tags.title ?? fallbackTitle, tags.artist ?? "", originalName.slice(0, 300), Math.round(info.durationSec * 1000), userId)
+        .prepare("INSERT INTO songs (title, artist, original_name, duration_ms, uploaded_by, audio_hash) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(tags.title ?? fallbackTitle, tags.artist ?? "", originalName.slice(0, 300), Math.round(info.durationSec * 1000), userId, hash)
         .lastInsertRowid,
     );
-    await fs.promises.rename(tmpFile, songPath(id));
-    await fs.promises.writeFile(peaksPath(id), JSON.stringify(peaks));
+    try {
+      await fs.promises.rename(tmpFile, songPath(id));
+      await fs.promises.writeFile(peaksPath(id), JSON.stringify(peaks));
+    } catch (err) {
+      // Don't leave a song in the library without its file.
+      db.prepare("DELETE FROM songs WHERE id = ?").run(id);
+      removeQuietly(songPath(id));
+      throw err;
+    }
     return { song: getSong(id)!, existing: false };
   } finally {
     removeQuietly(tmpFile);

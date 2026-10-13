@@ -81,7 +81,11 @@ export function AnnouncerSettings(props: {
     setSavedNote(false);
   };
 
+  const [saving, setSaving] = useState(false);
+
   async function save() {
+    if (saving) return; // twice would remake every announcement twice (and spend credits twice)
+    setSaving(true);
     setError(null);
     try {
       setStyle(
@@ -94,12 +98,26 @@ export function AnnouncerSettings(props: {
       window.setTimeout(() => void loadCredits(), 15_000); // once the team's announcements are remade
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
+
+  /** Bumped by each Listen (and on leaving), so a sample still loading knows it was replaced. */
+  const listenToken = useRef(0);
+  useEffect(
+    () => () => {
+      listenToken.current++;
+      playback.current?.stop();
+    },
+    [],
+  );
 
   async function listen(voice: string) {
     unlockAudio(); // must start inside the tap
     playback.current?.stop();
+    playback.current = null;
+    const token = ++listenToken.current;
     setPlaying(voice);
     setError(null);
     try {
@@ -111,10 +129,12 @@ export function AnnouncerSettings(props: {
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "The sample didn't play.");
       void loadCredits(); // making the sample used some
       const buffer = await context().decodeAudioData(await res.arrayBuffer());
+      if (token !== listenToken.current) return; // another Listen, or the section closed, meanwhile
       const p = new Playback(null, null, { buffer, songDelayMs: 0 });
       playback.current = p;
       p.onEnded = () => setPlaying((v) => (v === voice ? null : v));
     } catch (err) {
+      if (token !== listenToken.current) return;
       setError((err as Error).message);
       setPlaying(null);
     }
@@ -239,8 +259,8 @@ export function AnnouncerSettings(props: {
             )}
           </div>
           {changed && (
-            <button className="primary" onClick={save}>
-              Use these settings
+            <button className="primary" onClick={save} disabled={saving}>
+              {saving ? "Saving…" : "Use these settings"}
             </button>
           )}
           {savedNote && !changed && (

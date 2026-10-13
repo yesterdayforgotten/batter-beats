@@ -280,6 +280,9 @@ These were not verified during planning. Test each one and tell the owner what y
 - Offline: "Keep on this phone" downloads the playlist's songs into Cache Storage `bb-songs` (size shown) and keeps them in step with the playlist; offline, kept songs play from the phone and others are skipped. The playlist itself is remembered on the phone. Signing out clears it.
 - Tested in headless Chromium: build a playlist, keep it, start/stop in game mode, fade on batter tap, play offline from the phone.
 
+### Code review fixes (2026-10-13)
+A four-part review (server security, server media/announcer, game day, editing screens) found timing bugs. Fixed: server crash risks (speech-cache prune, announcer loop), restore pausing requests and background jobs (`server/maintenance.ts`), time limits on ffmpeg/mp3gain/tar, cancelled backups, temp files swept at startup; game-day races (stale walkup loads, Back guard re-arming, jukebox ending mid-fade, unsent lineup changes vs refetch, built-in keep-awake video); editing races (playlist edits saved in order, player fields not overwritten by late replies, failed clip saves kept, previews/samples cancelled on leave, double submits, latest colour/tag save wins, sign out offline, duplicate detection by audio). Still open from the review (hardening, owner chose to do later): restore rejecting symlinks, capping tag lists, signing out other sessions on password change and session expiry, rate-limiting voice samples, long-MP3 memory, login timing, keyboard alternative to dragging.
+
 ### Game-day safeguards (2026-10-12)
 - Back while music plays (walkup or jukebox) doesn't leave game mode: an extra history entry catches it and a notice says to press Back again (within 3 s) to leave; the entry is taken away when the music stops. Reorder entries keep it.
 - A call, Siri or alarm interrupting the sound (AudioContext leaves "running"): playing state is cleared with a notice, and the next tap wakes the sound (the iOS silent keep-alive loop is restarted too). `onAudioInterrupted` in `src/audio/engine.ts`. Web apps can't silence ringtones or notifications; game-day runners should use Do Not Disturb / Focus.
@@ -301,7 +304,7 @@ Owner-approved conventions from a full review at iPhone 6s size:
 - Player editor: song and clip first, then the announcer; "Delete player" (matching Delete team / Delete song); team colour.
 - Edit team shows only the current voice (Listen, Change voice); the voice list with filters opens in a sheet.
 - Song picker: current song first, then songs tagged for the player/team, then all; Listen on each row; upload is a secondary button.
-- Uploads of a song already in the library (same title and artist, length within 1 s) aren't stored again; the existing song is used (batch tags are added to it). `POST /api/songs` answers `{song, existing}`.
+- Uploads of a song already in the library aren't stored again; the existing song is used (batch tags are added to it). `POST /api/songs` answers `{song, existing}`. Since the 2026-10-13 code review, "the same" means identical audio frames (`songs.audio_hash`, a SHA-1 of the frames, ignoring tags; older songs are fingerprinted at startup and after a restore), so a clean edit with the same title, artist and length as the explicit one is kept as its own song.
 - Music: A–Z / Newest sort. Users can be removed (not yourself, not the last admin; `DELETE /api/users/:id`). Admin's Announcer section only appears when there's an engine choice. Errors are `role="alert"`.
 
 ### Jukebox and shared playlists (2026-10-12, owner's request)

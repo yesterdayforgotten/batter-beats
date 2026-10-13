@@ -81,8 +81,12 @@ function AddUserForm({ onAdded }: { onAdded(user: User): void }) {
   const [role, setRole] = useState<Role>("user");
   const [error, setError] = useState<string | null>(null);
 
+  const [busy, setBusy] = useState(false);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setError(null);
     try {
       const r = await api<{ user: User }>("/users", { body: { username, password, role } });
@@ -93,6 +97,8 @@ function AddUserForm({ onAdded }: { onAdded(user: User): void }) {
       setOpen(false);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -140,7 +146,9 @@ function AddUserForm({ onAdded }: { onAdded(user: User): void }) {
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
-        <button className="primary">Create user</button>
+        <button className="primary" disabled={busy}>
+          Create user
+        </button>
         <button type="button" onClick={() => setOpen(false)}>
           Cancel
         </button>
@@ -155,8 +163,12 @@ function ResetPassword({ user }: { user: User }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [busy, setBusy] = useState(false);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setError(null);
     try {
       await api(`/users/${user.id}`, { method: "PATCH", body: { password } });
@@ -165,6 +177,8 @@ function ResetPassword({ user }: { user: User }) {
       setMessage("Password changed.");
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -200,7 +214,9 @@ function ResetPassword({ user }: { user: User }) {
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
-        <button className="primary">Save</button>
+        <button className="primary" disabled={busy}>
+          Save
+        </button>
         <button type="button" onClick={() => setOpen(false)}>
           Cancel
         </button>

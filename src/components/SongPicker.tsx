@@ -32,14 +32,25 @@ export function SongPicker({
   /** The song being listened to before choosing (whole song, from the start). */
   const [listening, setListening] = useState<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => () => audio.current?.pause(), []);
+  /** False once the picker has closed. */
+  const open = useRef(true);
+  useEffect(
+    () => () => {
+      open.current = false;
+      audio.current?.pause();
+    },
+    [],
+  );
 
   function listen(song: Song) {
     audio.current?.pause();
     if (listening === song.id) return setListening(null);
     const a = new Audio(`/api/media/songs/${song.id}.mp3`);
     a.onended = () => setListening((id) => (id === song.id ? null : id));
-    a.play().catch(() => setListening(null));
+    a.play().catch((err) => {
+      // Switching to another song interrupts this one's start; that's not a failure.
+      if (audio.current === a && (err as Error).name !== "AbortError") setListening(null);
+    });
     audio.current = a;
     setListening(song.id);
   }
@@ -83,7 +94,8 @@ export function SongPicker({
     setProgress(0);
     try {
       const r = await upload<{ song: Song }>("/songs", file, setProgress);
-      onPick(r.song);
+      // Closed while it uploaded: the song is in the library, but don't change the player's song.
+      if (open.current) onPick(r.song);
     } catch (err) {
       setError((err as Error).message);
     } finally {
