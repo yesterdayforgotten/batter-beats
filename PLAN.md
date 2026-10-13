@@ -291,6 +291,9 @@ A four-part review (server security, server media/announcer, game day, editing s
 - Installed app is portrait only (`orientation` in the manifest).
 - The screen wake lock is requested as soon as game mode opens where that works without a tap (Android, iOS 18.4+); older iPhones still start it (video fallback) at the first tap.
 
+### Preview button taps (2026-10-13)
+"Preview as in game" works like game mode: tap to play, tap again to fade out ("Fading out · tap to stop"), tap during the fade to stop at once; a tap within 0.8 s of that stop is ignored.
+
 ### Song offset (2026-10-13)
 The announcer section's "Song in" slider is now labelled "Song Offset" (when the song comes in after the voice starts). New players start at 2 s (`ANNOUNCER.defaultSongDelayMs`); existing players keep theirs.
 

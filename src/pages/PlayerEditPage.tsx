@@ -46,6 +46,8 @@ export function PlayerEditPage() {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [previewFading, setPreviewFading] = useState(false);
+  const previewStoppedAt = useRef(-Infinity);
   const [playheadMs, setPlayheadMs] = useState<number | null>(null);
   /**
    * Listening to the original song (not the game preview): the whole song, the
@@ -258,6 +260,7 @@ export function PlayerEditPage() {
 
   function stopPreview() {
     previewToken.current++;
+    setPreviewFading(false);
     wholeAudio.current?.pause();
     wholeAudio.current = null;
     listenTone.current?.disconnect();
@@ -272,9 +275,18 @@ export function PlayerEditPage() {
   async function togglePreview() {
     unlockAudio(); // must happen inside the tap
     if (playback.current?.playing) {
-      playback.current.fadeOut();
+      // First tap fades out; a second tap while it fades stops it at once (as in game mode).
+      if (playback.current.fading) {
+        stopPreview();
+        previewStoppedAt.current = performance.now();
+      } else {
+        playback.current.fadeOut();
+        setPreviewFading(true);
+      }
       return;
     }
+    // A tap just after stopping was meant to stop it: don't start it again (as in game mode).
+    if (performance.now() - previewStoppedAt.current < 800) return;
     if (playing) {
       // Tapped again while it's still getting ready: cancel instead of starting a second one.
       stopPreview();
@@ -640,7 +652,7 @@ export function PlayerEditPage() {
         {clip && (
           <button className={`preview ${playing ? "playing" : "primary"}`} onClick={togglePreview}>
             {playing ? <SoundBars /> : <PlayIcon />}
-            {playing ? "Playing · tap to fade out" : "Preview as in game"}
+            {playing ? (previewFading ? "Fading out · tap to stop" : "Playing · tap to fade out") : "Preview as in game"}
           </button>
         )}
 
