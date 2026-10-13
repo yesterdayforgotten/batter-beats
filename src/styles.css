@@ -2062,14 +2062,11 @@ label,
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  border: 1px solid var(--accent);
   color: var(--accent);
   font-size: 12px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .playhead-box.idle {
-  border-color: var(--line);
   color: var(--faint);
 }
